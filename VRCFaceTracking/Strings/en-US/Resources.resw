@@ -425,4 +425,22 @@
   <data name="ModuleCrashed.Text" xml:space="preserve">
     <value>Module process stopped unexpectedly</value>
   </data>
+  <data name="ModuleRegistryHeader.Text" xml:space="preserve">
+    <value>Modules</value>
+  </data>
+  <data name="InstallCustomModuleButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Install a module from a .zip file</value>
+  </data>
+  <data name="InstallCustomModuleHint.Text" xml:space="preserve">
+    <value>Install a module from a .zip file</value>
+  </data>
+  <data name="InstallCustomModuleCancelled" xml:space="preserve">
+    <value>Operation cancelled.</value>
+  </data>
+  <data name="InstallCustomModuleSucceeded" xml:space="preserve">
+    <value>Module installed.</value>
+  </data>
+  <data name="InstallCustomModuleFailed" xml:space="preserve">
+    <value>Failed to install the module. Check the log for details.</value>
+  </data>
 </root>

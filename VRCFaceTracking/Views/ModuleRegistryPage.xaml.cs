@@ -1,7 +1,7 @@
-﻿using CommunityToolkit.WinUI.UI.Controls;
 using Microsoft.UI.Xaml;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Services;
+using VRCFaceTracking.Helpers;
 using VRCFaceTracking.ViewModels;
 using Windows.Storage.Pickers;
 
@@ -30,59 +30,42 @@ public sealed partial class ModuleRegistryPage
         ModuleInstaller = App.GetService<ModuleInstaller>();
         LibManager = App.GetService<ILibManager>();
         InitializeComponent();
-    }
-
-    private void OnViewStateChanged(object sender, ListDetailsViewState e)
-    {
-        if (e == ListDetailsViewState.Both)
-        {
-            ViewModel.EnsureItemSelected();
-        }
+        ViewModel.ModuleInfos.CollectionChanged += (_, _) => ViewModel.EnsureItemSelected();
     }
 
     private async void InstallCustomModule_OnClick(object sender, RoutedEventArgs e)
     {
         CustomInstallStatus.Text = "";
 
-        // Create a file picker
         var openPicker = new FileOpenPicker();
-
-        // Retrieve the window handle (HWND) of the current WinUI 3 window.
-        var window = App.MainWindow;
-        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
-
-        // Initialize the file picker with the window handle (HWND).
+        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
         WinRT.Interop.InitializeWithWindow.Initialize(openPicker, hWnd);
-
-        // Set options for your file picker
         openPicker.ViewMode = PickerViewMode.Thumbnail;
-        openPicker.FileTypeFilter.Add("*");
+        openPicker.FileTypeFilter.Add(".zip");
 
-        // Open the picker for the user to pick a file
         var file = await openPicker.PickSingleFileAsync();
-        if (file != null)
+        if (file == null)
         {
-            string? path = null;
-            try
-            {
-                path = await ModuleInstaller.InstallLocalModule(file.Path);
-            }
-            finally
-            {
-                if (path != null)
-                {
-                    CustomInstallStatus.Text = "Successfully installed module.";
-                    App.MainWindow.DispatcherQueue.TryEnqueue(() => LibManager.Initialize());
-                }
-                else
-                {
-                    CustomInstallStatus.Text = "Failed to install module. Check logs for more information.";
-                }
-            }
+            CustomInstallStatus.Text = "InstallCustomModuleCancelled".GetLocalized();
+            return;
         }
-        else
+
+        string? path = null;
+        try
         {
-            CustomInstallStatus.Text = "Operation cancelled.";
+            path = await ModuleInstaller.InstallLocalModule(file.Path);
+        }
+        finally
+        {
+            if (path != null)
+            {
+                CustomInstallStatus.Text = "InstallCustomModuleSucceeded".GetLocalized();
+                App.MainWindow.DispatcherQueue.TryEnqueue(() => LibManager.Initialize());
+            }
+            else
+            {
+                CustomInstallStatus.Text = "InstallCustomModuleFailed".GetLocalized();
+            }
         }
     }
 }

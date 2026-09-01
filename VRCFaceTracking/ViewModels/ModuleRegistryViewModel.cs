@@ -11,7 +11,11 @@ namespace VRCFaceTracking.ViewModels;
 public partial class ModuleRegistryViewModel : ObservableRecipient, INavigationAware
 {
     private readonly IModuleDataService _moduleDataService;
-    [ObservableProperty] private InstallableTrackingModule? _selected;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    private InstallableTrackingModule? _selected;
+
+    public bool HasSelection => Selected != null;
 
     public ObservableCollection<InstallableTrackingModule> ModuleInfos { get; } = new();
 
