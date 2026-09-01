@@ -108,35 +108,28 @@ public class OscRecvService : BackgroundService
 
         while (!_stoppingToken.IsCancellationRequested)
         {
-            if (_linkedToken.IsCancellationRequested || _recvSocket is not { IsBound: true })
-            {
-                continue;
-            }
-
             try
             {
-                if (_recvSocket.Available > 0)
+                if (_linkedToken.IsCancellationRequested || _recvSocket is not { IsBound: true })
                 {
-                    var bytesReceived =
-                        await _recvSocket.ReceiveAsync(_recvBuffer, SocketFlags.None, _linkedToken.Token);
-                    var offset = 0;
-                    var newMsg = OscMessage.TryParseOsc(_recvBuffer, bytesReceived, ref offset);
-                    if (newMsg == null)
-                    {
-                        continue;
-                    }
+                    await Task.Delay(50, _stoppingToken);
+                    continue;
+                }
 
-                    OnMessageReceived(newMsg);
-                }
-                else
+                var bytesReceived = await _recvSocket.ReceiveAsync(_recvBuffer, SocketFlags.None, _linkedToken.Token);
+                var offset = 0;
+                var newMsg = OscMessage.TryParseOsc(_recvBuffer, bytesReceived, ref offset);
+                if (newMsg == null)
                 {
-                    await Task.Delay(100, _linkedToken.Token);
+                    continue;
                 }
+
+                OnMessageReceived(newMsg);
             }
             catch (Exception e)
             {
-                // We don't care about operation cancellations as they're intentional and carefully controlled
-                if (e.GetType() == typeof(OperationCanceledException) || e.GetType() == typeof(TaskCanceledException))
+                if (e is OperationCanceledException or ObjectDisposedException
+                    or SocketException { SocketErrorCode: SocketError.OperationAborted or SocketError.Interrupted })
                 {
                     continue;
                 }

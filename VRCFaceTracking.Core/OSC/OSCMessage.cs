@@ -6,6 +6,10 @@ namespace VRCFaceTracking.Core.OSC;
 
 public class OscMessage
 {
+    private static readonly int AddressOffset = (int)Marshal.OffsetOf<OscMessageMeta>(nameof(OscMessageMeta.Address));
+    private static readonly int ValueLengthOffset = (int)Marshal.OffsetOf<OscMessageMeta>(nameof(OscMessageMeta.ValueLength));
+    private static readonly int ValueOffset = (int)Marshal.OffsetOf<OscMessageMeta>(nameof(OscMessageMeta.Value));
+
     public OscMessageMeta _meta;
     private IntPtr _metaPtr;
 
@@ -26,15 +30,7 @@ public class OscMessage
                 return null;
             }
             
-            var values = new OscValue[_meta.ValueLength];
-            var ptr = _meta.Value;
-            for (var i = 0; i < _meta.ValueLength; i++)
-            {
-                values[i] = Marshal.PtrToStructure<OscValue>(ptr);
-                ptr += Marshal.SizeOf<OscValue>();
-            }
-
-            return values[0].Value;
+            return Marshal.PtrToStructure<OscValue>(_meta.Value).Value;
         }
         set => _valueSetter(value);
     }
@@ -98,7 +94,9 @@ public class OscMessage
         _metaPtr = fti_osc.parse_osc(bytes, len, ref messageIndex);
         if (_metaPtr != IntPtr.Zero)
         {
-            _meta = Marshal.PtrToStructure<OscMessageMeta>(_metaPtr);
+            _meta.Address = Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(_metaPtr, AddressOffset));
+            _meta.ValueLength = Marshal.ReadInt32(_metaPtr, ValueLengthOffset);
+            _meta.Value = Marshal.ReadIntPtr(_metaPtr, ValueOffset);
         }
     }
 
