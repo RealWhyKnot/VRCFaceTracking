@@ -1,3 +1,4 @@
+﻿using System.Reflection;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Logging;
@@ -50,10 +51,12 @@ public class BuildInfoTests
     }
 
     [Fact]
-    public void LocalBuildIsDevAndForcesVerbose()
+    public void ChannelComesFromAssemblyMetadataAndDrivesVerboseForcing()
     {
-        Assert.Equal(BuildChannel.Dev, BuildInfo.Channel);
-        Assert.True(BuildInfo.VerboseForced);
+        var metadata = typeof(BuildInfo).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(a => a.Key == BuildInfo.ChannelMetadataKey).Value;
+        Assert.Equal(BuildInfo.ParseChannel(metadata), BuildInfo.Channel);
+        Assert.Equal(BuildInfo.Channel != BuildChannel.Release, BuildInfo.VerboseForced);
     }
 
     [Fact]
