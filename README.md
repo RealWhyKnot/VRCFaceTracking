@@ -21,7 +21,7 @@ Grab the zip from the latest release, unzip it anywhere, run `VRCFaceTracking.ex
 same unpackaged layout the Steam build uses; settings and installed modules in
 `%AppData%\VRCFaceTracking` carry over.
 
-Releases tagged `-beta` are prereleases built from the latest master. They log verbosely by
+Releases tagged `-beta` are prereleases built from the latest main. They log verbosely by
 default. Stable releases log warnings and errors only unless you turn on verbose logging in
 Settings, under Diagnostics.
 
@@ -57,7 +57,7 @@ Push a tag `vYYYY.M.D.N` for a stable release or `vYYYY.M.D.N-beta` for a prerel
 release workflow checks that N is the next free number for that day, builds, tests, publishes,
 zips, writes a SHA-256 next to the zip and creates the GitHub release with notes generated from
 the conventional commit subjects since the previous tag. The nightly workflow tags a beta when
-master moved since the last tag; it needs a `RELEASE_TOKEN` secret with `contents: write`.
+main moved since the last tag; it needs a `RELEASE_TOKEN` secret with `contents: write`.
 
 CI on every push formats (`dotnet format --verify-no-changes`), builds both the dev and release
 channels, runs the tests and checks commit subjects against `type(scope): summary`.

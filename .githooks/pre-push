@@ -10,7 +10,7 @@ if ! command -v dotnet >/dev/null 2>&1; then
 fi
 
 upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-[ -n "$upstream" ] || upstream="origin/master"
+[ -n "$upstream" ] || upstream="origin/main"
 if ! git rev-parse --verify -q "$upstream" >/dev/null; then
   upstream="HEAD~1"
 fi

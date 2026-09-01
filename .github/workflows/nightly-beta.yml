@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   tag:
-    name: Tag a beta when master moved
+    name: Tag a beta when main moved
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
