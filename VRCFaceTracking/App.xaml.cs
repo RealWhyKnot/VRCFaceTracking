@@ -6,7 +6,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
-using Sentry.Protocol;
 using VRCFaceTracking.Activation;
 using VRCFaceTracking.Contracts.Services;
 using VRCFaceTracking.Core;
@@ -78,9 +77,6 @@ public partial class App : Application
             logging.ClearProviders();
             logging.AddDebug();
             logging.AddConsole();
-            logging.AddSentry(o =>
-                o.Dsn =
-                    "https://444b0799dd2b670efa85d866c8c12134@o4506152235237376.ingest.us.sentry.io/4506152246575104");
             logging.AddProvider(new OutputLogProvider(DispatcherQueue.GetForCurrentThread()));
             logging.AddProvider(new LogFileProvider());
         }).
@@ -154,24 +150,6 @@ public partial class App : Application
     {
         base.OnLaunched(args);
 
-        SentrySdk.Init(o =>
-        {
-            o.Dsn = "https://444b0799dd2b670efa85d866c8c12134@o4506152235237376.ingest.sentry.io/4506152246575104";
-            o.TracesSampleRate = 1.0;
-            o.AutoSessionTracking = true;
-            #if DEBUG
-            o.Environment = "debug";
-            #else
-            o.Environment = "release";
-            #endif
-            var version = Assembly.GetEntryAssembly()?.GetName().Version;
-            if (version != null)
-            {
-                o.Release = $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
-            }
-
-            o.IsGlobalModeEnabled = true;
-        });
         Current.UnhandledException += ExceptionHandler;
 
         // Kill any other instances of VRCFaceTracking.exe and our module processes
@@ -189,13 +167,6 @@ public partial class App : Application
         var exception = e.Exception;
         if (exception != null)
         {
-            // Tells Sentry this was an Unhandled Exception
-            exception.Data[Mechanism.HandledKey] = false;
-            exception.Data[Mechanism.MechanismKey] = "Application.UnhandledException";
-            SentrySdk.CaptureException(exception);
-            // Make sure the event is flushed to disk or to Sentry
-            SentrySdk.FlushAsync(TimeSpan.FromSeconds(3)).Wait();
-            
             _logger?.LogError(exception, "Unhandled exception");
             _logger?.LogCritical("Stacktrace: {0}", exception.StackTrace);
             _logger?.LogCritical("Inner exception: {0}", exception.InnerException);

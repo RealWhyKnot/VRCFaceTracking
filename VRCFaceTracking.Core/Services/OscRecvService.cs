@@ -141,8 +141,7 @@ public class OscRecvService : BackgroundService
                     continue;
                 }
 
-                _logger.LogError("Error encountered in OSC Receive thread: {e}", e);
-                SentrySdk.CaptureException(e, scope => scope.SetExtra("recvBuffer", _recvBuffer));
+                _logger.LogError(e, "Error encountered in OSC Receive thread");
             }
         }
     }

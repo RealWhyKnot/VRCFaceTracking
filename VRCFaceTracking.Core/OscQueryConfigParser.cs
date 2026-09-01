@@ -63,8 +63,7 @@ public class OscQueryConfigParser(
         }
         catch (Exception e)
         {
-            parserLogger.LogError(e.Message);
-            SentrySdk.CaptureException(e, scope => scope.SetExtra("endpoint", multicastDnsService.VrchatClientEndpoint));
+            parserLogger.LogError(e, "Failed to parse OSCQuery avatar config from {Endpoint}", multicastDnsService.VrchatClientEndpoint);
             return null;
         }
     }

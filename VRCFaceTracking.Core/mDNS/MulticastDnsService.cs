@@ -260,7 +260,7 @@ public partial class MulticastDnsService : ObservableObject
             }
             catch (Exception e)
             {
-                SentrySdk.CaptureException(e, scope => scope.SetExtra("bytes", result.Buffer));
+                _logger.LogError(e, "Failed to handle mDNS packet from {Endpoint}", result.RemoteEndPoint);
             }
         }
     }

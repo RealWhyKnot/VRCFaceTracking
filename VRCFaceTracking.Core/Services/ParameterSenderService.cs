@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.OSC;
 using VRCFaceTracking.Core.Params.Data;
@@ -12,6 +13,7 @@ public class ParameterSenderService : BackgroundService
     private static readonly Queue<OscMessage> SendQueue = new();
  
     private readonly OscSendService _sendService;
+    private readonly ILogger<ParameterSenderService> _logger;
     private readonly UnifiedTrackingMutator _mutator; // We don't use this but we do want DI to run its constructor
 
     public static bool AllParametersRelevantStatic
@@ -33,9 +35,10 @@ public class ParameterSenderService : BackgroundService
         }
     }
     
-    public ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator)
+    public ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger)
     {
         _sendService = sendService;
+        _logger = logger;
         _mutator = mutator;
     }
 
@@ -64,17 +67,7 @@ public class ParameterSenderService : BackgroundService
             }
             catch (Exception e)
             {
-                SentrySdk.CaptureException(e, scope =>
-                {
-                    var i = 0;
-                    foreach (var msg in SendQueue)
-                    {
-                        scope.SetExtra($"Address {i}", msg.Address);
-                        scope.SetExtra($"Values {i}", msg._meta.ValueLength);
-                        scope.SetExtra($"Value 0 {i}", msg.Value);
-                        i++;
-                    }
-                });
+                _logger.LogError(e, "Failed to send {Count} queued OSC messages", SendQueue.Count);
             }
         }
     }
