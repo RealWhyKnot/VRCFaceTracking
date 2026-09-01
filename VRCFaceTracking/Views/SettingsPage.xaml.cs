@@ -13,15 +13,6 @@ namespace VRCFaceTracking.Views;
 
 public sealed partial class SettingsPage : Page
 {
-    public string Version
-    {
-        get
-        {
-            var version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version;
-            return version != null ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}" : "Unknown";
-        }
-    }
-
     public SettingsViewModel ViewModel
     {
         get;

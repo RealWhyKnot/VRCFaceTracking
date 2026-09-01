@@ -42,6 +42,7 @@ public static class Utils
     public static readonly string UserAccessibleDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VRCFaceTracking");
     public static readonly string PersistentDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VRCFaceTracking");
     public static readonly string CustomLibsDirectory = Path.Combine(PersistentDataDirectory, "CustomLibs");
+    public static readonly string LogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCFaceTracking", "logs");
     
     public static int GetRandomFreePort()
     {

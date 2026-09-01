@@ -395,4 +395,34 @@
   <data name="Shell_TrackingSettings.Content" xml:space="preserve">
     <value>Tracking Settings</value>
   </data>
+  <data name="DiagnosticsSettings.Header" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="DiagnosticsSettings.Description" xml:space="preserve">
+    <value>Log files and build information</value>
+  </data>
+  <data name="VerboseLoggingSettings.Header" xml:space="preserve">
+    <value>Verbose logging</value>
+  </data>
+  <data name="VerboseLoggingDescription" xml:space="preserve">
+    <value>Write Debug and Information lines to the log file. Warnings and errors are always written.</value>
+  </data>
+  <data name="VerboseLoggingForcedDescription" xml:space="preserve">
+    <value>Always on for dev and beta builds. Warnings and errors are always written.</value>
+  </data>
+  <data name="LogFilesToKeepSettings.Header" xml:space="preserve">
+    <value>Log files to keep</value>
+  </data>
+  <data name="LogFilesToKeepSettings.Description" xml:space="preserve">
+    <value>Older log files are deleted when the app starts.</value>
+  </data>
+  <data name="LogFolderSettings.Header" xml:space="preserve">
+    <value>Log folder</value>
+  </data>
+  <data name="OpenLogsButton.Content" xml:space="preserve">
+    <value>Open folder</value>
+  </data>
+  <data name="ModuleCrashed.Text" xml:space="preserve">
+    <value>Module process stopped unexpectedly</value>
+  </data>
 </root>

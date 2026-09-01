@@ -38,6 +38,8 @@ public class ModuleRuntimeInfo
     /// The process hosting the sandboxed module
     /// </summary>
     public Process Process;
+    public ModuleProcessWatcher Watcher;
+    public volatile bool TeardownRequested;
     /// <summary>
     /// The module's retreived metadata
     /// </summary>

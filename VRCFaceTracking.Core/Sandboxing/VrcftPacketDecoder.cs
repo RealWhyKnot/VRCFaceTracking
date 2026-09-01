@@ -71,6 +71,11 @@ public class VrcftPacketDecoder
                 packet.Decode(data);
                 break;
 
+            case IpcPacket.PacketType.EventSetVerbose:
+                packet = new EventSetVerbosePacket();
+                packet.Decode(data);
+                break;
+
 
 
             // EventGetSupported

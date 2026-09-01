@@ -12,6 +12,7 @@ using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.mDNS;
 using VRCFaceTracking.Core.Models;
 using VRCFaceTracking.Core.OSC.Query.mDNS;
@@ -40,6 +41,14 @@ public partial class App : Application
     
     private ILogger? _logger;
 
+    private static readonly LogLevelGate LogGate = new();
+    private static readonly LoggingSettings LoggingSettings = new();
+    private static readonly FileLoggerProvider FileLog = new(
+        Core.Utils.LogDirectory,
+        LogFileNames.Main(DateTime.Now),
+        BuildInfo.HeaderBlock("VRCFaceTracking"),
+        LogGate);
+
     public static T GetService<T>()
         where T : class
     {
@@ -55,6 +64,8 @@ public partial class App : Application
 
     public App()
     {
+        LogGate.Set(BuildInfo.VerboseForced);
+        CrashHandlers.Install(FileLog.CreateLogger("Crash"), FileLog.Flush);
         InitializeComponent();
         
         // Check for a "reset" file in the root of the app directory. If one is found, wipe all files from inside it
@@ -77,8 +88,8 @@ public partial class App : Application
             logging.ClearProviders();
             logging.AddDebug();
             logging.AddConsole();
-            logging.AddProvider(new OutputLogProvider(DispatcherQueue.GetForCurrentThread()));
-            logging.AddProvider(new LogFileProvider());
+            logging.AddProvider(new OutputLogProvider(DispatcherQueue.GetForCurrentThread(), LogGate));
+            logging.AddProvider(FileLog);
         }).
         UseContentRoot(AppContext.BaseDirectory).
         ConfigureServices((context, services) =>
@@ -86,6 +97,9 @@ public partial class App : Application
             // Default Activation Handler
             services.AddTransient<ActivationHandler<LaunchActivatedEventArgs>, DefaultActivationHandler>();
 
+            services.AddSingleton(LogGate);
+            services.AddSingleton(LoggingSettings);
+            services.AddSingleton(FileLog);
             services.AddSingleton<ILocalSettingsService, LocalSettingsService>();
             services.AddSingleton<IThemeSelectorService, ThemeSelectorService>();
             services.AddTransient<INavigationViewService, NavigationViewService>();
@@ -152,6 +166,12 @@ public partial class App : Application
 
         Current.UnhandledException += ExceptionHandler;
 
+        await App.GetService<ILocalSettingsService>().Load(LoggingSettings);
+        LogGate.Set(LoggingSettings.VerboseEffective);
+        FileLog.WriteRaw($"channel={BuildInfo.ChannelName} verbose={LogGate.Verbose} forced={BuildInfo.VerboseForced} keep={LoggingSettings.LogFilesToKeep}");
+        LogRetention.Prune(Core.Utils.LogDirectory, LogFileNames.MainPattern, LoggingSettings.LogFilesToKeep);
+        LogRetention.Prune(Core.Utils.LogDirectory, LogFileNames.ModulePattern, LoggingSettings.LogFilesToKeep);
+
         // Kill any other instances of VRCFaceTracking.exe and our module processes
         Core.Utils.KillAllProcessesOfName("VRCFaceTracking");
         Core.Utils.KillAllProcessesOfName("VRCFaceTracking.ModuleProcess");
@@ -167,10 +187,8 @@ public partial class App : Application
         var exception = e.Exception;
         if (exception != null)
         {
-            _logger?.LogError(exception, "Unhandled exception");
-            _logger?.LogCritical("Stacktrace: {0}", exception.StackTrace);
-            _logger?.LogCritical("Inner exception: {0}", exception.InnerException);
-            _logger?.LogCritical("Message: {0}", exception.Message);
+            _logger?.LogCritical(exception, "Unhandled exception in UI thread");
+            FileLog.Flush();
         }
     }
 

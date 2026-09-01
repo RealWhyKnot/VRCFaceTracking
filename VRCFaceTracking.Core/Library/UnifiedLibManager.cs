@@ -1,9 +1,10 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
+using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Sandboxing;
 using VRCFaceTracking.Core.Sandboxing.IPC;
 
@@ -15,6 +16,7 @@ public class UnifiedLibManager : ILibManager
     private readonly ILogger<UnifiedLibManager> _logger;
     private readonly ILogger _moduleLogger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly LogLevelGate _logGate;
     #endregion
 
     #region Observables
@@ -43,9 +45,11 @@ public class UnifiedLibManager : ILibManager
     private static VrcftSandboxServer _sandboxServer;
     #endregion
     
-    public UnifiedLibManager(ILoggerFactory factory, IDispatcherService dispatcherService, IModuleDataService moduleDataService)
+    public UnifiedLibManager(ILoggerFactory factory, IDispatcherService dispatcherService, IModuleDataService moduleDataService, LogLevelGate logGate)
     {
         _loggerFactory = factory;
+        _logGate = logGate;
+        _logGate.VerboseChanged += BroadcastVerbose;
         _logger = factory.CreateLogger<UnifiedLibManager>();
         _moduleLogger = factory.CreateLogger("\0VRCFT\0");
         _dispatcherService = dispatcherService;
@@ -331,31 +335,15 @@ public class UnifiedLibManager : ILibManager
         {
             try
             {
-                // Start subprocess
-                var sandboxProcess  = Process.Start(new ProcessStartInfo(
-                    _sandboxProcessPath, $"--port {_sandboxServer.Port} --module-path \"{dll}\" --parent-pid {Environment.ProcessId}"
+                var verboseFlag = _logGate.Verbose ? " --verbose" : string.Empty;
+                var sandboxProcess = Process.Start(new ProcessStartInfo(
+                    _sandboxProcessPath, $"--port {_sandboxServer.Port} --module-path \"{dll}\" --parent-pid {Environment.ProcessId}{verboseFlag}"
                 )
                 {
-#if !DEBUG
+                    UseShellExecute = false,
                     CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-#else
-                    // In debug mode we connect stdout and stderr
                     RedirectStandardError = true,
-                    RedirectStandardOutput = true,
-#endif
-                });
-
-#if DEBUG
-                // Start a thread to copy stderr and stdout to debug
-                new Thread(() =>
-                {
-                    string output = sandboxProcess.StandardOutput.ReadToEnd();
-                    output = output + sandboxProcess.StandardError.ReadToEnd();
-                    sandboxProcess.WaitForExit();
-                    Debug.WriteLine(output);
-                }).Start();
-#endif
+                })!;
 
                 var pid             = sandboxProcess.Id;
 
@@ -373,9 +361,10 @@ public class UnifiedLibManager : ILibManager
                 };
                 lock ( AvailableSandboxModules )
                 {
-                    _logger.LogDebug("Started sandbox process with dll {dllPath}", dll);
+                    _logger.LogInformation("Started module process {pid} for {dllPath}", pid, dll);
                     AvailableSandboxModules.Add(runtimeInfo);
                 }
+                runtimeInfo.Watcher = new ModuleProcessWatcher(sandboxProcess, runtimeInfo.ModuleClassName, _moduleLogger, code => OnModuleProcessExited(runtimeInfo, code));
             }
             catch ( Exception e )
             {
@@ -384,6 +373,66 @@ public class UnifiedLibManager : ILibManager
         }
     }
     
+    private void OnModuleProcessExited(ModuleRuntimeInfo module, int exitCode)
+    {
+        module.UpdateCancellationToken?.Cancel();
+        module.IsActive = false;
+
+        if (exitCode == ModuleProcessExitCodes.OK || module.TeardownRequested)
+        {
+            _logger.LogInformation("Module process for {module} exited ({description})", module.ModuleClassName, ModuleProcessExitCodes.Describe(exitCode));
+            return;
+        }
+
+        var description = ModuleProcessExitCodes.Describe(exitCode);
+        var stderrTail = module.Watcher?.StderrTail ?? string.Empty;
+        _logger.LogError("Module process for {module} stopped unexpectedly: {description}. Last stderr lines:{newline}{tail}",
+            module.ModuleClassName, description, Environment.NewLine, stderrTail);
+
+        _dispatcherService.Run(() =>
+        {
+            var info = module.ModuleInformation;
+            if (string.IsNullOrEmpty(info.Name))
+            {
+                info.Name = module.ModuleClassName;
+            }
+
+            if (LoadedModulesMetadata.Count > 0 && !LoadedModulesMetadata[0].Active &&
+                (LoadedModulesMetadata[0].Name == "No Modules Loaded" || LoadedModulesMetadata[0].Name == "Initializing Modules..."))
+            {
+                LoadedModulesMetadata.RemoveAt(0);
+            }
+
+            if (!LoadedModulesMetadata.Contains(info))
+            {
+                LoadedModulesMetadata.Add(info);
+            }
+
+            info.Active = false;
+            module.Status = ModuleState.Crashed;
+            info.CrashDescription = description;
+            info.Crashed = true;
+        });
+    }
+
+    private void BroadcastVerbose(bool verbose)
+    {
+        var packet = new EventSetVerbosePacket { Verbose = verbose };
+        ModuleRuntimeInfo[] modules;
+        lock (AvailableSandboxModules)
+        {
+            modules = AvailableSandboxModules.ToArray();
+        }
+
+        foreach (var module in modules)
+        {
+            if (module.SandboxProcessPort > 0 && !(module.Process?.HasExited ?? true))
+            {
+                _sandboxServer.SendData(packet, module.SandboxProcessPort);
+            }
+        }
+    }
+
     private void EnsureModuleThreadStartedSandboxed(ModuleRuntimeInfo module)
     {
         if (_moduleThreads.Any(pair =>
@@ -440,6 +489,7 @@ public class UnifiedLibManager : ILibManager
     private bool TeardownModuleSandboxed(ModuleRuntimeInfo module)
     {
         _logger.LogInformation("Tearing down {module} ", module.ModuleClassName);
+        module.TeardownRequested = true;
 
         // Send a message to the module sub-process
         var eventTeardownPacket = new EventTeardownPacket();

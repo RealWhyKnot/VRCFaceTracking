@@ -89,6 +89,26 @@
                     </labs:SettingsCard.HeaderIcon>
                     <ToggleSwitch IsOn="{x:Bind ViewModel.AutoStart, Mode=TwoWay}"/>
                 </labs:SettingsCard>
+
+                <labs:SettingsExpander x:Uid="DiagnosticsSettings">
+                    <labs:SettingsExpander.HeaderIcon>
+                        <FontIcon Glyph="&#xE9D9;" />
+                    </labs:SettingsExpander.HeaderIcon>
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.VersionText}" />
+                    <labs:SettingsExpander.Items>
+                        <labs:SettingsCard x:Uid="VerboseLoggingSettings"
+                            IsEnabled="{x:Bind ViewModel.IsVerboseToggleEnabled}"
+                            Description="{x:Bind ViewModel.VerboseDescription}">
+                            <ToggleSwitch IsOn="{x:Bind ViewModel.VerboseLogging, Mode=TwoWay}" />
+                        </labs:SettingsCard>
+                        <labs:SettingsCard x:Uid="LogFilesToKeepSettings">
+                            <NumberBox Minimum="1" Maximum="200" SmallChange="1" SpinButtonPlacementMode="Compact" Value="{x:Bind ViewModel.LogFilesToKeep, Mode=TwoWay}" />
+                        </labs:SettingsCard>
+                        <labs:SettingsCard x:Uid="LogFolderSettings" Description="{x:Bind ViewModel.LogDirectory}">
+                            <Button x:Uid="OpenLogsButton" Command="{x:Bind ViewModel.OpenLogsCommand}" />
+                        </labs:SettingsCard>
+                    </labs:SettingsExpander.Items>
+                </labs:SettingsExpander>
                 
                 <labs:SettingsExpander x:Uid="RiskySettings">
                     <labs:SettingsExpander.HeaderIcon>
@@ -144,7 +164,7 @@
                             Margin="0,-2,0,0"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             IsTextSelectionEnabled="True"
-                            Text="{x:Bind Version}" />
+                            Text="{x:Bind ViewModel.VersionText}" />
                     <labs:SettingsExpander.Items>
                         <labs:SettingsCard
                             x:Uid="PrivacyPolicyCard"

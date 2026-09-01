@@ -23,6 +23,7 @@ public class IpcPacket
         EventUpdate         = 203,
         EventUpdateStatus   = 204,
         EventLog            = 205,
+        EventSetVerbose     = 206,
 
         // Replies to the above events
         ReplyGetSupported   = 300,

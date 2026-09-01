@@ -48,4 +48,27 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsingExpression)));
         }
     }
+
+    private bool _crashed;
+    private string _crashDescription = string.Empty;
+
+    public bool Crashed
+    {
+        get => _crashed;
+        set
+        {
+            _crashed = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Crashed)));
+        }
+    }
+
+    public string CrashDescription
+    {
+        get => _crashDescription;
+        set
+        {
+            _crashDescription = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CrashDescription)));
+        }
+    }
 }

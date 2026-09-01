@@ -1,8 +1,11 @@
-﻿using System.CommandLine;
+using System.CommandLine;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
+using VRCFaceTracking.Core;
+using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
 using VRCFaceTracking.Core.Sandboxing;
@@ -12,8 +15,7 @@ namespace VRCFaceTracking.ModuleProcess;
 
 public class ModuleProcessMain
 {
-    // How long in seconds we should wait for a connection to be established before giving up
-    private const double CONNECTION_TIMEOUT = 60.0; // This is long because some modules like the Vive Facial Tracker software can take a long time to initialise
+    private const double CONNECTION_TIMEOUT = 60.0;
     private static bool WaitForPackets = true;
     public static ModuleAssembly DefModuleAssembly;
     public static ILoggerFactory? LoggerFactory;
@@ -21,6 +23,8 @@ public class ModuleProcessMain
     public static VrcftSandboxClient Client;
     public static CancellationTokenSource cts = new();
 
+    private static readonly LogLevelGate Gate = new();
+    private static FileLoggerProvider? _fileLogger;
     private static Queue<IpcPacket> _packetsToSend = new ();
     private static Timer? _connectionTimer;
 
@@ -36,20 +40,41 @@ public class ModuleProcessMain
 
     public static int Main(string[] args)
     {
+        var modulePathArg = args.SkipWhile(a => a != "--module-path").Skip(1).FirstOrDefault();
+        var moduleName = Path.GetFileNameWithoutExtension(modulePathArg ?? "module");
+        Gate.Set(args.Contains("--verbose") || BuildInfo.VerboseForced);
+        _fileLogger = new FileLoggerProvider(Core.Utils.LogDirectory, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}"), Gate);
+        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum}");
+
+        var serviceProvider = new ServiceCollection()
+            .AddLogging(loggingBuilder => loggingBuilder
+                .ClearProviders()
+                .SetMinimumLevel(LogLevel.Trace)
+                .AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace)
+                .AddFilter<ConsoleLoggerProvider>(null, LogLevel.Error)
+                .AddProvider(_fileLogger)
+                .AddProvider(new ProxyLoggerProvider(Gate)))
+            .BuildServiceProvider();
+
+        LoggerFactory = serviceProvider.GetService<ILoggerFactory>();
+        Logger = LoggerFactory!.CreateLogger<ModuleProcessMain>();
+        CrashHandlers.Install(Logger, _fileLogger.Flush);
+
         AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
         {
-            Logger.LogInformation("Received SIGTERM");
+            Logger.LogInformation("Process exit requested");
             WaitForPackets = false;
-            DefModuleAssembly._updateCts.Cancel();
+            DefModuleAssembly?._updateCts?.Cancel();
             cts.Cancel();
             cts.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+            _fileLogger.Flush();
         };
-        
+
         try
         {
             if ( args.Length < 1 )
             {
-                // Not enough arguments
+                Logger.LogCritical("No arguments supplied");
                 return ModuleProcessExitCodes.INVALID_ARGS;
             }
 
@@ -65,58 +90,49 @@ public class ModuleProcessMain
             {
                 Description = "PID of the parent VRCFT process. Module process exits if parent dies."
             };
+            var verboseOption = new Option<bool>("--verbose")
+            {
+                Description = "Write Debug and Information level log lines."
+            };
 
             var rootCommand = new RootCommand("VRCFT Sandbox Module");
             rootCommand.Options.Add(portOption);
             rootCommand.Options.Add(modulePathOption);
             rootCommand.Options.Add(parentPidOption);
+            rootCommand.Options.Add(verboseOption);
 
             rootCommand.SetAction(parseResult =>
             {
                 var modulePath = parseResult.GetValue(modulePathOption);
                 var port = parseResult.GetValue(portOption);
                 var parentPid = parseResult.GetValue(parentPidOption);
-                VrcftMain(modulePath!, port ?? 0, parentPid);
-                return 0;
+                if (modulePath == null || port is null or 0)
+                {
+                    Logger.LogCritical("--module-path and --port are required");
+                    return ModuleProcessExitCodes.INVALID_ARGS;
+                }
+
+                return VrcftMain(modulePath, port.Value, parentPid);
             });
 
             return rootCommand.Parse(args).Invoke();
         }
         catch ( Exception ex )
         {
-            // So that we can catch errors
-            Logger.LogCritical($"{ex.Message}:\n{ex.StackTrace}");
-            Logger.LogCritical($"{ex.Message}");
-#if DEBUG
-            Console.ReadKey();
-            Console.ReadLine();
-#endif
+            Logger.LogCritical(ex, "Module process crashed");
             return ModuleProcessExitCodes.EXCEPTION_CRASH;
         }
         finally
         {
             Client?.Dispose();
+            _fileLogger.Flush();
         }
     }
 
     static int VrcftMain(string modulePath, int serverPortNumber, int? parentPid = null)
     {
-        // Give the main process enough time to add the module to the list before we begin sending data
         Thread.Sleep(50);
 
-        ServiceProvider serviceProvider = new ServiceCollection()
-        .AddLogging((loggingBuilder) => loggingBuilder
-                .ClearProviders()
-                .AddDebug()
-                .AddConsole()
-                .AddProvider(new ProxyLoggerProvider())
-            )
-        .BuildServiceProvider();
-
-        LoggerFactory = serviceProvider.GetService<ILoggerFactory>();
-        Logger = LoggerFactory.CreateLogger<ModuleProcessMain>();
-
-        // Separate watchdog thread independent of module code to ensure module shutdown  
         if (parentPid.HasValue)
         {
             var watchdogThread = new Thread(() =>
@@ -128,7 +144,7 @@ public class ModuleProcessMain
                 }
                 catch (Exception) { }
 
-                // Tryna be polite and give 10 seconds to tear down cleanly. Will kill process if we're still alive after 10 secs
+                Logger.LogWarning("Host process {Pid} exited, tearing down module", parentPid.Value);
                 var teardownThread = new Thread(() =>
                 {
                     try
@@ -142,7 +158,8 @@ public class ModuleProcessMain
                 teardownThread.Start();
                 teardownThread.Join(TimeSpan.FromSeconds(10));
 
-                Process.GetCurrentProcess().Kill();
+                _fileLogger?.Flush();
+                Environment.Exit(ModuleProcessExitCodes.PARENT_EXITED);
             });
             watchdogThread.IsBackground = true;
             watchdogThread.Name = "ParentWatchdog";
@@ -153,21 +170,22 @@ public class ModuleProcessMain
             Logger.LogWarning("No parent pid provided. Lingering process detection is limited to existing timeouts and graceful shutdown");
         }
 
-        // A module process will connect to a given port number first. We try connecting to the server for 30 seconds, then give up, returning an error code in the process.
         Client = new VrcftSandboxClient(serverPortNumber, LoggerFactory);
 
-        // Bind the log function so that we can forward log messages to VRCFT's main process
         ProxyLogger.OnLog += (level, msg) =>
         {
             var pkt = new EventLogPacket(level, msg);
             Client.SendData(pkt);
         };
 
-        // Try loading the module
         DefModuleAssembly = new ModuleAssembly(Logger, LoggerFactory, modulePath);
         DefModuleAssembly.TryLoadAssembly();
+        if (DefModuleAssembly.TrackingModule == null)
+        {
+            Logger.LogError("No ExtTrackingModule implementation could be loaded from {Path}", modulePath);
+            return ModuleProcessExitCodes.MODULE_LOAD_FAILED;
+        }
 
-        // Initialise to invalid state
         UnifiedTracking.Data = new() {
             Eye = new()
             {
@@ -194,10 +212,8 @@ public class ModuleProcessMain
 
         Client.OnReceiveShouldBeQueued += QueueReceiveEvent;
         Client.OnPacketReceivedCallback += (in IpcPacket packet) => {
-            // Reset the timeout
             _connectionTimer?.Change(TimeSpan.FromSeconds(CONNECTION_TIMEOUT), Timeout.InfiniteTimeSpan);
 
-            // Handle packets
             switch ( packet.GetPacketType() )
             {
                 case IpcPacket.PacketType.EventGetSupported:
@@ -222,26 +238,34 @@ public class ModuleProcessMain
                         }
                         catch ( MissingMethodException )
                         {
-                            Logger.LogError("{moduleName} does not properly implement ExtTrackingModule. Skipping.", DefModuleAssembly.GetType().Name);
+                            Logger.LogError("{moduleName} does not properly implement ExtTrackingModule. Skipping.", DefModuleAssembly.TrackingModule.GetType().Name);
                             return;
                         } catch ( Exception e )
                         {
-                            Logger.LogError("Exception initializing {module}. Skipping. {e}", DefModuleAssembly.GetType().Name, e);
+                            Logger.LogError(e, "Exception initializing {module}. Skipping.", DefModuleAssembly.TrackingModule.GetType().Name);
                             return;
                         }
-                        
+
                         DefModuleAssembly._updateCts = new CancellationTokenSource();
                         var thread = new Thread(() =>
                         {
-                            while (!DefModuleAssembly._updateCts.IsCancellationRequested)
+                            try
                             {
-                                DefModuleAssembly.TrackingModule.Update();
+                                while (!DefModuleAssembly._updateCts.IsCancellationRequested)
+                                {
+                                    DefModuleAssembly.TrackingModule.Update();
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Logger.LogCritical(e, "Module update loop crashed");
+                                _fileLogger?.Flush();
+                                throw;
                             }
                         });
-                        // Background thread as to not prevent the CLR from terminating if stuck in native code (looking at you vive)
                         thread.IsBackground = true;
                         thread.Start();
-                        
+
                         var pktNew = new ReplyInitPacket()
                         {
                             eyeSuccess              = eyeSuccess,
@@ -263,27 +287,23 @@ public class ModuleProcessMain
                         }
                         catch(Exception e)
                         {
-                            Logger.LogWarning("Tracking module failed to cleanly shut down.");
-                            Logger.LogError(e.ToString());
+                            Logger.LogWarning(e, "Tracking module failed to cleanly shut down.");
                         }
 
                         Logger.LogInformation("Cancelled Update Threads");
-                        
-                        // Tell VRCFT that we have shut down successfully (otherwise VRCFT will terminate this process)
+
                         var pkt = new ReplyTeardownPacket();
-                        // Tell VRCFT we have shutdown immediately
                         Client.SendData(pkt);
-                        
+
                         Logger.LogInformation("Sent teardown ACK");
 
-                        // Shut down the event loop
+                        _fileLogger?.Flush();
                         Environment.Exit(ModuleProcessExitCodes.OK);
                         break;
                     }
 
                 case IpcPacket.PacketType.EventUpdate:
                     {
-                        // Logger.LogDebug("EventUpdate");
                         var pkt = new ReplyUpdatePacket();
                         _packetsToSend.Enqueue(pkt);
                         break;
@@ -296,6 +316,14 @@ public class ModuleProcessMain
 
                         break;
                     }
+
+                case IpcPacket.PacketType.EventSetVerbose:
+                    {
+                        var pkt = (EventSetVerbosePacket) packet;
+                        Gate.Set(pkt.Verbose || BuildInfo.VerboseForced);
+                        _fileLogger?.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum}");
+                        break;
+                    }
             }
 
         };
@@ -303,28 +331,25 @@ public class ModuleProcessMain
         {
             Core.Utils.TimeBeginPeriod(1);
         }
-        
-        // Start the connection
+
         Client.Connect(modulePath);
         Logger.LogInformation("Initializing {module}", DefModuleAssembly.Assembly.ToString());
 
         _connectionTimer = new Timer(_ =>
         {
             Logger.LogWarning("No packets received for {timeout}s, assuming connection lost", CONNECTION_TIMEOUT);
-            Process.GetCurrentProcess().Kill();
+            _fileLogger?.Flush();
+            Environment.Exit(ModuleProcessExitCodes.NETWORK_CONNECTION_TIMED_OUT);
         }, null, TimeSpan.FromSeconds(CONNECTION_TIMEOUT), Timeout.InfiniteTimeSpan);
 
-        // Loop infinitely while we wait for commands
         while ( WaitForPackets && !cts.IsCancellationRequested)
         {
-            // Send packets in loop
             while (_packetsToSend.TryDequeue(out IpcPacket pkt))
             {
-                if (pkt == null) continue;  // Ignore your IDE. This can and will be null at some point as we're not locking
+                if (pkt == null) continue;
                 Client.SendData(pkt);
             }
 
-            // Tell the client to receive data
             if ( _shouldCallReceive )
             {
                 Client.ReceivePackets();
@@ -332,8 +357,8 @@ public class ModuleProcessMain
 
             Thread.Sleep(1);
         }
-        
-        DefModuleAssembly._updateCts.Cancel();
+
+        DefModuleAssembly._updateCts?.Cancel();
         _connectionTimer?.Dispose();
 
         if (OperatingSystem.IsWindows())
@@ -341,6 +366,7 @@ public class ModuleProcessMain
             Core.Utils.TimeEndPeriod(1);
         }
 
+        _fileLogger?.Flush();
         Environment.Exit(ModuleProcessExitCodes.OK);
         return ModuleProcessExitCodes.OK;
     }
