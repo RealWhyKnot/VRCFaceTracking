@@ -4,12 +4,20 @@
     <VftUiTargetFramework>net10.0-windows10.0.22621.0</VftUiTargetFramework>
     <VftTargetPlatformVersion>10.0.22621.0</VftTargetPlatformVersion>
     <VftTargetPlatformMinVersion>10.0.17763.0</VftTargetPlatformMinVersion>
-    <AssemblyVersion>5.4.5.0</AssemblyVersion>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Platforms>x86;x64;arm64;AnyCPU</Platforms>
     <VftBuildChannel Condition="'$(VftBuildChannel)' == ''">dev</VftBuildChannel>
+    <VftVersionFile>$(MSBuildThisFileDirectory)version.txt</VftVersionFile>
+    <VftVersion Condition="'$(VftVersion)' == '' And Exists('$(VftVersionFile)')">$([System.IO.File]::ReadAllText('$(VftVersionFile)').Trim())</VftVersion>
+    <VftVersion Condition="'$(VftVersion)' == ''">0.0.0.0-local</VftVersion>
+    <VftNumericVersion>$([System.Text.RegularExpressions.Regex]::Replace('$(VftVersion)', '-.*$', ''))</VftNumericVersion>
+    <AssemblyVersion>$(VftNumericVersion)</AssemblyVersion>
+    <FileVersion>$(VftNumericVersion)</FileVersion>
+    <Version>$(VftNumericVersion)</Version>
+    <InformationalVersion>$(VftVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="VftBuildChannel" Value="$(VftBuildChannel)" />

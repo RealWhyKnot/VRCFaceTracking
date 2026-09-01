@@ -21,7 +21,9 @@ public static class BuildInfo
 
     public static readonly Version Version = typeof(BuildInfo).Assembly.GetName().Version ?? new Version(0, 0, 0, 0);
 
-    public static string VersionString => $"{Version.Major}.{Version.Minor}.{Version.Build}.{Version.Revision}";
+    public static readonly string VersionString = typeof(BuildInfo).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? $"{Version.Major}.{Version.Minor}.{Version.Build}.{Version.Revision}";
 
     public static string ChannelName => Channel.ToString().ToLowerInvariant();
 

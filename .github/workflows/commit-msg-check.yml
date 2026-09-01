@@ -1,0 +1,68 @@
+name: Commit message check
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Validate commit subjects
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages in the pushed range
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${PR_HEAD_SHA:-}" ] && [ -n "${PR_BASE_SHA:-}" ]; then
+            range="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+          elif [ "${BEFORE_SHA:-}" = "0000000000000000000000000000000000000000" ] || [ -z "${BEFORE_SHA:-}" ]; then
+            range="${AFTER_SHA}~1..${AFTER_SHA}"
+          else
+            range="${BEFORE_SHA}..${AFTER_SHA}"
+          fi
+          echo "Validating commits in range: $range"
+
+          stamp='\([0-9]{4}\.[0-9]+\.[0-9]+\.[0-9]+(-[A-Fa-f0-9]{4})?\)'
+          conventional='^(feat|fix|chore|ci|docs|refactor|test|perf|diag|style)(\([a-z0-9-]+\))?!?: .+'
+
+          failures=0
+          while IFS= read -r line; do
+            sha="${line%% *}"
+            subject="${line#* }"
+            count=$( ( printf '%s\n' "$subject" | grep -oE "$stamp" || true ) | grep -c . || true )
+            count=${count//[^0-9]/}
+            count=${count:-0}
+            if [ "$count" -gt 1 ]; then
+              echo "::error::Commit $sha has $count build-version stamps in its subject: $subject"
+              failures=$((failures + 1))
+            fi
+            case "$subject" in
+              Merge\ *|Revert\ *) continue ;;
+            esac
+            if ! printf '%s\n' "$subject" | grep -qE "$conventional"; then
+              echo "::error::Commit $sha is not a conventional commit: $subject"
+              failures=$((failures + 1))
+            fi
+          done < <(git log --format='%H %s' "$range")
+
+          if [ "$failures" -gt 0 ]; then
+            echo "::error::$failures commit subject(s) failed validation. See .githooks/commit-msg for the local check."
+            exit 1
+          fi
+
+          echo "All commit subjects in $range pass."

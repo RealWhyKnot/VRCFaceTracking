@@ -57,6 +57,13 @@ public class BuildInfoTests
     }
 
     [Fact]
+    public void VersionStringCarriesTheBuildStamp()
+    {
+        Assert.Matches(@"^\d+\.\d+\.\d+\.\d+(-[A-Za-z0-9]+)?$", BuildInfo.VersionString);
+        Assert.StartsWith($"{BuildInfo.Version.Major}.{BuildInfo.Version.Minor}.{BuildInfo.Version.Build}.{BuildInfo.Version.Revision}", BuildInfo.VersionString);
+    }
+
+    [Fact]
     public void HeaderBlockNamesProcessVersionAndChannel()
     {
         var header = BuildInfo.HeaderBlock("Tests");

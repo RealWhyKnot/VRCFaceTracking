@@ -1,0 +1,7 @@
+* text=auto
+
+.githooks/* text eol=lf
+
+.github/workflows/*.yml text eol=lf
+
+*.ps1 text eol=crlf

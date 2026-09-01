@@ -1,62 +1,97 @@
+#!/usr/bin/env pwsh
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$Tag,
-    [string]$PreviousTag,
-    [Parameter(Mandatory = $true)][string]$OutFile
+  [Parameter(Mandatory = $true)][string] $Tag,
+  [string] $RepoRoot = (Get-Location).Path,
+  [string] $ZipPath = "",
+  [string] $OutFile = ""
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = "Stop"
 
-$range = if ([string]::IsNullOrWhiteSpace($PreviousTag)) { $Tag } else { "$PreviousTag..$Tag" }
-$lines = git log --no-merges --format='%s|%h' $range
-if ($LASTEXITCODE -ne 0) {
-    throw "git log failed for $range"
+function Invoke-Git {
+  param([string[]] $Arguments)
+  $output = & git @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE" }
+  return @($output)
 }
 
-$categories = [ordered]@{
-    feat     = 'Features'
-    fix      = 'Bug fixes'
-    perf     = 'Performance'
-    refactor = 'Refactoring'
-    revert   = 'Reverts'
-    docs     = 'Documentation'
-    build    = 'Build'
-    ci       = 'CI'
-    test     = 'Tests'
-    style    = 'Style'
-    chore    = 'Chores'
+function Get-PreviousTag {
+  param([string] $Tag)
+  $tags = @(Invoke-Git -Arguments @("tag", "--list", "v*", "--sort=-creatordate"))
+  $seen = $false
+  foreach ($t in $tags) {
+    if ($seen) { return $t }
+    if ($t -eq $Tag) { $seen = $true }
+  }
+  return ""
 }
-$buckets = @{}
-foreach ($key in $categories.Keys) { $buckets[$key] = New-Object System.Collections.ArrayList }
-$other = New-Object System.Collections.ArrayList
 
-foreach ($line in $lines) {
-    if ([string]::IsNullOrWhiteSpace($line)) { continue }
-    $parts = $line -split '\|', 2
-    $subject = $parts[0]
-    $sha = $parts[1]
-    if ($subject -match '^(?<type>[a-z]+)(\((?<scope>[^)]+)\))?!?: (?<desc>.+)$' -and $buckets.ContainsKey($Matches.type)) {
-        $scope = if ($Matches.scope) { "**$($Matches.scope)**: " } else { '' }
-        [void]$buckets[$Matches.type].Add("- $scope$($Matches.desc) ($sha)")
+Push-Location (Resolve-Path -LiteralPath $RepoRoot).Path
+try {
+  $previous = Get-PreviousTag -Tag $Tag
+  $range = if ($previous) { "$previous..$Tag" } else { $Tag }
+  $subjects = @(Invoke-Git -Arguments @("log", "--format=%s", "--no-merges", $range))
+
+  $sections = [ordered]@{
+    "Features" = [System.Collections.Generic.List[string]]::new()
+    "Fixes" = [System.Collections.Generic.List[string]]::new()
+    "Changes" = [System.Collections.Generic.List[string]]::new()
+    "Maintenance" = [System.Collections.Generic.List[string]]::new()
+  }
+  $typeToSection = @{
+    feat = "Features"; fix = "Fixes"; perf = "Changes"; refactor = "Changes"; diag = "Changes"
+    chore = "Maintenance"; ci = "Maintenance"; docs = "Maintenance"; test = "Maintenance"; style = "Maintenance"
+  }
+
+  foreach ($raw in $subjects) {
+    $subject = ($raw -replace '\s*\([0-9]{4}\.[0-9]+\.[0-9]+\.[0-9]+(-[A-Fa-f0-9]{4})?\)\s*$', '').Trim()
+    if (-not $subject -or $subject -match '\[skip changelog\]') { continue }
+    if ($subject -match '^(?<type>[a-z]+)(\((?<scope>[a-z0-9-]+)\))?!?:\s*(?<summary>.+)$') {
+      $section = $typeToSection[$Matches.type]
+      if (-not $section) { $section = "Changes" }
+      $summary = $Matches.summary.Trim()
+      if ($Matches.scope) { $summary = "$($Matches.scope): $summary" }
+      $sections[$section].Add($summary) | Out-Null
     } else {
-        [void]$other.Add("- $subject ($sha)")
+      $sections["Changes"].Add($subject) | Out-Null
     }
-}
+  }
 
-$sb = New-Object System.Text.StringBuilder
-foreach ($key in $categories.Keys) {
-    if ($buckets[$key].Count -eq 0) { continue }
-    [void]$sb.AppendLine("## $($categories[$key])")
-    foreach ($entry in $buckets[$key]) { [void]$sb.AppendLine($entry) }
-    [void]$sb.AppendLine()
-}
-if ($other.Count -gt 0) {
-    [void]$sb.AppendLine('## Other changes')
-    foreach ($entry in $other) { [void]$sb.AppendLine($entry) }
-    [void]$sb.AppendLine()
-}
-if ($sb.Length -eq 0) {
-    [void]$sb.AppendLine('No changes recorded.')
-}
+  $lines = [System.Collections.Generic.List[string]]::new()
+  $lines.Add("## $Tag") | Out-Null
+  if ($previous) { $lines.Add("Changes since $previous.") | Out-Null }
+  $lines.Add("") | Out-Null
+  $any = $false
+  foreach ($name in $sections.Keys) {
+    $items = $sections[$name]
+    if ($items.Count -eq 0) { continue }
+    $any = $true
+    $lines.Add("### $name") | Out-Null
+    foreach ($item in $items) { $lines.Add("- $item") | Out-Null }
+    $lines.Add("") | Out-Null
+  }
+  if (-not $any) {
+    $lines.Add("No user-facing changes recorded.") | Out-Null
+    $lines.Add("") | Out-Null
+  }
 
-[System.IO.File]::WriteAllText($OutFile, $sb.ToString(), (New-Object System.Text.UTF8Encoding($false)))
-Write-Host "Wrote release notes for $range to $OutFile"
+  if ($ZipPath) {
+    $zip = Get-Item -LiteralPath $ZipPath
+    $hash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $sizeMiB = [math]::Round($zip.Length / 1MB, 2)
+    $lines.Add("### Download") | Out-Null
+    $lines.Add("- $($zip.Name) ($sizeMiB MiB)") | Out-Null
+    $lines.Add("- SHA256 ``$hash``") | Out-Null
+    $lines.Add("") | Out-Null
+  }
+
+  $text = ($lines -join "`n")
+  if ($OutFile) {
+    [System.IO.File]::WriteAllText($OutFile, $text, (New-Object System.Text.UTF8Encoding($false)))
+  }
+  Write-Output $text
+}
+finally {
+  Pop-Location
+}

@@ -1,9 +1,38 @@
-#!/bin/sh
-if command -v pwsh >/dev/null 2>&1; then
-  pwsh -NoProfile -File "$(dirname "$0")/pre-push.ps1"
-elif command -v powershell >/dev/null 2>&1; then
-  powershell -NoProfile -File "$(dirname "$0")/pre-push.ps1"
-else
-  echo "pre-push: PowerShell not found, skipping format check"
+#!/usr/bin/env bash
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -f "$repo_root/VRCFaceTracking.sln" ] || exit 0
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "pre-push: dotnet not found; skipping format check." >&2
   exit 0
 fi
+
+upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+[ -n "$upstream" ] || upstream="origin/master"
+if ! git rev-parse --verify -q "$upstream" >/dev/null; then
+  upstream="HEAD~1"
+fi
+
+mapfile -t changed < <(git diff --name-only --diff-filter=ACMR "$upstream...HEAD" -- '*.cs' 2>/dev/null | while IFS= read -r f; do [ -f "$repo_root/$f" ] && printf '%s\n' "$f"; done)
+if [ "${#changed[@]}" -eq 0 ]; then
+  echo "pre-push: no C# changes since $upstream; skipping format check." >&2
+  exit 0
+fi
+
+echo "pre-push: checking formatting of ${#changed[@]} changed file(s)..." >&2
+includes=()
+for f in "${changed[@]}"; do includes+=("$f"); done
+(cd "$repo_root" && dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore --include "${includes[@]}")
+if [ "$?" -ne 0 ]; then
+  {
+    echo ""
+    echo "pre-push BLOCKED: changed files would fail CI's lint job."
+    echo "  Fix format:  dotnet format VRCFaceTracking.sln"
+    echo "  Bypass:      git push --no-verify"
+    echo ""
+  } >&2
+  exit 1
+fi
+exit 0

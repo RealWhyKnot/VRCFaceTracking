@@ -3,61 +3,114 @@ name: CI
 on:
   push:
     branches: [master]
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
   pull_request:
-    branches: [master]
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   lint:
+    name: Lint
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/cache@v4
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
-      - name: Restore
-        run: dotnet restore VRCFaceTracking.sln -p:Platform=x64
-      - name: Check formatting
-        run: dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore
-      - name: Check commit subjects
-        if: github.event_name != 'workflow_dispatch'
+
+      - name: Script self-tests
         shell: pwsh
         run: |
-          $base = if ('${{ github.event_name }}' -eq 'pull_request') { '${{ github.event.pull_request.base.sha }}' } else { '${{ github.event.before }}' }
-          ./.github/scripts/Test-CommitSubjects.ps1 -Base $base -Head '${{ github.sha }}'
+          ./.github/scripts/Test-WorkflowSyntax.ps1
+          ./.github/scripts/Test-ReleaseVersionSequence.ps1
+          ./.github/scripts/Test-GenerateReleaseNotes.ps1
 
-  build-test:
+      - name: Restore
+        shell: pwsh
+        run: |
+          dotnet restore VRCFaceTracking.sln -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
+
+      - name: Check formatting
+        shell: pwsh
+        run: |
+          dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "formatting drift; run 'dotnet format VRCFaceTracking.sln' and commit ($LASTEXITCODE)" }
+
+  build:
+    name: Build ${{ matrix.channel }}
     runs-on: windows-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [dev, release]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/cache@v4
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
+
       - name: Restore
-        run: dotnet restore VRCFaceTracking.sln -p:Platform=x64
+        shell: pwsh
+        run: |
+          dotnet restore VRCFaceTracking.sln -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
+
       - name: Build
-        run: dotnet build VRCFaceTracking.sln -c Release -p:Platform=x64 -p:VftBuildChannel=release --no-restore
+        shell: pwsh
+        run: |
+          dotnet build VRCFaceTracking.sln -c Release -p:Platform=x64 -p:VftBuildChannel=${{ matrix.channel }} -p:VftVersion=0.0.0.0-CI --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
+
       - name: Test
-        run: dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release -p:Platform=x64 --no-build --logger "trx;LogFileName=core.trx"
-      - uses: actions/upload-artifact@v4
+        shell: pwsh
+        run: |
+          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release -p:Platform=x64 --no-build --logger "trx;LogFileName=core.trx"
+          if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          ./.github/scripts/Publish-App.ps1 -Channel ${{ matrix.channel }} -Version 0.0.0.0-CI -OutDir build/publish
+          if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vrcfacetracking-${{ matrix.channel }}-${{ github.sha }}
+          path: build/publish
+          retention-days: 14
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results
+          name: test-results-${{ matrix.channel }}
           path: '**/TestResults/*.trx'
