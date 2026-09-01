@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore VRCFaceTracking.sln -p:Platform=x64
+      - name: Check formatting
+        run: dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore
+      - name: Check commit subjects
+        if: github.event_name != 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $base = if ('${{ github.event_name }}' -eq 'pull_request') { '${{ github.event.pull_request.base.sha }}' } else { '${{ github.event.before }}' }
+          ./.github/scripts/Test-CommitSubjects.ps1 -Base $base -Head '${{ github.sha }}'
+
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore VRCFaceTracking.sln -p:Platform=x64
+      - name: Build
+        run: dotnet build VRCFaceTracking.sln -c Release -p:Platform=x64 -p:VftBuildChannel=release --no-restore
+      - name: Test
+        run: dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release -p:Platform=x64 --no-build --logger "trx;LogFileName=core.trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'

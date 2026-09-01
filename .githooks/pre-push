@@ -1,0 +1,9 @@
+#!/bin/sh
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -File "$(dirname "$0")/pre-push.ps1"
+elif command -v powershell >/dev/null 2>&1; then
+  powershell -NoProfile -File "$(dirname "$0")/pre-push.ps1"
+else
+  echo "pre-push: PowerShell not found, skipping format check"
+  exit 0
+fi

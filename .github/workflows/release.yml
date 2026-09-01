@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^v(\d{4})\.(\d{1,2})\.(\d{1,2})\.(\d+)(-beta)?$') {
+            throw "Tags must match vYYYY.M.D.N or vYYYY.M.D.N-beta (got '$tag')."
+          }
+          $isBeta = [bool]$Matches[5]
+          $version = $tag.Substring(1) -replace '-beta$', ''
+          $channel = if ($isBeta) { 'beta' } else { 'release' }
+          $previous = git tag --list 'v*' --sort=-v:refname | Where-Object { $_ -ne $tag } | Select-Object -First 1
+          "is_beta=$($isBeta.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          "previous=$previous" >> $env:GITHUB_OUTPUT
+          Write-Host "tag=$tag version=$version channel=$channel previous=$previous"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore VRCFaceTracking.sln -p:Platform=x64
+
+      - name: Build and test
+        run: |
+          dotnet build VRCFaceTracking.sln -c Release -p:Platform=x64 -p:VftBuildChannel=${{ steps.tag.outputs.channel }} -p:Version=${{ steps.tag.outputs.version }} -p:AssemblyVersion=${{ steps.tag.outputs.version }} -p:FileVersion=${{ steps.tag.outputs.version }} --no-restore
+          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release -p:Platform=x64 --no-build
+
+      - name: Publish
+        run: dotnet publish VRCFaceTracking/VRCFaceTracking.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true -p:WindowsPackageType=None -p:GenerateAppInstallerFile=false -p:VftBuildChannel=${{ steps.tag.outputs.channel }} -p:Version=${{ steps.tag.outputs.version }} -p:AssemblyVersion=${{ steps.tag.outputs.version }} -p:FileVersion=${{ steps.tag.outputs.version }} -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          if (-not (Test-Path publish/VRCFaceTracking.exe)) { throw 'publish/VRCFaceTracking.exe missing' }
+          if (-not (Test-Path publish/VRCFaceTracking.ModuleProcess.exe)) { throw 'publish/VRCFaceTracking.ModuleProcess.exe missing' }
+          Compress-Archive -Path publish/* -DestinationPath "VRCFaceTracking-${{ github.ref_name }}-win-x64.zip"
+          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag '${{ github.ref_name }}' -PreviousTag '${{ steps.tag.outputs.previous }}' -OutFile notes.md
+          Get-Content notes.md
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $extra = @()
+          if ('${{ steps.tag.outputs.is_beta }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
+          gh release view $tag --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -eq 0) { gh release delete $tag --repo '${{ github.repository }}' --yes }
+          gh release create $tag "VRCFaceTracking-$tag-win-x64.zip" --repo '${{ github.repository }}' --target '${{ github.sha }}' --title $tag --notes-file notes.md @extra
