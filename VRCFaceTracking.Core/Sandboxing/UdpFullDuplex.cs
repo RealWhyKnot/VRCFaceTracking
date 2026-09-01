@@ -160,8 +160,7 @@ public class UdpFullDuplex : IDisposable
 
             }
 
-            // Process bytes
-            if (receiveWindow != null && receiveWindow.Length > 0)
+            if (res > 0)
             {
                 OnBytesReceived(in receiveWindow, in _remoteIpEndPoint);
             }
