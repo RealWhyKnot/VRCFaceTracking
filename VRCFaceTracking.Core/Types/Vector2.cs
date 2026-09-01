@@ -49,25 +49,13 @@ namespace VRCFaceTracking.Core.Types
         public float ToPitch()
         => -(float)(Math.Atan(y) * (180 / Math.PI));
 
-        /// <summary>
-        /// Converts the Tobii normalized eye value to a normalized yaw value from -1 to 1, representing -45 to 45 degrees.
-        /// </summary>
         public float ToNormalizedYaw()
-        => Remap(ToYaw(), -45, 45, -1, 1);
+        => ToYaw() / 45f;
 
-        /// <summary>
-        /// Converts the Tobii normalized eye value to a normalized pitch value from -1 to 1, representing -45 to 45 degrees.
-        /// </summary>
         public float ToNormalizedPitch()
-        => Remap(ToPitch(), -45, 45, -1, 1);
+        => ToPitch() / 45f;
 
-        //return a remade vector2 that represents the remapped values
         public Vector2 ToNormalized()
         => new Vector2(ToNormalizedYaw(), ToNormalizedPitch());
-
-        private float Remap(float source, float sourceFrom, float sourceTo, float targetFrom, float targetTo)
-        {
-            return targetFrom + (source-sourceFrom)*(targetTo-targetFrom)/(sourceTo-sourceFrom);
-        }
     }
 }
