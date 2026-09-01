@@ -1,32 +1,31 @@
 ﻿using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.OSC.DataTypes;
 
-namespace VRCFaceTracking.Core.Types
+namespace VRCFaceTracking.Core.Types;
+
+[Obsolete("Use Vector2 instead")]
+public class XYParam
 {
-    [Obsolete("Use Vector2 instead")]
-    public class XYParam
+    public BaseParam<float> X, Y;
+
+    protected Vector2 ParamValue
     {
-        public BaseParam<float> X, Y;
-
-        protected Vector2 ParamValue
+        set
         {
-            set
-            {
-                X.ParamValue = value.x;
-                Y.ParamValue = value.y;
-            }
+            X.ParamValue = value.x;
+            Y.ParamValue = value.y;
         }
+    }
 
-        protected XYParam(BaseParam<float> x, BaseParam<float> y)
-        {
-            X = x;
-            Y = y;
-        }
+    protected XYParam(BaseParam<float> x, BaseParam<float> y)
+    {
+        X = x;
+        Y = y;
+    }
 
-        protected void ResetParams(IParameterDefinition[] newParams)
-        {
-            X.ResetParam(newParams);
-            Y.ResetParam(newParams);
-        }
+    protected void ResetParams(IParameterDefinition[] newParams)
+    {
+        X.ResetParam(newParams);
+        Y.ResetParam(newParams);
     }
 }

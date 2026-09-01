@@ -39,10 +39,10 @@ public class OscRecvService : BackgroundService
         {
             if (args.PropertyName == nameof(_oscTarget.IsConnected))
                 return;
-            
+
             var validationResults = new List<ValidationResult>();
             var context = new ValidationContext(_oscTarget);
-    
+
             if (!Validator.TryValidateObject(_oscTarget, context, validationResults, validateAllProperties: true))
             {
                 var errorMessages = string.Join(Environment.NewLine, validationResults.Select(v => v.ErrorMessage));
@@ -72,7 +72,7 @@ public class OscRecvService : BackgroundService
             _logger.LogError("Cannot bind to non-loopback IP");
             return null;
         }
-        
+
         _logger.LogInformation($"Updating osc recv target to {endpoint}");
         _cts.Cancel();
         _recvSocket?.Close();

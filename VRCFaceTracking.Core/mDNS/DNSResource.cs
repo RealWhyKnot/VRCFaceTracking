@@ -2,7 +2,7 @@
 
 public class DnsResource : DnsQuestion
 {
-    private static readonly Dictionary<ushort, Type> _typeMap = new Dictionary<ushort, Type>
+    private static readonly Dictionary<ushort, Type> _typeMap = new()
     {
         {1, typeof(ARecord)},
         {2, typeof(NSRecord)},
@@ -10,17 +10,17 @@ public class DnsResource : DnsQuestion
         {16, typeof(TXTRecord)},
         {33, typeof(SRVRecord)},
     };
-        
+
     public TimeSpan TTL;
     public IDnsSerializer Data;
 
     public DnsResource(BigReader reader) : base(reader)
     {
         TTL = TimeSpan.FromSeconds(reader.ReadUInt32());
-            
+
         var dataLength = (int)reader.ReadUInt16();
         var expectedEnd = reader.BaseStream.Position + dataLength;
-            
+
         if (_typeMap.TryGetValue(Type, out var type))
         {
             Data = (IDnsSerializer)Activator.CreateInstance(type);
@@ -40,18 +40,18 @@ public class DnsResource : DnsQuestion
         Data = data;
         TTL = TimeSpan.FromSeconds(120);
     }
- 
+
     public override byte[] Serialize()
     {
         List<byte> bytes = new List<byte>();
         bytes.AddRange(base.Serialize());
-            
+
         bytes.AddRange(BigWriter.WriteUInt32((uint)TTL.TotalSeconds));
-            
+
         var data = Data.Serialize();
         bytes.AddRange(BigWriter.WriteUInt16((ushort)data.Length));
         bytes.AddRange(data);
-            
+
         return bytes.ToArray();
     }
 }

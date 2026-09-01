@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace VRCFaceTracking.Core.Sandboxing.IPC;
+
 public class MetadataUpdatePacket : IpcPacket
 {
 }

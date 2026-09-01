@@ -11,7 +11,7 @@ public sealed partial class MainPage : Page
     {
         get;
     }
-    
+
     public INavigationService NavigationService
     {
         get;

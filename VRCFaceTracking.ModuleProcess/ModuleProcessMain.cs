@@ -25,14 +25,14 @@ public class ModuleProcessMain
 
     private static readonly LogLevelGate Gate = new();
     private static FileLoggerProvider? _fileLogger;
-    private static Queue<IpcPacket> _packetsToSend = new ();
+    private static readonly Queue<IpcPacket> _packetsToSend = new();
     private static Timer? _connectionTimer;
 
-    private static object _callbackLock = new ();
+    private static readonly object _callbackLock = new();
     private static bool _shouldCallReceive = false;
     public static void QueueReceiveEvent()
     {
-        lock ( _callbackLock )
+        lock (_callbackLock)
         {
             _shouldCallReceive = true;
         }
@@ -72,7 +72,7 @@ public class ModuleProcessMain
 
         try
         {
-            if ( args.Length < 1 )
+            if (args.Length < 1)
             {
                 Logger.LogCritical("No arguments supplied");
                 return ModuleProcessExitCodes.INVALID_ARGS;
@@ -117,7 +117,7 @@ public class ModuleProcessMain
 
             return rootCommand.Parse(args).Invoke();
         }
-        catch ( Exception ex )
+        catch (Exception ex)
         {
             Logger.LogCritical(ex, "Module process crashed");
             return ModuleProcessExitCodes.EXCEPTION_CRASH;
@@ -186,7 +186,8 @@ public class ModuleProcessMain
             return ModuleProcessExitCodes.MODULE_LOAD_FAILED;
         }
 
-        UnifiedTracking.Data = new() {
+        UnifiedTracking.Data = new()
+        {
             Eye = new()
             {
                 Left = new()
@@ -205,23 +206,24 @@ public class ModuleProcessMain
                 _minDilation = 0xFFFFFFFF,
             }
         };
-        for ( int i = 0; i < ( int )UnifiedExpressions.Max + 1; i++ )
+        for (var i = 0; i < (int)UnifiedExpressions.Max + 1; i++)
         {
             UnifiedTracking.Data.Shapes[i].Weight = 0xFFFFFFFF;
         }
 
         Client.OnReceiveShouldBeQueued += QueueReceiveEvent;
-        Client.OnPacketReceivedCallback += (in IpcPacket packet) => {
+        Client.OnPacketReceivedCallback += (in IpcPacket packet) =>
+        {
             _connectionTimer?.Change(TimeSpan.FromSeconds(CONNECTION_TIMEOUT), Timeout.InfiniteTimeSpan);
 
-            switch ( packet.GetPacketType() )
+            switch (packet.GetPacketType())
             {
                 case IpcPacket.PacketType.EventGetSupported:
                     {
                         var result = DefModuleAssembly.TrackingModule.Supported;
                         var pkt = new ReplySupportedPacket()
                         {
-                            eyeAvailable        = result.SupportsEye,
+                            eyeAvailable = result.SupportsEye,
                             expressionAvailable = result.SupportsExpression
                         };
                         _packetsToSend.Enqueue(pkt);
@@ -229,18 +231,19 @@ public class ModuleProcessMain
                     }
                 case IpcPacket.PacketType.EventInit:
                     {
-                        var pkt = (EventInitPacket) packet;
+                        var pkt = (EventInitPacket)packet;
 
                         bool eyeSuccess, expressionSuccess;
                         try
                         {
                             (eyeSuccess, expressionSuccess) = DefModuleAssembly.TrackingModule.Initialize(pkt.eyeAvailable, pkt.expressionAvailable);
                         }
-                        catch ( MissingMethodException )
+                        catch (MissingMethodException)
                         {
                             Logger.LogError("{moduleName} does not properly implement ExtTrackingModule. Skipping.", DefModuleAssembly.TrackingModule.GetType().Name);
                             return;
-                        } catch ( Exception e )
+                        }
+                        catch (Exception e)
                         {
                             Logger.LogError(e, "Exception initializing {module}. Skipping.", DefModuleAssembly.TrackingModule.GetType().Name);
                             return;
@@ -268,10 +271,10 @@ public class ModuleProcessMain
 
                         var pktNew = new ReplyInitPacket()
                         {
-                            eyeSuccess              = eyeSuccess,
-                            expressionSuccess       = expressionSuccess,
-                            ModuleInformationName   = DefModuleAssembly.TrackingModule.ModuleInformation.Name,
-                            IconDataStreams         = DefModuleAssembly.TrackingModule.ModuleInformation.StaticImages
+                            eyeSuccess = eyeSuccess,
+                            expressionSuccess = expressionSuccess,
+                            ModuleInformationName = DefModuleAssembly.TrackingModule.ModuleInformation.Name,
+                            IconDataStreams = DefModuleAssembly.TrackingModule.ModuleInformation.StaticImages
                         };
                         _packetsToSend.Enqueue(pktNew);
                         break;
@@ -285,7 +288,7 @@ public class ModuleProcessMain
                         {
                             DefModuleAssembly.TrackingModule.Teardown();
                         }
-                        catch(Exception e)
+                        catch (Exception e)
                         {
                             Logger.LogWarning(e, "Tracking module failed to cleanly shut down.");
                         }
@@ -311,7 +314,7 @@ public class ModuleProcessMain
 
                 case IpcPacket.PacketType.EventUpdateStatus:
                     {
-                        var pkt = (EventStatusUpdatePacket) packet;
+                        var pkt = (EventStatusUpdatePacket)packet;
                         DefModuleAssembly.TrackingModule.Status = pkt.ModuleState;
 
                         break;
@@ -319,7 +322,7 @@ public class ModuleProcessMain
 
                 case IpcPacket.PacketType.EventSetVerbose:
                     {
-                        var pkt = (EventSetVerbosePacket) packet;
+                        var pkt = (EventSetVerbosePacket)packet;
                         Gate.Set(pkt.Verbose || BuildInfo.VerboseForced);
                         _fileLogger?.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum}");
                         break;
@@ -342,7 +345,7 @@ public class ModuleProcessMain
             Environment.Exit(ModuleProcessExitCodes.NETWORK_CONNECTION_TIMED_OUT);
         }, null, TimeSpan.FromSeconds(CONNECTION_TIMEOUT), Timeout.InfiniteTimeSpan);
 
-        while ( WaitForPackets && !cts.IsCancellationRequested)
+        while (WaitForPackets && !cts.IsCancellationRequested)
         {
             while (_packetsToSend.TryDequeue(out IpcPacket pkt))
             {
@@ -350,7 +353,7 @@ public class ModuleProcessMain
                 Client.SendData(pkt);
             }
 
-            if ( _shouldCallReceive )
+            if (_shouldCallReceive)
             {
                 Client.ReceivePackets();
             }

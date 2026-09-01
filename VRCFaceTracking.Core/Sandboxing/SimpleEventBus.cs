@@ -7,9 +7,10 @@ using System.Threading.Tasks;
 using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Sandboxing;
+
 public class SimpleEventBus
 {
-    private Queue<IpcPacket> _packetQueue = new ();
+    private readonly Queue<IpcPacket> _packetQueue = new();
     /// <summary>
     /// Whether or not to bypass the queue
     /// </summary>
@@ -24,11 +25,11 @@ public class SimpleEventBus
 
     public T Pop<T>() where T : IpcPacket
     {
-        return ( T )_packetQueue.Dequeue();
+        return (T)_packetQueue.Dequeue();
     }
 
     public T Peek<T>() where T : IpcPacket
     {
-        return ( T )_packetQueue.Peek();
+        return (T)_packetQueue.Peek();
     }
 }

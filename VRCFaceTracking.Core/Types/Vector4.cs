@@ -9,7 +9,7 @@ public struct Vector4
     public float x;
     public float y;
     public float z;
-    
+
     public Vector4(float w, float x, float y, float z)
     {
         this.w = w;

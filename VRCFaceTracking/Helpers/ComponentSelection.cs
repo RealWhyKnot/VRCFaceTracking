@@ -12,11 +12,26 @@ namespace VRCFaceTracking.Helpers;
 
 public class ComponentTemplateSelector : DataTemplateSelector
 {
-    public DataTemplate CheckboxTemplate { get; set; }
-    public DataTemplate TextInputTemplate { get; set; }
-    public DataTemplate SliderTemplate { get; set; }
-    public DataTemplate ButtonTemplate { get; set; }
-    public DataTemplate RangeTemplate { get; set; }
+    public DataTemplate CheckboxTemplate
+    {
+        get; set;
+    }
+    public DataTemplate TextInputTemplate
+    {
+        get; set;
+    }
+    public DataTemplate SliderTemplate
+    {
+        get; set;
+    }
+    public DataTemplate ButtonTemplate
+    {
+        get; set;
+    }
+    public DataTemplate RangeTemplate
+    {
+        get; set;
+    }
 
     protected override DataTemplate SelectTemplateCore(object item, DependencyObject container)
     {

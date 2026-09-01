@@ -38,7 +38,7 @@ public partial class App : Application
     {
         get;
     }
-    
+
     private static App? _instance;
     private ILogger? _logger;
 
@@ -88,7 +88,7 @@ public partial class App : Application
             FileLog.Flush();
             throw;
         }
-        
+
         // Check for a "reset" file in the root of the app directory. If one is found, wipe all files from inside it
         // and delete the file.
         var resetFile = Path.Combine(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "reset");
@@ -168,7 +168,7 @@ public partial class App : Application
             services.AddTransient<MainPage>();
             services.AddTransient<ShellPage>();
             services.AddTransient<ShellViewModel>();
-            
+
             services.AddHostedService<ParameterSenderService>(provider => provider.GetService<ParameterSenderService>());
             services.AddHostedService<OscRecvService>(provider => provider.GetService<OscRecvService>());
 
@@ -176,7 +176,7 @@ public partial class App : Application
             services.Configure<LocalSettingsOptions>(context.Configuration.GetSection(nameof(LocalSettingsOptions)));
         }).
         Build();
-        
+
         var logBuilder = App.GetService<ILoggerFactory>();
         _logger = logBuilder.CreateLogger("App");
         _logger.LogDebug("Host built");
@@ -196,11 +196,11 @@ public partial class App : Application
         // Kill any other instances of VRCFaceTracking.exe and our module processes
         Core.Utils.KillAllProcessesOfName("VRCFaceTracking");
         Core.Utils.KillAllProcessesOfName("VRCFaceTracking.ModuleProcess");
-        
+
         await App.GetService<IActivationService>().ActivateAsync(args);
         await Host.StartAsync();
     }
-    
+
     [SecurityCritical]
     internal void ExceptionHandler(object sender, UnhandledExceptionEventArgs e)
     {

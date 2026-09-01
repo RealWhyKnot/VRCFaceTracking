@@ -9,19 +9,19 @@ public interface IOscTarget : INotifyPropertyChanged
         get;
         set;
     }
-    
+
     public int InPort
     {
         get;
         set;
     }
-    
+
     public int OutPort
     {
         get;
         set;
     }
-    
+
     public string DestinationAddress
     {
         get;

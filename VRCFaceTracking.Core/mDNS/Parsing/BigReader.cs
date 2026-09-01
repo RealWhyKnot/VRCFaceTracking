@@ -3,12 +3,12 @@
 // Big endian reader
 public class BigReader : BinaryReader
 {
-    private Dictionary<int, List<string>> nameCache = new Dictionary<int, List<string>>();
-        
+    private readonly Dictionary<int, List<string>> nameCache = new();
+
     public BigReader(byte[] data) : base(new MemoryStream(data)) { }
-        
+
     public override ushort ReadUInt16() => (ushort)((base.ReadByte() << 8) | base.ReadByte());
-        
+
     public override uint ReadUInt32() => (uint)((base.ReadByte() << 24) | (base.ReadByte() << 16) | (base.ReadByte() << 8) | base.ReadByte());
 
     public override string ReadString()
@@ -30,16 +30,16 @@ public class BigReader : BinaryReader
             nameCache[pointer] = cname;
             return cname;
         }
-            
+
         var labels = new List<string>();
         if (length == 0)
             return labels;
-            
+
         var data = ReadBytes(length);
         labels.Add(System.Text.Encoding.UTF8.GetString(data, 0, length));
         labels.AddRange(ReadDomainLabels());
         nameCache[pointer] = labels;
-            
+
         return labels;
     }
 }

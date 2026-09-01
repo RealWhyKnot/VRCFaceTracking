@@ -14,7 +14,10 @@ public sealed class FileLoggerProvider : ILoggerProvider
     private readonly Timer? _flushTimer;
     private readonly object _lock = new();
 
-    public string? FilePath { get; }
+    public string? FilePath
+    {
+        get;
+    }
 
     public bool IsOpen => _writer != null;
 

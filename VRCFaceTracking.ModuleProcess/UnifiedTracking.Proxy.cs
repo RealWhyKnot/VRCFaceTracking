@@ -12,6 +12,7 @@ namespace VRCFaceTracking.ModuleProcess;
 
 // Proxy of Unified tracking class
 // Handles syncing our Subprocess data with the "fake" UnifiedTracking implementation we expose to modules
-public static class UnifiedTrackingProxy {
+public static class UnifiedTrackingProxy
+{
 
 }

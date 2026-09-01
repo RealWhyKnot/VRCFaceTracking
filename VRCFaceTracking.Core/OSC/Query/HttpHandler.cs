@@ -67,11 +67,9 @@ public class HttpHandler(IOscTarget oscTarget, ILogger<HttpHandler> logger) : ID
 
         context.Response.ContentType = "application/json";
         context.Response.ContentLength64 = respStr.Length;
-        using (var sw = new StreamWriter(context.Response.OutputStream))
-        {
-            await sw.WriteAsync(respStr);
-            await sw.FlushAsync();
-        }
+        using var sw = new StreamWriter(context.Response.OutputStream);
+        await sw.WriteAsync(respStr);
+        await sw.FlushAsync();
     }
 
     public void Dispose()

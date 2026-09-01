@@ -27,7 +27,7 @@ public class AvatarConfigParser
         }
 
         var paramList = new List<Parameter>();
-            
+
         /*if (newId.StartsWith("local:"))
         {
             foreach (var parameter in UnifiedTracking.AllParameters_v2.Concat(UnifiedTracking.AllParameters_v1).ToArray())
@@ -39,7 +39,7 @@ public class AvatarConfigParser
             _lastAvatarId = newId;
             return (new NullAvatarDef(newId.Substring(10), newId), paramList);
         }*/
-            
+
         AvatarConfigFile avatarConfig = null;
         foreach (var userFolder in Directory.GetDirectories(VRChat.VRCOSCDirectory)
                      .Where(folder => Directory.Exists(Path.Combine(folder, "Avatars"))))
@@ -61,16 +61,16 @@ public class AvatarConfigParser
                 {
                     // Malformed JSON file detected, rename it to .bak to prevent future parsing attempts
                     var backupFileName = Path.ChangeExtension(avatarFile, ".bak");
-                    _logger.LogWarning("Malformed JSON file detected: {fileName}. Renaming to {backupFileName}. Error: {error}", 
+                    _logger.LogWarning("Malformed JSON file detected: {fileName}. Renaming to {backupFileName}. Error: {error}",
                         avatarFile, backupFileName, ex.Message);
-                    
+
                     try
                     {
                         File.Move(avatarFile, backupFileName, overwrite: true);
                     }
                     catch (Exception moveEx)
                     {
-                        _logger.LogError("Failed to rename malformed JSON file {fileName}: {error}", 
+                        _logger.LogError("Failed to rename malformed JSON file {fileName}: {error}",
                             avatarFile, moveEx.Message);
                     }
                 }

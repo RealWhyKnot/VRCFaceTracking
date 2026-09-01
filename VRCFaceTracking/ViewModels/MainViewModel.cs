@@ -9,11 +9,26 @@ namespace VRCFaceTracking.ViewModels;
 
 public partial class MainViewModel : ObservableRecipient
 {
-    public ILibManager LibManager { get; }
-    public OscQueryService ParameterOutputService { get; }
-    public OscRecvService OscRecvService { get; }
-    public OscSendService OscSendService { get; }
-    public IOscTarget OscTarget { get; }
+    public ILibManager LibManager
+    {
+        get;
+    }
+    public OscQueryService ParameterOutputService
+    {
+        get;
+    }
+    public OscRecvService OscRecvService
+    {
+        get;
+    }
+    public OscSendService OscSendService
+    {
+        get;
+    }
+    public IOscTarget OscTarget
+    {
+        get;
+    }
 
     private int _messagesRecvd;
     [ObservableProperty] private int _messagesInPerSec;
@@ -22,7 +37,7 @@ public partial class MainViewModel : ObservableRecipient
     [ObservableProperty] private int _messagesOutPerSec;
 
     [ObservableProperty] private bool _noModulesInstalled;
-    
+
     [ObservableProperty] private bool _oscWasDisabled;
 
     private DispatcherTimer msgCounterTimer;
@@ -42,12 +57,12 @@ public partial class MainViewModel : ObservableRecipient
         OscTarget = oscTarget;
         OscRecvService = oscRecvService;
         OscSendService = oscSendService;
-        
+
         // Modules
         var installedNewModules = moduleDataService.GetInstalledModules();
         var installedLegacyModules = moduleDataService.GetLegacyModules().Count();
         NoModulesInstalled = !installedNewModules.Any() && installedLegacyModules == 0;
-        
+
         // Message Timer
         OscRecvService.OnMessageReceived += MessageReceived;
         OscSendService.OnMessagesDispatched += MessageDispatched;
@@ -59,7 +74,7 @@ public partial class MainViewModel : ObservableRecipient
         {
             MessagesInPerSec = _messagesRecvd;
             _messagesRecvd = 0;
-            
+
             MessagesOutPerSec = _messagesSent;
             _messagesSent = 0;
         };
@@ -73,7 +88,7 @@ public partial class MainViewModel : ObservableRecipient
     {
         OscRecvService.OnMessageReceived -= MessageReceived;
         OscSendService.OnMessagesDispatched -= MessageDispatched;
-        
+
         msgCounterTimer.Stop();
     }
 }

@@ -13,30 +13,54 @@ using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Params.Data;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
+
 public enum MutationPriority
 {
-    Preprocessor, 
+    Preprocessor,
     None,
-    Postprocessor 
+    Postprocessor
 }
 
 public abstract partial class TrackingMutation
 {
-    public abstract string Name { get; }
+    public abstract string Name
+    {
+        get;
+    }
     [JsonIgnore]
-    public abstract string Description { get; }
-    public abstract MutationPriority Step { get; }
+    public abstract string Description
+    {
+        get;
+    }
+    public abstract MutationPriority Step
+    {
+        get;
+    }
     [JsonIgnore]
-    public ObservableCollection<IMutationComponent> Components { get; set; }
+    public ObservableCollection<IMutationComponent> Components
+    {
+        get; set;
+    }
     public virtual bool IsSaved { get; } = false;
 
-    public virtual bool IsActive { get; set; }
+    public virtual bool IsActive
+    {
+        get; set;
+    }
 
     [JsonIgnore]
-    public ILogger Logger { get; set; }
+    public ILogger Logger
+    {
+        get; set;
+    }
     [JsonIgnore]
-    public ILocalSettingsService LocalSettingsService { get; set; }
-    public virtual void Initialize(UnifiedTrackingData data) { }
+    public ILocalSettingsService LocalSettingsService
+    {
+        get; set;
+    }
+    public virtual void Initialize(UnifiedTrackingData data)
+    {
+    }
     public abstract void MutateData(ref UnifiedTrackingData data);
     public void CreateProperties() => Components = MutationComponentFactory.CreateComponents(this);
     public static TrackingMutation[] GetImplementingMutations(bool ordered = true)

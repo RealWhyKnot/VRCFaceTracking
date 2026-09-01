@@ -11,14 +11,14 @@ public class OscMessage
     private static readonly int ValueOffset = (int)Marshal.OffsetOf<OscMessageMeta>(nameof(OscMessageMeta.Value));
 
     public OscMessageMeta _meta;
-    private IntPtr _metaPtr;
+    private readonly IntPtr _metaPtr;
 
     public string Address
     {
         get => _meta.Address;
         set => _meta.Address = value;
     }
-    
+
     private readonly Action<object> _valueSetter;
 
     public object Value
@@ -29,7 +29,7 @@ public class OscMessage
             {
                 return null;
             }
-            
+
             return Marshal.PtrToStructure<OscValue>(_meta.Value).Value;
         }
         set => _valueSetter(value);
@@ -39,7 +39,7 @@ public class OscMessage
     {
         Address = address;
         var oscType = OscUtils.TypeConversions.FirstOrDefault(conv => conv.Key.Item1 == type).Value;
-        
+
         if (oscType != default)
         {
             _meta.ValueLength = 1;
@@ -88,7 +88,7 @@ public class OscMessage
 
         return msg;
     }
-    
+
     public OscMessage(byte[] bytes, int len, ref int messageIndex)
     {
         _metaPtr = fti_osc.parse_osc(bytes, len, ref messageIndex);
@@ -109,9 +109,9 @@ public class OscMessage
     public async Task<int> Encode(byte[] buffer, CancellationToken ct) => await Task.Run(() => fti_osc.create_osc_message(buffer, ref _meta), ct);
 
     public OscMessage(OscMessageMeta meta) => _meta = meta;
-    
+
     ~OscMessage()
-    {   
+    {
         // If we don't own this memory, then we need to sent it back to rust to free it
         if (_metaPtr != IntPtr.Zero)
         {

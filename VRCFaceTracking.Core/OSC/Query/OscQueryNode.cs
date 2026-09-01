@@ -5,7 +5,9 @@ namespace VRCFaceTracking.Core.OSC.Query;
 public class OscQueryNode
 {
     // Empty Constructor for Json Serialization
-    public OscQueryNode(){}
+    public OscQueryNode()
+    {
+    }
 
     public OscQueryNode(string fullPath, AccessValues access = AccessValues.NoValue, string oscType = null)
     {
@@ -13,7 +15,7 @@ public class OscQueryNode
         Access = access;
         OscType = oscType;
     }
-        
+
     [JsonProperty("DESCRIPTION")]
     public string Description;
 
@@ -31,22 +33,23 @@ public class OscQueryNode
     [JsonProperty("VALUE")]
     public object[] Value;
 
-    [JsonIgnore] 
-    public string ParentPath {
+    [JsonIgnore]
+    public string ParentPath
+    {
         get
         {
             var length = Math.Max(1, FullPath.LastIndexOf("/", StringComparison.Ordinal));
             return FullPath.Substring(0, length);
         }
-            
+
     }
 
     [JsonIgnore]
-    public string Name => FullPath.Substring(FullPath.LastIndexOf('/')+1);
+    public string Name => FullPath.Substring(FullPath.LastIndexOf('/') + 1);
 
     public override string ToString()
     {
-        var result = JsonConvert.SerializeObject(this,  new JsonSerializerSettings
+        var result = JsonConvert.SerializeObject(this, new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore,
         });

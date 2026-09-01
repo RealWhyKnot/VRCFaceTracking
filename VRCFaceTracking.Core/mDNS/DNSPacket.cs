@@ -13,7 +13,7 @@ public class DnsPacket
     public DnsResource[] answers = Array.Empty<DnsResource>();
     public DnsResource[] authorities = Array.Empty<DnsResource>();
     public DnsResource[] additionals = Array.Empty<DnsResource>();
-        
+
 
     public DnsPacket(BigReader stream)
     {
@@ -26,7 +26,7 @@ public class DnsPacket
             64	NSCOUNT
             80	ARCOUNT
          */
-            
+
         // Read the header
         ID = stream.ReadUInt16();
 
@@ -42,16 +42,16 @@ public class DnsPacket
         answers = new DnsResource[stream.ReadUInt16()];
         authorities = new DnsResource[stream.ReadUInt16()];
         additionals = new DnsResource[stream.ReadUInt16()];
-            
+
         for (var i = 0; i < questions.Length; i++)
             questions[i] = new DnsQuestion(stream);
 
         for (var i = 0; i < answers.Length; i++)
             answers[i] = new DnsResource(stream);
-            
+
         for (var i = 0; i < authorities.Length; i++)
             authorities[i] = new DnsResource(stream);
-            
+
         for (var i = 0; i < additionals.Length; i++)
             additionals[i] = new DnsResource(stream);
     }
@@ -64,9 +64,9 @@ public class DnsPacket
     public byte[] Serialize()
     {
         var bytes = new List<byte>();
-            
+
         bytes.AddRange(BigWriter.WriteUInt16(ID));
-            
+
         ushort flags = 0;
         if (QUERYRESPONSE)
             flags |= 0x8000;
@@ -74,32 +74,32 @@ public class DnsPacket
             flags |= 0x0400;
         if (TRUNCATION)
             flags |= 0x0200;
-            
+
         flags |= (ushort)(OPCODE << 11);
         flags |= (ushort)(RESPONSECODE & 0x000F);
-            
+
         bytes.AddRange(BigWriter.WriteUInt16(flags));
-            
+
         bytes.AddRange(BigWriter.WriteUInt16((ushort)questions.Length));
-            
+
         bytes.AddRange(BigWriter.WriteUInt16((ushort)answers.Length));
-            
+
         bytes.AddRange(BigWriter.WriteUInt16((ushort)authorities.Length));
-            
+
         bytes.AddRange(BigWriter.WriteUInt16((ushort)additionals.Length));
-            
+
         foreach (var question in questions)
             bytes.AddRange(question.Serialize());
-            
+
         foreach (var answer in answers)
             bytes.AddRange(answer.Serialize());
-            
+
         foreach (var authority in authorities)
             bytes.AddRange(authority.Serialize());
-            
+
         foreach (var additional in additionals)
             bytes.AddRange(additional.Serialize());
-            
+
         return bytes.ToArray();
     }
 }

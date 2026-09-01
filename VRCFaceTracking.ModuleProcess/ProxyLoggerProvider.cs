@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Logging;
 
 namespace VRCFaceTracking.ModuleProcess;
+
 public class ProxyLoggerProvider(LogLevelGate gate) : ILoggerProvider
 {
     private readonly ConcurrentDictionary<string, ProxyLogger> _loggers =

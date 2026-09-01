@@ -27,7 +27,7 @@ public partial class MulticastDnsService : ObservableObject
     private static List<NetworkInterface> GetIpv4NetInterfaces() => NetworkInterface.GetAllNetworkInterfaces()
         .Where(net =>
             net.OperationalStatus == OperationalStatus.Up &&
-            net.NetworkInterfaceType != NetworkInterfaceType.Loopback && (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || ( 
+            net.NetworkInterfaceType != NetworkInterfaceType.Loopback && (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || (
             net.SupportsMulticast &&
             net.GetIPProperties().MulticastAddresses.Count != 0)))
         .ToList();
@@ -115,7 +115,8 @@ public partial class MulticastDnsService : ObservableObject
                 };
 
                 var txt = new TXTRecord { Text = new List<string> { "txtvers=1" } };
-                var srv = new SRVRecord {
+                var srv = new SRVRecord
+                {
                     Port = (ushort)service.Port,
                     Target = serviceName
                 };
@@ -132,7 +133,7 @@ public partial class MulticastDnsService : ObservableObject
                     new (aRecord, serviceName)
                 };
 
-                var answers = new List<DnsResource> { new (ptrRecord, question.Labels) };
+                var answers = new List<DnsResource> { new(ptrRecord, question.Labels) };
 
                 var response = new DnsPacket
                 {

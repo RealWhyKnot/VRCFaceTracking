@@ -9,8 +9,14 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
 
     public ModuleMetadata.ActiveChange OnActiveChange;
 
-    public List<Stream> StaticImages { get; set; }
-    public string Name { get; set; }
+    public List<Stream> StaticImages
+    {
+        get; set;
+    }
+    public string Name
+    {
+        get; set;
+    }
     private bool _active;
 
     public bool Active

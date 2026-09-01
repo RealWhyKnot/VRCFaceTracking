@@ -7,12 +7,13 @@ using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
+
 public class ParameterAdjustment : TrackingMutation
 {
     [MutationButton("Reset Values")]
     public void Reset()
     {
-        for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
+        for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
         {
         }
     }

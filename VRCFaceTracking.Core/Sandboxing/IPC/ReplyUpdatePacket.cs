@@ -8,6 +8,7 @@ using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Sandboxing.IPC;
+
 public class ReplyUpdatePacket : IpcPacket
 {
     const int EXPRESSION_COUNT = (int)UnifiedExpressions.Max + 1;
@@ -41,7 +42,7 @@ public class ReplyUpdatePacket : IpcPacket
         internal float[] Expression_Shapes;
     }
 
-    private UpdateDataContiguous _contiguousUnifiedData = new ()
+    private readonly UpdateDataContiguous _contiguousUnifiedData = new()
     {
         Expression_Shapes = new float[EXPRESSION_COUNT]
     };
@@ -54,42 +55,42 @@ public class ReplyUpdatePacket : IpcPacket
     {
         // Build handshake packet
 
-        byte[] packetTypeBytes = BitConverter.GetBytes((uint)GetPacketType());
+        var packetTypeBytes = BitConverter.GetBytes((uint)GetPacketType());
 
-        int packetSize = SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE;
+        var packetSize = SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE;
 
         // Update the internal data structure to match the current state of unified tracking
-        _contiguousUnifiedData.Eye_Left_GazeX               = UnifiedTracking.Data.Eye.Left.Gaze.x;
-        _contiguousUnifiedData.Eye_Left_GazeY               = UnifiedTracking.Data.Eye.Left.Gaze.y;
-        _contiguousUnifiedData.Eye_Left_PupilDiameter_MM    = UnifiedTracking.Data.Eye.Left.PupilDiameter_MM;
-        _contiguousUnifiedData.Eye_Left_Openness            = UnifiedTracking.Data.Eye.Left.Openness;
-        
-        _contiguousUnifiedData.Eye_Right_GazeX              = UnifiedTracking.Data.Eye.Right.Gaze.x;
-        _contiguousUnifiedData.Eye_Right_GazeY              = UnifiedTracking.Data.Eye.Right.Gaze.y;
-        _contiguousUnifiedData.Eye_Right_PupilDiameter_MM   = UnifiedTracking.Data.Eye.Right.PupilDiameter_MM;
-        _contiguousUnifiedData.Eye_Right_Openness           = UnifiedTracking.Data.Eye.Right.Openness;
+        _contiguousUnifiedData.Eye_Left_GazeX = UnifiedTracking.Data.Eye.Left.Gaze.x;
+        _contiguousUnifiedData.Eye_Left_GazeY = UnifiedTracking.Data.Eye.Left.Gaze.y;
+        _contiguousUnifiedData.Eye_Left_PupilDiameter_MM = UnifiedTracking.Data.Eye.Left.PupilDiameter_MM;
+        _contiguousUnifiedData.Eye_Left_Openness = UnifiedTracking.Data.Eye.Left.Openness;
 
-        _contiguousUnifiedData.Eye_MaxDilation              = UnifiedTracking.Data.Eye._maxDilation;
-        _contiguousUnifiedData.Eye_MinDilation              = UnifiedTracking.Data.Eye._minDilation;
+        _contiguousUnifiedData.Eye_Right_GazeX = UnifiedTracking.Data.Eye.Right.Gaze.x;
+        _contiguousUnifiedData.Eye_Right_GazeY = UnifiedTracking.Data.Eye.Right.Gaze.y;
+        _contiguousUnifiedData.Eye_Right_PupilDiameter_MM = UnifiedTracking.Data.Eye.Right.PupilDiameter_MM;
+        _contiguousUnifiedData.Eye_Right_Openness = UnifiedTracking.Data.Eye.Right.Openness;
 
-        _contiguousUnifiedData.Head_Yaw                     = UnifiedTracking.Data.Head.HeadYaw;
-        _contiguousUnifiedData.Head_Pitch                   = UnifiedTracking.Data.Head.HeadPitch;
-        _contiguousUnifiedData.Head_Roll                    = UnifiedTracking.Data.Head.HeadRoll;
+        _contiguousUnifiedData.Eye_MaxDilation = UnifiedTracking.Data.Eye._maxDilation;
+        _contiguousUnifiedData.Eye_MinDilation = UnifiedTracking.Data.Eye._minDilation;
 
-        _contiguousUnifiedData.Head_PosX                    = UnifiedTracking.Data.Head.HeadPosX;
-        _contiguousUnifiedData.Head_PosY                    = UnifiedTracking.Data.Head.HeadPosY;
-        _contiguousUnifiedData.Head_PosZ                    = UnifiedTracking.Data.Head.HeadPosZ;
+        _contiguousUnifiedData.Head_Yaw = UnifiedTracking.Data.Head.HeadYaw;
+        _contiguousUnifiedData.Head_Pitch = UnifiedTracking.Data.Head.HeadPitch;
+        _contiguousUnifiedData.Head_Roll = UnifiedTracking.Data.Head.HeadRoll;
+
+        _contiguousUnifiedData.Head_PosX = UnifiedTracking.Data.Head.HeadPosX;
+        _contiguousUnifiedData.Head_PosY = UnifiedTracking.Data.Head.HeadPosY;
+        _contiguousUnifiedData.Head_PosZ = UnifiedTracking.Data.Head.HeadPosZ;
 
         // Copy face tracking
-        for ( int i = 0; i < _contiguousUnifiedData.Expression_Shapes.Length; i++ )
+        for (var i = 0; i < _contiguousUnifiedData.Expression_Shapes.Length; i++)
         {
             _contiguousUnifiedData.Expression_Shapes[i] = UnifiedTracking.Data.Shapes[i].Weight;
         }
 
         // Convert _contiguousUnifiedData to bytes
-        int sizeStruct = Marshal.SizeOf<UpdateDataContiguous>();
-        byte[] sizeStructBytes = BitConverter.GetBytes(sizeStruct);
-        byte[] arr = new byte[sizeStruct];
+        var sizeStruct = Marshal.SizeOf<UpdateDataContiguous>();
+        var sizeStructBytes = BitConverter.GetBytes(sizeStruct);
+        var arr = new byte[sizeStruct];
 
         var ptr = IntPtr.Zero;
         try
@@ -106,19 +107,19 @@ public class ReplyUpdatePacket : IpcPacket
         packetSize = packetSize + sizeof(int) + sizeStruct;
 
         // Prepare buffer
-        byte[] finalDataStream = new byte[packetSize];
-        Buffer.BlockCopy(HANDSHAKE_MAGIC,   0, finalDataStream, 0,  SIZE_PACKET_MAGIC);     // Magic
-        Buffer.BlockCopy(packetTypeBytes,   0, finalDataStream, 4,  SIZE_PACKET_TYPE);      // Packet Type
-        Buffer.BlockCopy(sizeStructBytes,   0, finalDataStream, 8,  sizeof(int));           // Struct.Length
-        Buffer.BlockCopy(arr,               0, finalDataStream, 12, sizeStruct);            // Data
+        var finalDataStream = new byte[packetSize];
+        Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, finalDataStream, 0, SIZE_PACKET_MAGIC);     // Magic
+        Buffer.BlockCopy(packetTypeBytes, 0, finalDataStream, 4, SIZE_PACKET_TYPE);      // Packet Type
+        Buffer.BlockCopy(sizeStructBytes, 0, finalDataStream, 8, sizeof(int));           // Struct.Length
+        Buffer.BlockCopy(arr, 0, finalDataStream, 12, sizeStruct);            // Data
 
         return finalDataStream;
     }
 
     public override void Decode(in byte[] data)
     {
-        int structSize = BitConverter.ToInt32(data, 8);
-        
+        var structSize = BitConverter.ToInt32(data, 8);
+
         var ptr = IntPtr.Zero;
         try
         {
@@ -137,68 +138,68 @@ public class ReplyUpdatePacket : IpcPacket
         // If the eye state is valid
 
         // If dilation parameters are invalid
-        if ( _contiguousUnifiedData.Eye_MaxDilation != INVALID_FLOAT &&
+        if (_contiguousUnifiedData.Eye_MaxDilation != INVALID_FLOAT &&
             _contiguousUnifiedData.Eye_MinDilation != INVALID_FLOAT &&
-            _contiguousUnifiedData.Eye_MaxDilation < _contiguousUnifiedData.Eye_MinDilation )
+            _contiguousUnifiedData.Eye_MaxDilation < _contiguousUnifiedData.Eye_MinDilation)
         {
             return;
         }
 
         // Update the unified tracking to match our data structure
-        if ( _contiguousUnifiedData.Eye_Left_GazeX != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Left_GazeX != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Left.Gaze.x = _contiguousUnifiedData.Eye_Left_GazeX;
-        if ( _contiguousUnifiedData.Eye_Left_GazeY != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Left_GazeY != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Left.Gaze.y = _contiguousUnifiedData.Eye_Left_GazeY;
-        if ( _contiguousUnifiedData.Eye_Left_PupilDiameter_MM != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Left_PupilDiameter_MM != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Left.PupilDiameter_MM = _contiguousUnifiedData.Eye_Left_PupilDiameter_MM;
-        if ( _contiguousUnifiedData.Eye_Left_Openness != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Left_Openness != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Left.Openness = _contiguousUnifiedData.Eye_Left_Openness;
 
-        if ( _contiguousUnifiedData.Eye_Right_GazeX != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Right_GazeX != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Right.Gaze.x = _contiguousUnifiedData.Eye_Right_GazeX;
-        if ( _contiguousUnifiedData.Eye_Right_GazeY != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Right_GazeY != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Right.Gaze.y = _contiguousUnifiedData.Eye_Right_GazeY;
-        if ( _contiguousUnifiedData.Eye_Right_PupilDiameter_MM != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Right_PupilDiameter_MM != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Right.PupilDiameter_MM = _contiguousUnifiedData.Eye_Right_PupilDiameter_MM;
-        if ( _contiguousUnifiedData.Eye_Right_Openness != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_Right_Openness != INVALID_FLOAT)
             UnifiedTracking.Data.Eye.Right.Openness = _contiguousUnifiedData.Eye_Right_Openness;
 
-        if ( _contiguousUnifiedData.Eye_MaxDilation != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_MaxDilation != INVALID_FLOAT)
             UnifiedTracking.Data.Eye._maxDilation = _contiguousUnifiedData.Eye_MaxDilation;
-        if ( _contiguousUnifiedData.Eye_MinDilation != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Eye_MinDilation != INVALID_FLOAT)
             UnifiedTracking.Data.Eye._minDilation = _contiguousUnifiedData.Eye_MinDilation;
 
         // Eye-derived expression shapes
-        for ( int i = (int)UnifiedExpressions.EyeSquintRight; i <= (int)UnifiedExpressions.BrowOuterUpLeft; i++ )
+        for (var i = (int)UnifiedExpressions.EyeSquintRight; i <= (int)UnifiedExpressions.BrowOuterUpLeft; i++)
         {
-            if ( _contiguousUnifiedData.Expression_Shapes[i] != INVALID_FLOAT )
+            if (_contiguousUnifiedData.Expression_Shapes[i] != INVALID_FLOAT)
                 UnifiedTracking.Data.Shapes[i].Weight = _contiguousUnifiedData.Expression_Shapes[i];
         }
     }
 
     public void UpdateHeadState()
     {
-        if ( _contiguousUnifiedData.Head_Yaw != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Head_Yaw != INVALID_FLOAT)
             UnifiedTracking.Data.Head.HeadYaw = _contiguousUnifiedData.Head_Yaw;
-        if ( _contiguousUnifiedData.Head_Pitch != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Head_Pitch != INVALID_FLOAT)
             UnifiedTracking.Data.Head.HeadPitch = _contiguousUnifiedData.Head_Pitch;
-        if ( _contiguousUnifiedData.Head_Roll != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Head_Roll != INVALID_FLOAT)
             UnifiedTracking.Data.Head.HeadRoll = _contiguousUnifiedData.Head_Roll;
-            
-        if ( _contiguousUnifiedData.Head_PosX != INVALID_FLOAT )
+
+        if (_contiguousUnifiedData.Head_PosX != INVALID_FLOAT)
             UnifiedTracking.Data.Head.HeadPosX = _contiguousUnifiedData.Head_PosX;
-        if ( _contiguousUnifiedData.Head_PosY != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Head_PosY != INVALID_FLOAT)
             UnifiedTracking.Data.Head.HeadPosY = _contiguousUnifiedData.Head_PosY;
-        if ( _contiguousUnifiedData.Head_PosZ != INVALID_FLOAT )
+        if (_contiguousUnifiedData.Head_PosZ != INVALID_FLOAT)
             UnifiedTracking.Data.Head.HeadPosZ = _contiguousUnifiedData.Head_PosZ;
     }
 
     public void UpdateGlobalExpressionState()
     {
         // Copy face tracking
-        for ( int i = (int)UnifiedExpressions.BrowOuterUpLeft; i < _contiguousUnifiedData.Expression_Shapes.Length; i++ )
+        for (var i = (int)UnifiedExpressions.BrowOuterUpLeft; i < _contiguousUnifiedData.Expression_Shapes.Length; i++)
         {
-            if ( _contiguousUnifiedData.Expression_Shapes[i] != INVALID_FLOAT)
+            if (_contiguousUnifiedData.Expression_Shapes[i] != INVALID_FLOAT)
                 UnifiedTracking.Data.Shapes[i].Weight = _contiguousUnifiedData.Expression_Shapes[i];
         }
     }

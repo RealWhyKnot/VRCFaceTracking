@@ -1,6 +1,7 @@
 ﻿using VRCFaceTracking.Core.Params.DataTypes;
 
 namespace VRCFaceTracking.Core.Params.Expressions;
+
 public static class UnifiedHeadParameters
 {
     public static readonly Parameter[] HeadParameters = {

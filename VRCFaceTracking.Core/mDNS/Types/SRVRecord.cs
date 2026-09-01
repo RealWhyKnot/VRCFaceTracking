@@ -11,19 +11,19 @@ public class SRVRecord : IDnsSerializer
     {
         // Serialize the SRV record
         List<byte> bytes = new List<byte>();
-            
+
         // Write priority as big endian ushort
         bytes.AddRange(BigWriter.WriteUInt16(Priority));
-            
+
         // Write weight as big endian ushort
         bytes.AddRange(BigWriter.WriteUInt16(Weight));
-            
+
         // Write port as big endian ushort
         bytes.AddRange(BigWriter.WriteUInt16(Port));
-            
+
         // Write target
         bytes.AddRange(BigWriter.WriteDomainLabels(Target));
-            
+
         return bytes.ToArray();
     }
 

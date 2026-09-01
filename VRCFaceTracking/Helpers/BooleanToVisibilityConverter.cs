@@ -2,19 +2,20 @@
 using Microsoft.UI.Xaml.Data;
 
 namespace VRCFaceTracking.Helpers;
+
 public class BooleanToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language)
     {
-        if ( value.GetType() == typeof(bool) )
+        if (value.GetType() == typeof(bool))
         {
-            if ( (string)parameter == "Inverse" )
+            if ((string)parameter == "Inverse")
             {
-                return ( bool )value == true ? Visibility.Collapsed : Visibility.Visible;
+                return (bool)value == true ? Visibility.Collapsed : Visibility.Visible;
             }
             else
             {
-                return ( bool )value == true ? Visibility.Visible : Visibility.Collapsed;
+                return (bool)value == true ? Visibility.Visible : Visibility.Collapsed;
             }
         }
         return Visibility.Collapsed;

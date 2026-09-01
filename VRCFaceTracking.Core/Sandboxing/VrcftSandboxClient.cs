@@ -2,15 +2,15 @@
 using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Linq;
-using System.Net.Sockets;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Models;
 using VRCFaceTracking.Core.Sandboxing.IPC;
-using Microsoft.Extensions.Logging;
 
 namespace VRCFaceTracking.Core.Sandboxing;
 
@@ -19,11 +19,11 @@ public delegate void OnPacketReceivedCallback(in IpcPacket packet);
 public class VrcftSandboxClient : UdpFullDuplex
 {
     // private int                                     _port = 0;
-    private IPEndPoint                              _serverEndpoint;
-    private readonly ILoggerFactory                 _loggerFactory;
-    private readonly ILogger<VrcftSandboxClient>    _logger;
-    private bool                                    _isConnected;
-    private int                                     _maxPacketSizeBytes;
+    private readonly IPEndPoint _serverEndpoint;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger<VrcftSandboxClient> _logger;
+    private bool _isConnected;
+    private int _maxPacketSizeBytes;
 
     public OnPacketReceivedCallback OnPacketReceivedCallback = null;
     public VrcftSandboxClient(int portNumber,
@@ -36,13 +36,13 @@ public class VrcftSandboxClient : UdpFullDuplex
         _logger = factory.CreateLogger<VrcftSandboxClient>();
 
         var addresses = Dns.GetHostAddresses("127.0.0.1");
-        if ( addresses.Length == 0 )
+        if (addresses.Length == 0)
         {
             throw new Exception($"Unable to find localhost (how did this even happen??)");
         }
 
         _serverEndpoint = new IPEndPoint(addresses[0], portNumber);
-        Port = ( ( IPEndPoint )_receivingUdpClient.Client.LocalEndPoint ).Port;
+        Port = ((IPEndPoint)_receivingUdpClient.Client.LocalEndPoint).Port;
 
 
         _logger.LogInformation($"Starting sandbox process on port {Port}...");
@@ -60,17 +60,17 @@ public class VrcftSandboxClient : UdpFullDuplex
 
     public override void OnBytesReceived(in byte[] data, in IPEndPoint endpoint)
     {
-        bool decodeResult = VrcftPacketDecoder.TryDecodePacket(data, out IpcPacket packet);
+        var decodeResult = VrcftPacketDecoder.TryDecodePacket(data, out IpcPacket packet);
 
-        if ( decodeResult )
+        if (decodeResult)
         {
             // Tell the callback that we've received a packet
-            if ( OnPacketReceivedCallback != null && packet.GetPacketType() != IpcPacket.PacketType.Unknown )
+            if (OnPacketReceivedCallback != null && packet.GetPacketType() != IpcPacket.PacketType.Unknown)
             {
-                if ( packet.GetPacketType() == IpcPacket.PacketType.SplitPacketChunk )
+                if (packet.GetPacketType() == IpcPacket.PacketType.SplitPacketChunk)
                 {
                     PartialPacket.DecodePacket(data, out var combinedData);
-                    if ( combinedData.Length > 0 )
+                    if (combinedData.Length > 0)
                     {
                         OnBytesReceived(combinedData, endpoint);
                     }
@@ -81,11 +81,11 @@ public class VrcftSandboxClient : UdpFullDuplex
                 }
             }
 
-            if ( packet.GetPacketType() == IpcPacket.PacketType.Handshake )
+            if (packet.GetPacketType() == IpcPacket.PacketType.Handshake)
             {
                 // Handshake request
-                var handshakePacket = (HandshakePacket) packet;
-                if ( handshakePacket.IsValid )
+                var handshakePacket = (HandshakePacket)packet;
+                if (handshakePacket.IsValid)
                 {
                     _logger.LogInformation($"Received ACK from host on port {endpoint.Port}. Handshake done.");
                     _isConnected = true;
@@ -102,14 +102,14 @@ public class VrcftSandboxClient : UdpFullDuplex
     }
     public void SendData(in IpcPacket packet)
     {
-        if ( _isConnected || packet.GetPacketType() == IpcPacket.PacketType.Handshake)
+        if (_isConnected || packet.GetPacketType() == IpcPacket.PacketType.Handshake)
         {
-            byte[] packetData = packet.GetBytes();
-            if ( packetData.Length > MTU )
+            var packetData = packet.GetBytes();
+            if (packetData.Length > MTU)
             {
                 // @TODO: Split packet into chunks
-                byte[][] packetChunkBytes = PartialPacket.SplitPacketIntoChunks(packetData, MTU);
-                foreach ( var packetChunk in packetChunkBytes )
+                var packetChunkBytes = PartialPacket.SplitPacketIntoChunks(packetData, MTU);
+                foreach (var packetChunk in packetChunkBytes)
                 {
                     SendData(packetChunk);
                     Thread.Sleep(1);    //TODO: Potentially switch to ACK based chunking system
@@ -128,11 +128,11 @@ public class VrcftSandboxClient : UdpFullDuplex
 
     public void SendAllPendingPackets()
     {
-        if ( _isConnected )
+        if (_isConnected)
         {
-            if ( _eventBus.Count > 0 )
+            if (_eventBus.Count > 0)
             {
-                while ( _eventBus.Count > 0 )
+                while (_eventBus.Count > 0)
                 {
                     IpcPacket pkt = _eventBus.Pop<IpcPacket>();
                     SendData(pkt);

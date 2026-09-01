@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
+
 public class Correctors : TrackingMutation
 {
     public override string Name => "Unified Correctors";
@@ -18,15 +19,15 @@ public class Correctors : TrackingMutation
     public bool mouthClosedFix = true;
     [MutationProperty("LipSuck Limiter", true)]
     public bool lipSuckFix = true;
-    
+
     // How much "influence" the opposite eye has on openness
     [MutationProperty("EyeLid Blend", true)]
     public float eyeLidBlend = 0.0f;    // 0.00f meaning zero influence, 1.00f meaning the value of each eyelid is the median of both
-    
+
     // For ppl with hardware that provides unpredictable eyeL/R movement
     [MutationProperty("EyeLook Symmetrize", true)]
     public bool eyeLookSymmetrize = false;
-    
+
 
     private float BlendParam(float currentValue, float influencerValue) => Math.Clamp(currentValue * (1.0f - eyeLidBlend * 0.5f) + influencerValue * (eyeLidBlend * 0.5f), 0.0f, 1.0f);
 
@@ -35,9 +36,9 @@ public class Correctors : TrackingMutation
         leftParam = BlendParam(leftParam, rightParam);
         rightParam = BlendParam(rightParam, leftParam);
     }
-    
+
     private void BlendUnifiedExpressionParams(ref UnifiedTrackingData data, UnifiedExpressions leftExpression, UnifiedExpressions rightExpression) => BlendOpposingParams(ref data.Shapes[(int)leftExpression].Weight, ref data.Shapes[(int)rightExpression].Weight);
-    
+
     public override void MutateData(ref UnifiedTrackingData data)
     {
         if (mouthClosedFix)
@@ -61,7 +62,7 @@ public class Correctors : TrackingMutation
         {
             BlendOpposingParams(ref data.Eye.Left.Openness, ref data.Eye.Right.Openness);
             BlendUnifiedExpressionParams(ref data, UnifiedExpressions.EyeWideLeft, UnifiedExpressions.EyeWideRight);
-            
+
             // Thx to Hash for suggesting the rest of these
             BlendUnifiedExpressionParams(ref data, UnifiedExpressions.EyeSquintLeft, UnifiedExpressions.EyeSquintRight);
             BlendOpposingParams(ref data.Eye.Left.PupilDiameter_MM, ref data.Eye.Right.PupilDiameter_MM);
@@ -77,7 +78,7 @@ public class Correctors : TrackingMutation
             var combinedY = (data.Eye.Right.Gaze.y + data.Eye.Left.Gaze.y) / 2;
             data.Eye.Right.Gaze.y = combinedY;
             data.Eye.Left.Gaze.y = combinedY;
-            
+
             //TODO: Figure out eyex convergence
         }
     }

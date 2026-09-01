@@ -9,7 +9,7 @@ public sealed partial class ParameterDebugUserControl : UserControl
     {
         get;
     }
-    
+
     public ParameterDebugUserControl()
     {
         ViewModel = App.GetService<ParameterViewModel>();

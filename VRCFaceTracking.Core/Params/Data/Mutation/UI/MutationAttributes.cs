@@ -11,11 +11,26 @@ namespace VRCFaceTracking.Core.Params.Data.Mutation;
 [AttributeUsage(AttributeTargets.Field)]
 public class MutationPropertyAttribute : Attribute
 {
-    public string Name { get; }
-    public bool SavedImmediate { get; }
-    public Type EnumType { get; }
-    public float Min { get; }
-    public float Max { get; }
+    public string Name
+    {
+        get;
+    }
+    public bool SavedImmediate
+    {
+        get;
+    }
+    public Type EnumType
+    {
+        get;
+    }
+    public float Min
+    {
+        get;
+    }
+    public float Max
+    {
+        get;
+    }
 
     public MutationPropertyAttribute(string name, bool savedImmediate = false, float min = 0f, float max = 1f)
     {

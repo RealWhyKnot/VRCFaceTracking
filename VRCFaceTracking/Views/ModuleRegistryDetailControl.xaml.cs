@@ -30,7 +30,7 @@ public sealed partial class ModuleRegistryDetailControl
         _libManager = App.GetService<ILibManager>();
         _mainViewModel = App.GetService<MainViewModel>();
     }
-    
+
 
     private static async void OnListDetailsMenuItemPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -59,7 +59,7 @@ public sealed partial class ModuleRegistryDetailControl
             default:
                 throw new ArgumentOutOfRangeException();
         }
-            
+
         // Attempt to get our rating from the API.
         var rating = await control._moduleDataService.GetMyRatingAsync(control.ListDetailsMenuItem!);
         if (rating.HasValue) // If we already rated this module, set the rating control to that value.
@@ -85,38 +85,38 @@ public sealed partial class ModuleRegistryDetailControl
         switch (ListDetailsMenuItem!.InstallationState)
         {
             case InstallState.NotInstalled or InstallState.Outdated:
-            {
-                _libManager.TeardownAllAndResetAsync();
-                var path = await _moduleInstaller.InstallRemoteModule(ListDetailsMenuItem!);
-                if (path != null)
                 {
-                    ListDetailsMenuItem!.InstallationState = InstallState.Installed;
-                    await _moduleDataService.IncrementDownloadsAsync(ListDetailsMenuItem!);
-                    ListDetailsMenuItem!.Downloads++;
-                    _libManager.Initialize();
-                    InstallButton.Content = "Uninstall";
-                    InstallButton.IsEnabled = true;
-                    _mainViewModel.NoModulesInstalled = false;
+                    _libManager.TeardownAllAndResetAsync();
+                    var path = await _moduleInstaller.InstallRemoteModule(ListDetailsMenuItem!);
+                    if (path != null)
+                    {
+                        ListDetailsMenuItem!.InstallationState = InstallState.Installed;
+                        await _moduleDataService.IncrementDownloadsAsync(ListDetailsMenuItem!);
+                        ListDetailsMenuItem!.Downloads++;
+                        _libManager.Initialize();
+                        InstallButton.Content = "Uninstall";
+                        InstallButton.IsEnabled = true;
+                        _mainViewModel.NoModulesInstalled = false;
+                    }
+                    break;
                 }
-                break;
-            }
             case InstallState.Installed:
-            {
-                InstallButton.Content = "Please Restart VRCFT";
-                InstallButton.IsEnabled = false;
-                _libManager.TeardownAllAndResetAsync();
-                _moduleInstaller.MarkModuleForDeletion(ListDetailsMenuItem!);
-                _libManager.Initialize();
-                break;
-            }
+                {
+                    InstallButton.Content = "Please Restart VRCFT";
+                    InstallButton.IsEnabled = false;
+                    _libManager.TeardownAllAndResetAsync();
+                    _moduleInstaller.MarkModuleForDeletion(ListDetailsMenuItem!);
+                    _libManager.Initialize();
+                    break;
+                }
         }
-        
+
     }
 
     private async void RatingControl_OnValueChanged(RatingControl sender, object args)
     {
         RatingControl.Caption = "Your Rating";
-        
+
         await _moduleDataService.SetMyRatingAsync(ListDetailsMenuItem!, (int)RatingControl.Value);
     }
 }

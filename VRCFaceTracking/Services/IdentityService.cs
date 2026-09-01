@@ -1,15 +1,15 @@
-﻿using Windows.Security.Cryptography;
+﻿using VRCFaceTracking.Core.Contracts.Services;
+using Windows.Security.Cryptography;
 using Windows.Security.Cryptography.Core;
 using Windows.Storage.Streams;
 using Windows.System.Profile;
-using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Services;
 
 public class IdentityService : IIdentityService
 {
     private string _uniqueUserId = string.Empty;
-    
+
     public string GetUniqueUserId()
     {
         if (!string.IsNullOrEmpty(_uniqueUserId))

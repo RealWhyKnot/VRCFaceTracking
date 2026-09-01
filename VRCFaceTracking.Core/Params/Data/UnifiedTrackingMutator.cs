@@ -27,7 +27,7 @@ public partial class UnifiedTrackingMutator : ObservableObject
         UnifiedTracking.Mutator = this;
         _logger = logger;
         _localSettingsService = localSettingsService;
-            
+
         Enabled = false;
         _inputBuffer = new UnifiedTrackingData();
     }
@@ -92,8 +92,8 @@ public partial class UnifiedTrackingMutator : ObservableObject
 
         _logger.LogDebug("Mutations initialized successfully.");
     }
-    
-    private async void CreateMutation(TrackingMutation mutation) 
+
+    private async void CreateMutation(TrackingMutation mutation)
     {
         try
         {
@@ -114,7 +114,7 @@ public partial class UnifiedTrackingMutator : ObservableObject
             mutation = (TrackingMutation)typedMutation;
 
             mutation.Logger = _logger;
-            mutation.LocalSettingsService =  _localSettingsService;
+            mutation.LocalSettingsService = _localSettingsService;
             mutation.CreateProperties();
             _mutations.Add(mutation);
         }
@@ -122,7 +122,7 @@ public partial class UnifiedTrackingMutator : ObservableObject
         {
             _logger.LogError($"Creating new mutation data. {ex.Message}");
             mutation.Logger = _logger;
-            mutation.LocalSettingsService =  _localSettingsService;
+            mutation.LocalSettingsService = _localSettingsService;
             mutation.CreateProperties();
         }
     }

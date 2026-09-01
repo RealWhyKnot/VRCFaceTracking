@@ -27,9 +27,9 @@ public partial class RiskySettingsViewModel(
     public void ForceReInit()
     {
         logger.LogInformation("Reinitializing VRCFT...");
-        
+
         mainService.Teardown();
-        
+
         mainService.InitializeAsync();
     }
 
@@ -39,7 +39,7 @@ public partial class RiskySettingsViewModel(
     public void ResetVRCFT()
     {
         logger.LogInformation("Resetting VRCFT...");
-        
+
         // Create a file in the VRCFT folder called "reset"
         // This will cause the app to reset on the next launch
         File.Create(Path.Combine(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "reset"));

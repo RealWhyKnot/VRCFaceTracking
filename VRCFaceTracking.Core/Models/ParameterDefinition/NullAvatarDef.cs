@@ -9,7 +9,7 @@ namespace VRCFaceTracking.Core.Models.ParameterDefinition;
 public class NullAvatarDef : IAvatarInfo
 {
     private readonly string _name, _id;
-    
+
     public NullAvatarDef(string name, string id)
     {
         _name = name;
@@ -20,5 +20,8 @@ public class NullAvatarDef : IAvatarInfo
 
     public string Id => _id;
 
-    public IParameterDefinition[] Parameters { get; }
+    public IParameterDefinition[] Parameters
+    {
+        get;
+    }
 }

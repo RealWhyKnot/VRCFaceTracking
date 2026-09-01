@@ -10,7 +10,10 @@ public class MutatorViewModel : ObservableRecipient
 {
     private readonly UnifiedTrackingMutator _trackingMutator;
 
-    public ObservableCollection<TrackingMutation> Mutations { get; }
+    public ObservableCollection<TrackingMutation> Mutations
+    {
+        get;
+    }
 
     public MutatorViewModel()
     {

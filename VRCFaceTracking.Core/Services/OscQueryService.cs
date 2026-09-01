@@ -72,8 +72,8 @@ public partial class OscQueryService(
         httpHandler.BindTo($"http://127.0.0.1:{httpPort}/", recvEndpoint.Port);
 
         // Advertise our OSC JSON and OSC endpoints (OSC JSON to display the silly lil popup in-game)
-        multicastDnsService.Advertise("_oscjson._tcp", new AdvertisedService("VRCFT-"+randomServiceSuffix, httpPort, IPAddress.Loopback));
-        multicastDnsService.Advertise("_osc._udp", new AdvertisedService("VRCFT-"+randomServiceSuffix, recvEndpoint.Port, IPAddress.Loopback));
+        multicastDnsService.Advertise("_oscjson._tcp", new AdvertisedService("VRCFT-" + randomServiceSuffix, httpPort, IPAddress.Loopback));
+        multicastDnsService.Advertise("_osc._udp", new AdvertisedService("VRCFT-" + randomServiceSuffix, recvEndpoint.Port, IPAddress.Loopback));
 
         HandleNewAvatar();
     }
@@ -106,7 +106,7 @@ public partial class OscQueryService(
     }
 
     private void HandleNewAvatarWrapper() => HandleNewAvatar(); // Helper func used in callbacks
-    
+
 
     private void HandleNewMessage(OscMessage msg)
     {
@@ -122,25 +122,25 @@ public partial class OscQueryService(
                 }
 
                 break;
-            /*
-            case "/avatar/parameters/EyeTrackingActive":
-                if (UnifiedLibManager.EyeStatus != ModuleState.Uninitialized)
-                {
-                    if (!msg.Value.BoolValue)
-                        UnifiedLibManager.EyeStatus = ModuleState.Idle;
-                    else UnifiedLibManager.EyeStatus = ModuleState.Active;
-                }
-                break;
-            case "/avatar/parameters/LipTrackingActive":
-            case "/avatar/parameters/ExpressionTrackingActive":
-                {
-                    if (!msg.Value.BoolValue)
-                if (UnifiedLibManager.ExpressionStatus != ModuleState.Uninitialized)
-                        UnifiedLibManager.ExpressionStatus = ModuleState.Idle;
-                    else UnifiedLibManager.ExpressionStatus = ModuleState.Active;
-                }
-                break;
-            */
+                /*
+                case "/avatar/parameters/EyeTrackingActive":
+                    if (UnifiedLibManager.EyeStatus != ModuleState.Uninitialized)
+                    {
+                        if (!msg.Value.BoolValue)
+                            UnifiedLibManager.EyeStatus = ModuleState.Idle;
+                        else UnifiedLibManager.EyeStatus = ModuleState.Active;
+                    }
+                    break;
+                case "/avatar/parameters/LipTrackingActive":
+                case "/avatar/parameters/ExpressionTrackingActive":
+                    {
+                        if (!msg.Value.BoolValue)
+                    if (UnifiedLibManager.ExpressionStatus != ModuleState.Uninitialized)
+                            UnifiedLibManager.ExpressionStatus = ModuleState.Idle;
+                        else UnifiedLibManager.ExpressionStatus = ModuleState.Active;
+                    }
+                    break;
+                */
         }
     }
 

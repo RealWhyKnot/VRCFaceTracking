@@ -1,9 +1,9 @@
-﻿using Windows.Storage.Pickers;
-using CommunityToolkit.WinUI.UI.Controls;
+﻿using CommunityToolkit.WinUI.UI.Controls;
 using Microsoft.UI.Xaml;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Services;
 using VRCFaceTracking.ViewModels;
+using Windows.Storage.Pickers;
 
 namespace VRCFaceTracking.Views;
 
@@ -13,7 +13,7 @@ public sealed partial class ModuleRegistryPage
     {
         get;
     }
-    
+
     private ModuleInstaller ModuleInstaller
     {
         get;

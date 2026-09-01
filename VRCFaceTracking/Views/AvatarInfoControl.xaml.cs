@@ -25,8 +25,8 @@ public sealed partial class AvatarInfoControl : UserControl
             typeof(IAvatarInfo),
             typeof(AvatarInfoControl),
             new PropertyMetadata(null));
-    
-    public static readonly DependencyProperty AvatarParametersProperty = 
+
+    public static readonly DependencyProperty AvatarParametersProperty =
         DependencyProperty.Register(
             nameof(AvatarParameters),
             typeof(List<Parameter>),
@@ -36,7 +36,7 @@ public sealed partial class AvatarInfoControl : UserControl
     public AvatarInfoControl()
     {
         InitializeComponent();
-        
+
         DataContext = this;
         RegisterPropertyChangedCallback(AvatarInfoProperty, OnNewAvatarInfo);
         RegisterPropertyChangedCallback(AvatarParametersProperty, OnNewAvatarParameters);

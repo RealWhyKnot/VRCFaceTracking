@@ -14,7 +14,7 @@ public partial class ModuleRegistryViewModel : ObservableRecipient, INavigationA
     [ObservableProperty] private InstallableTrackingModule? _selected;
 
     public ObservableCollection<InstallableTrackingModule> ModuleInfos { get; } = new();
-    
+
     public ModuleRegistryViewModel(IModuleDataService moduleDataService)
     {
         _moduleDataService = moduleDataService;
@@ -25,7 +25,7 @@ public partial class ModuleRegistryViewModel : ObservableRecipient, INavigationA
         ModuleInfos.Clear();
 
         var data = await _moduleDataService.GetRemoteModules();
-        
+
         // Now comes the tricky bit, we get all locally installed modules and add them to the list.
         // If any of the IDs match a remote module and the other data contained within does not match,
         // then we need to set the local module install state to outdated. If everything matches then we need to set the install state to installed.
@@ -51,7 +51,7 @@ public partial class ModuleRegistryViewModel : ObservableRecipient, INavigationA
         data = data.OrderByDescending(x => x.InstallationState == InstallState.Installed)
             .ThenByDescending(x => x.AuthorName == "VRCFT Team")
             .ThenBy(x => x.ModuleName);
-        
+
         // Then prepend the local modules to the list.
         data = localModules.Concat(data);
 

@@ -9,6 +9,7 @@ using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
+
 public class Filter : TrackingMutation
 {
     [MutationProperty("Minimum Cutoff", true, 0f, 2f)]
@@ -55,22 +56,22 @@ public class Filter : TrackingMutation
         }
     }
 
-    EuroFilter[] shapes;
-    EuroFilter gazeLeftX;
-    EuroFilter gazeLeftY;
-    EuroFilter gazeRightX;
-    EuroFilter gazeRightY;
-    EuroFilter pupilLeft;
-    EuroFilter pupilRight;
-    EuroFilter opennessLeft;
-    EuroFilter opennessRight;
+    readonly EuroFilter[] shapes;
+    readonly EuroFilter gazeLeftX;
+    readonly EuroFilter gazeLeftY;
+    readonly EuroFilter gazeRightX;
+    readonly EuroFilter gazeRightY;
+    readonly EuroFilter pupilLeft;
+    readonly EuroFilter pupilRight;
+    readonly EuroFilter opennessLeft;
+    readonly EuroFilter opennessRight;
 
-    EuroFilter headYaw;
-    EuroFilter headPitch;
-    EuroFilter headRoll;
-    EuroFilter headPosX;
-    EuroFilter headPosY;
-    EuroFilter headPosZ;
+    readonly EuroFilter headYaw;
+    readonly EuroFilter headPitch;
+    readonly EuroFilter headRoll;
+    readonly EuroFilter headPosX;
+    readonly EuroFilter headPosY;
+    readonly EuroFilter headPosZ;
 
     public override string Name => "Data Filter";
 
@@ -99,7 +100,7 @@ public class Filter : TrackingMutation
         headPosY = new();
         headPosZ = new();
 
-        for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
+        for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
         {
             shapes[i] = new EuroFilter();
         }
@@ -107,7 +108,7 @@ public class Filter : TrackingMutation
 
     public override void MutateData(ref UnifiedTrackingData data)
     {
-        for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
+        for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
             data.Shapes[i].Weight = shapes[i].Filter(data.Shapes[i].Weight);
 
         data.Eye.Left.Openness = opennessLeft.Filter(data.Eye.Left.Openness);

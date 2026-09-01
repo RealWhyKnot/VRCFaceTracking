@@ -17,7 +17,7 @@ public class SavedSettingAttribute : Attribute
     public object? Default() => _defaultValue;
     public bool ForceLocal() => _forceLocal;
 }
- 
+
 public interface ILocalSettingsService
 {
     Task<T> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false);

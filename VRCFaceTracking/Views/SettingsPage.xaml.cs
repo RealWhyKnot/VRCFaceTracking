@@ -1,12 +1,11 @@
 ﻿using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-
-using VRCFaceTracking.ViewModels;
-using Windows.System;
 using Microsoft.UI.Xaml.Media.Imaging;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Params.Data;
+using VRCFaceTracking.ViewModels;
+using Windows.System;
 using VrcftImage = VRCFaceTracking.Core.Types.Image;
 
 namespace VRCFaceTracking.Views;
@@ -17,12 +16,12 @@ public sealed partial class SettingsPage : Page
     {
         get;
     }
-    
+
     public IOscTarget OscTarget
     {
         get;
     }
-    
+
     public RiskySettingsViewModel RiskySettingsViewModel
     {
         get;
@@ -33,7 +32,7 @@ public sealed partial class SettingsPage : Page
 
     private WriteableBitmap _upperImageStream, _lowerImageStream;
     private Stream _upperStream, _lowerStream;
-    
+
     public SettingsPage()
     {
         ViewModel = App.GetService<SettingsViewModel>();
@@ -45,7 +44,7 @@ public sealed partial class SettingsPage : Page
         InitializeHardwareDebugStream(UnifiedTracking.LipImageData, ref _lowerImageStream, ref _lowerStream);
 
         Loaded += OnPageLoaded;
-        
+
         UnifiedTracking.OnUnifiedDataUpdated += _ => DispatcherQueue?.TryEnqueue(OnTrackingDataUpdated);
         InitializeComponent();
     }
@@ -54,7 +53,7 @@ public sealed partial class SettingsPage : Page
     {
         var imageSize = image.ImageSize;
 
-        if ( imageSize is { x: > 0, y: > 0 } )
+        if (imageSize is { x: > 0, y: > 0 })
         {
             bitmap = new WriteableBitmap(imageSize.x, imageSize.y);
             targetStream = bitmap.PixelBuffer.AsStream();
@@ -66,15 +65,15 @@ public sealed partial class SettingsPage : Page
         // Handle eye tracking
 
         var upperData = UnifiedTracking.EyeImageData.ImageData;
-        if ( upperData != null )
+        if (upperData != null)
         {
             // Handle device connected
-            if ( _upperStream == null )
+            if (_upperStream == null)
             {
                 InitializeHardwareDebugStream(UnifiedTracking.EyeImageData, ref _upperImageStream, ref _upperStream);
             }
             // Handle device is valid and is providing data
-            if ( _upperStream.CanWrite )
+            if (_upperStream.CanWrite)
             {
                 _upperStream.Position = 0;
                 await _upperStream.WriteAsync(upperData, 0, upperData.Length);
@@ -86,7 +85,7 @@ public sealed partial class SettingsPage : Page
         {
             // Handle device getting unplugged / destroyed / disabled
             // Device is connected
-            if ( _upperStream != null || _upperImageStream != null )
+            if (_upperStream != null || _upperImageStream != null)
             {
                 await _upperStream.DisposeAsync();
                 _upperImageStream = null;
@@ -97,15 +96,15 @@ public sealed partial class SettingsPage : Page
         // Handle lip tracking
 
         var lowerData = UnifiedTracking.LipImageData.ImageData;
-        if ( lowerData != null )
+        if (lowerData != null)
         {
             // Handle device connected
-            if ( _lowerStream == null )
+            if (_lowerStream == null)
             {
                 InitializeHardwareDebugStream(UnifiedTracking.LipImageData, ref _lowerImageStream, ref _lowerStream);
             }
             // Handle device is valid and is providing data
-            if ( _lowerStream.CanWrite )
+            if (_lowerStream.CanWrite)
             {
                 _lowerStream.Position = 0;
                 await _lowerStream.WriteAsync(lowerData, 0, lowerData.Length);
@@ -117,7 +116,7 @@ public sealed partial class SettingsPage : Page
         {
             // Handle device getting unplugged / destroyed / disabled
             // Device is connected
-            if ( _lowerStream != null || _lowerImageStream != null )
+            if (_lowerStream != null || _lowerImageStream != null)
             {
                 await _lowerStream.DisposeAsync();
                 _lowerImageStream = null;
@@ -125,7 +124,7 @@ public sealed partial class SettingsPage : Page
             }
         }
 
-        if ( _lowerStream == null || _upperStream == null )
+        if (_lowerStream == null || _upperStream == null)
         {
             HardwareDebugSeparator.Visibility = Visibility.Collapsed;
         }
@@ -151,8 +150,8 @@ public sealed partial class SettingsPage : Page
 
     private async void bugRequestCard_Click(object sender, RoutedEventArgs e)
     => await Launcher.LaunchUriAsync(new Uri("https://github.com/benaclejames/VRCFaceTracking/issues/new/choose"));
-    
-    private async void privacyPolicyCard_Click(object sender, RoutedEventArgs e) 
+
+    private async void privacyPolicyCard_Click(object sender, RoutedEventArgs e)
      => await Launcher.LaunchUriAsync(new Uri("https://github.com/benaclejames/VRCFaceTracking/blob/master/PRIVACY.md"));
 
     private void themeMode_SelectionChanged(object sender, RoutedEventArgs e)

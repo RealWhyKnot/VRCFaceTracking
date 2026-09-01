@@ -95,7 +95,10 @@ public static class VRChat
         }
     }
 
-    public static string VRCOSCDirectory { get; private set; }
+    public static string VRCOSCDirectory
+    {
+        get; private set;
+    }
 
     /// <summary>
     /// Parse a VDF file into a dictionary structure
@@ -144,7 +147,7 @@ public static class VRChat
                 }
 
                 // Parse key
-                string key = ParseString();
+                var key = ParseString();
                 if (string.IsNullOrEmpty(key))
                     break;
 
@@ -210,7 +213,7 @@ public static class VRChat
         {
             while (_position < _content.Length)
             {
-                char c = _content[_position];
+                var c = _content[_position];
 
                 if (char.IsWhiteSpace(c) || c == '\r' || c == '\n' || c == '\t')
                 {
@@ -246,7 +249,7 @@ public static class VRChat
         var wasOscForced = false;
         foreach (var key in keys)
         {
-            if ((int) regKey.GetValue(key) == 0)
+            if ((int)regKey.GetValue(key) == 0)
             {
                 // Osc is likely not enabled
                 regKey.SetValue(key, 1);
@@ -257,4 +260,5 @@ public static class VRChat
         return wasOscForced;
     }
 
-    public static bool IsVrChatRunning() => Process.GetProcesses().Any(x => x.ProcessName is "VRChat.exe" or "VRChat");}
+    public static bool IsVrChatRunning() => Process.GetProcesses().Any(x => x.ProcessName is "VRChat.exe" or "VRChat");
+}

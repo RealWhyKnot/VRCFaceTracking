@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace VRCFaceTracking.Core.Sandboxing.IPC;
+
 public class HandshakePacket : IpcPacket
 {
 
@@ -25,7 +26,10 @@ public class HandshakePacket : IpcPacket
     private int _pid = 0;
     public bool IsValid => _isValid;
     public int PID => _pid;
-    public string ModulePath { get; set; }
+    public string ModulePath
+    {
+        get; set;
+    }
 
     public override PacketType GetPacketType() => PacketType.Handshake;
 
@@ -40,21 +44,21 @@ public class HandshakePacket : IpcPacket
     {
         // Build handshake packet
 
-        byte[] packetTypeBytes = BitConverter.GetBytes((uint)GetPacketType());
-        byte[] pidBytes = BitConverter.GetBytes(_pid);
-        byte[] modulePathData = Encoding.UTF8.GetBytes(ModulePath);
-        byte[] modulePathLengthBytes = BitConverter.GetBytes(modulePathData.Length);
+        var packetTypeBytes = BitConverter.GetBytes((uint)GetPacketType());
+        var pidBytes = BitConverter.GetBytes(_pid);
+        var modulePathData = Encoding.UTF8.GetBytes(ModulePath);
+        var modulePathLengthBytes = BitConverter.GetBytes(modulePathData.Length);
 
-        int packetSize = SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE + HANDSHAKE_CHALLENGE.Length + sizeof(int) + modulePathData.Length + sizeof(int);
+        var packetSize = SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE + HANDSHAKE_CHALLENGE.Length + sizeof(int) + modulePathData.Length + sizeof(int);
 
         // Prepare buffer
-        byte[] finalDataStream = new byte[packetSize];
-        Buffer.BlockCopy(HANDSHAKE_MAGIC,       0, finalDataStream, 0, SIZE_PACKET_MAGIC);              // Magic
-        Buffer.BlockCopy(packetTypeBytes,       0, finalDataStream, 4, SIZE_PACKET_TYPE);               // Packet Type
-        Buffer.BlockCopy(HANDSHAKE_CHALLENGE,   0, finalDataStream, 8, HANDSHAKE_CHALLENGE.Length);     // Handshake Challenge
-        Buffer.BlockCopy(pidBytes,              0, finalDataStream, 13, pidBytes.Length);               // PID
+        var finalDataStream = new byte[packetSize];
+        Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, finalDataStream, 0, SIZE_PACKET_MAGIC);              // Magic
+        Buffer.BlockCopy(packetTypeBytes, 0, finalDataStream, 4, SIZE_PACKET_TYPE);               // Packet Type
+        Buffer.BlockCopy(HANDSHAKE_CHALLENGE, 0, finalDataStream, 8, HANDSHAKE_CHALLENGE.Length);     // Handshake Challenge
+        Buffer.BlockCopy(pidBytes, 0, finalDataStream, 13, pidBytes.Length);               // PID
         Buffer.BlockCopy(modulePathLengthBytes, 0, finalDataStream, 17, modulePathLengthBytes.Length);  // ModulePath.Length
-        Buffer.BlockCopy(modulePathData,        0, finalDataStream, 21, modulePathData.Length);         // ModulePath
+        Buffer.BlockCopy(modulePathData, 0, finalDataStream, 21, modulePathData.Length);         // ModulePath
 
         return finalDataStream;
     }
@@ -62,9 +66,9 @@ public class HandshakePacket : IpcPacket
     public override void Decode(in byte[] data)
     {
         // Verify handshake challenge
-        for ( int i = 0; i < HANDSHAKE_CHALLENGE.Length; i++ )
+        for (var i = 0; i < HANDSHAKE_CHALLENGE.Length; i++)
         {
-            if ( data[i + 8] != HANDSHAKE_CHALLENGE[i] )
+            if (data[i + 8] != HANDSHAKE_CHALLENGE[i])
             {
                 _isValid = false;
                 break;
@@ -72,9 +76,9 @@ public class HandshakePacket : IpcPacket
         }
         _pid = BitConverter.ToInt32(data, 13);
 
-        int modulePathLength    = BitConverter.ToInt32(data, 17);
-        ModulePath              = Encoding.UTF8.GetString(data, 21, modulePathLength);
-        
+        var modulePathLength = BitConverter.ToInt32(data, 17);
+        ModulePath = Encoding.UTF8.GetString(data, 21, modulePathLength);
+
         _isValid = true;
     }
 }

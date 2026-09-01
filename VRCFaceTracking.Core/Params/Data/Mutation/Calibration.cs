@@ -38,12 +38,14 @@ public class Calibration : TrackingMutation
         private int _rollingIndex;
         private int _fixedIndex;
         private bool finished;
-        private float[] dataPoints = new float[points];
+        private readonly float[] dataPoints = new float[points];
         public float progress;
         private float _currentStep;
         public float max;
 
-        public CalibrationParameter(){}
+        public CalibrationParameter()
+        {
+        }
 
         public void UpdateCalibration(float currentValue, bool continuous, ILogger logger, float dT)
         {
@@ -70,7 +72,7 @@ public class Calibration : TrackingMutation
             _currentStep = ClampStep(currentValue, sDelta * dT);
         }
 
-        private float ClampStep(float value, float factor) => (float)Math.Floor(value / factor) * factor; 
+        private float ClampStep(float value, float factor) => (float)Math.Floor(value / factor) * factor;
 
         public void CalculateStats()
         {
@@ -88,7 +90,7 @@ public class Calibration : TrackingMutation
 
         public float CalculateParameter(float currentValue, float k)
         {
-            if (float.IsNaN(currentValue) || max == 0f) 
+            if (float.IsNaN(currentValue) || max == 0f)
                 return currentValue;
 
             var confidence = k * progress;
@@ -108,10 +110,10 @@ public class Calibration : TrackingMutation
         public CalibrationData()
         {
             Shapes ??= new CalibrationParameter[(int)UnifiedExpressions.Max];
-            for (int i = 0; i < Shapes.Length; i++)
+            for (var i = 0; i < Shapes.Length; i++)
                 if (Shapes[i] == null)
-                    Shapes[i] = new CalibrationParameter 
-                    { 
+                    Shapes[i] = new CalibrationParameter
+                    {
                         name = ((UnifiedExpressions)i).ToString(),
                         max = 0f,
                     };
@@ -119,18 +121,18 @@ public class Calibration : TrackingMutation
 
         public void RecordData(float[] values, bool continuous, ILogger logger, int ms)
         {
-            for (int i = 0; i < Shapes.Length; i++)
+            for (var i = 0; i < Shapes.Length; i++)
             {
-                Shapes[i].UpdateCalibration(currentValue: values[i], 
-                                            continuous: continuous, 
-                                            logger: logger, 
-                                            dT: ms/1000f);
+                Shapes[i].UpdateCalibration(currentValue: values[i],
+                                            continuous: continuous,
+                                            logger: logger,
+                                            dT: ms / 1000f);
             }
         }
 
         public void Clear()
         {
-            for (int i = 0; i < Shapes.Length; i++)
+            for (var i = 0; i < Shapes.Length; i++)
             {
                 Shapes[i] = new CalibrationParameter
                 {
@@ -155,10 +157,10 @@ public class Calibration : TrackingMutation
     {
         for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
         {
-            calData.Shapes[i].UpdateCalibration(currentValue: data.Shapes[i].Weight, 
+            calData.Shapes[i].UpdateCalibration(currentValue: data.Shapes[i].Weight,
                                                 continuous: continuousCalibration,
-                                                logger: Logger, 
-                                                dT: 100f/1000f);
+                                                logger: Logger,
+                                                dT: 100f / 1000f);
 
             data.Shapes[i].Weight = calData.Shapes[i].CalculateParameter(data.Shapes[i].Weight, calibrationBlend);
         }
@@ -171,7 +173,7 @@ public class Calibration : TrackingMutation
         Logger.LogInformation("Logging Calibration data:" +
                              $" delta: {sDelta}" +
                              $" points: {points}");
-        for (int i = 0; i < calData.Shapes.Length; i++)
+        for (var i = 0; i < calData.Shapes.Length; i++)
         {
             Logger.LogInformation($"{(UnifiedExpressions)i}" +
                                   $"\n  max value: {calData.Shapes[i].max}" +

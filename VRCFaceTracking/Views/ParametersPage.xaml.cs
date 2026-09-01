@@ -7,8 +7,11 @@ namespace VRCFaceTracking.Views;
 
 public sealed partial class ParametersPage : Page
 {
-    public ParametersViewModel ViewModel { get; }
-    
+    public ParametersViewModel ViewModel
+    {
+        get;
+    }
+
     public IMainService MainService
     {
         get;
@@ -29,7 +32,7 @@ public sealed partial class ParametersPage : Page
                 ParameterValue = 0.5f
             }
         });
-        
+
         this.DataContext = this;
         InitializeComponent();
 
@@ -43,7 +46,7 @@ public sealed partial class ParametersPage : Page
 
         // First we check to see if we already have a control for this parameter
         var existingControl = _trackedParameters.FirstOrDefault(x => x.ViewModel.ParameterName == name);
-        
+
         // If we don't, add one
         if (existingControl == null)
         {
@@ -52,7 +55,7 @@ public sealed partial class ParametersPage : Page
             newControl.ViewModel.ParameterName = name;
             newControl.ViewModel.ParameterValue = value;
         }
-        
+
         // If we do, update the value
         else
         {

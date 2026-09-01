@@ -1,14 +1,13 @@
 ﻿using System.Collections.ObjectModel;
-using Microsoft.UI.Xaml;
 using System.Globalization;
-using Windows.ApplicationModel.DataTransfer;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-
+using VRCFaceTracking.Services;
 using VRCFaceTracking.ViewModels;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.Storage.Provider;
-using Windows.Storage;
-using VRCFaceTracking.Services;
 
 namespace VRCFaceTracking.Views;
 
@@ -27,7 +26,7 @@ public sealed partial class OutputPage : Page
         ViewModel = App.GetService<OutputViewModel>();
         InitializeComponent();
     }
-    
+
     private void ScrollToBottom() => LogScroller.ChangeView(null, LogScroller.ScrollableHeight, null);
 
     private async void SaveToFile_OnClick(object sender, RoutedEventArgs e)
@@ -92,7 +91,7 @@ public sealed partial class OutputPage : Page
     private void LogScroller_OnLoaded(object sender, RoutedEventArgs e)
     {
         ScrollToBottom();
-        
+
         // We need to subscribe to the observablecollection onchanged event to scroll to the bottom. Note that we need a small delay because windows.
         // If we don't then we'll be scrolling a line too short.
         FilteredLog.CollectionChanged += (sender, args) =>

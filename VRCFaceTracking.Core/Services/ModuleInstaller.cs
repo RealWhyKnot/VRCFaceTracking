@@ -72,7 +72,7 @@ public class ModuleInstaller
                 throw new InvalidDataException($"MD5 hash mismatch. Expected {md5Hash}, got {hashStr}");
             }
         }
-        
+
         await File.WriteAllBytesAsync(filePath, content);
         await Task.CompletedTask;
     }
@@ -84,7 +84,7 @@ public class ModuleInstaller
     [SupportedOSPlatform("windows")]
     private bool RemoveZoneIdentifier(string path)
     {
-        string zoneFile = path + ":Zone.Identifier";
+        var zoneFile = path + ":Zone.Identifier";
 
         if (Utils.GetFileAttributes(zoneFile) == 0xffffffff) // INVALID_FILE_ATTRIBUTES
             //zone file doesn't exist, everything's good

@@ -5,17 +5,17 @@ namespace VRCFaceTracking.Core.OSC.Query.mDNS;
 public class TXTRecord : IDnsSerializer
 {
     public List<string> Text;
-        
+
     public TXTRecord()
     {
         Text = new List<string>();
     }
-        
+
     public byte[] Serialize()
     {
         // Serialize the text to bytes
         List<byte> bytes = new List<byte>();
-        foreach (string s in Text)
+        foreach (var s in Text)
         {
             bytes.Add((byte)s.Length);
             bytes.AddRange(Encoding.ASCII.GetBytes(s));

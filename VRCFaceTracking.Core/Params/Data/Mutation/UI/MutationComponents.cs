@@ -17,7 +17,10 @@ public enum MutationPropertyType
 
 public interface IMutationComponent
 {
-    public string Name { get; }
+    public string Name
+    {
+        get;
+    }
 }
 
 public class MutationProperty : IMutationComponent, INotifyPropertyChanged
@@ -25,11 +28,11 @@ public class MutationProperty : IMutationComponent, INotifyPropertyChanged
     private object _value;
     private readonly Action<object> _updateField;
 
-    public MutationProperty(string name, 
-                            object value, 
-                            MutationPropertyType type, 
-                            Action<object> updateField, 
-                            float min, 
+    public MutationProperty(string name,
+                            object value,
+                            MutationPropertyType type,
+                            Action<object> updateField,
+                            float min,
                             float max)
     {
         Name = name;
@@ -40,8 +43,14 @@ public class MutationProperty : IMutationComponent, INotifyPropertyChanged
         Max = max;
     }
 
-    public float Min { get; }
-    public float Max { get; }
+    public float Min
+    {
+        get;
+    }
+    public float Max
+    {
+        get;
+    }
 
     public object Value
     {
@@ -57,8 +66,14 @@ public class MutationProperty : IMutationComponent, INotifyPropertyChanged
         }
     }
 
-    public string Name { get; }
-    public MutationPropertyType Type { get; set; }
+    public string Name
+    {
+        get;
+    }
+    public MutationPropertyType Type
+    {
+        get; set;
+    }
 
     public event PropertyChangedEventHandler PropertyChanged;
 
@@ -72,11 +87,11 @@ public class MutationRangeProperty : IMutationComponent, INotifyPropertyChanged
     private float _item2;
     private readonly Action<(float, float)> _updateField;
 
-    public MutationRangeProperty(string name, 
-                                 float item1, 
-                                 float item2, 
-                                 Action<(float, float)> updateField, 
-                                 float min, 
+    public MutationRangeProperty(string name,
+                                 float item1,
+                                 float item2,
+                                 Action<(float, float)> updateField,
+                                 float min,
                                  float max)
     {
         Name = name;
@@ -87,8 +102,14 @@ public class MutationRangeProperty : IMutationComponent, INotifyPropertyChanged
         Max = max;
     }
 
-    public float Min { get; }
-    public float Max { get; }
+    public float Min
+    {
+        get;
+    }
+    public float Max
+    {
+        get;
+    }
 
     public float Item1
     {
@@ -118,7 +139,10 @@ public class MutationRangeProperty : IMutationComponent, INotifyPropertyChanged
         }
     }
 
-    public string Name { get; }
+    public string Name
+    {
+        get;
+    }
 
     public event PropertyChangedEventHandler PropertyChanged;
 
@@ -128,7 +152,10 @@ public class MutationRangeProperty : IMutationComponent, INotifyPropertyChanged
 
 public class MutationAction : IMutationComponent, ICommand
 {
-    public string Name { get; }
+    public string Name
+    {
+        get;
+    }
     private readonly Action _execute;
 
     public MutationAction(string name, Action execute)

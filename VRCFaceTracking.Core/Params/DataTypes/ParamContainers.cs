@@ -15,7 +15,7 @@ public class AlwaysRelevantParameter<T> : BaseParam<T> where T : struct
         OscMessage.Address = paramAddress;
         Relevant = true;
     }
-        
+
     public override Parameter[] ResetParam(IParameterDefinition[] newParams)
     {
         Relevant = true;
@@ -26,12 +26,12 @@ public class AlwaysRelevantParameter<T> : BaseParam<T> where T : struct
 public class NativeParameter<T> : AlwaysRelevantParameter<T> where T : struct
 {
     private readonly Func<IParameterDefinition[], bool> _condition;
-        
+
     public NativeParameter(Func<UnifiedTrackingData, T> getValueFunc, Func<IParameterDefinition[], bool> condition, string paramAddress) : base(getValueFunc, paramAddress)
     {
         _condition = condition;
     }
-        
+
     public override Parameter[] ResetParam(IParameterDefinition[] newParams)
     {
         if (_condition.Invoke(newParams))
@@ -49,7 +49,7 @@ public class NativeParameter<T> : AlwaysRelevantParameter<T> where T : struct
 public class ConditionalBoolParameter : BaseParam<bool>
 {
     private readonly Func<UnifiedTrackingData, (bool, bool)> _conditionalValueFunc;
-        
+
     public ConditionalBoolParameter(Func<UnifiedTrackingData, (bool, bool)> getValueFunc, string paramName) :
         base(paramName, exp => getValueFunc.Invoke(exp).Item1)
     {

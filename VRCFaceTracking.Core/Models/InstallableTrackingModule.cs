@@ -16,7 +16,7 @@ public class InstallableTrackingModule : TrackingModuleMetadata
     {
         get; set;
     }
-    
+
     [JsonIgnore]
     public string AssemblyLoadPath
     {

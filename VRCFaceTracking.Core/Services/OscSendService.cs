@@ -77,7 +77,7 @@ public class OscSendService
 
     public async Task Send(OscMessage message, CancellationToken ct)
     {
-        var nextByteIndex =await  message.Encode(_sendBuffer, ct);
+        var nextByteIndex = await message.Encode(_sendBuffer, ct);
         if (nextByteIndex > 4096)
         {
             _logger.LogError("OSC message too large to send! Skipping this batch of messages.");

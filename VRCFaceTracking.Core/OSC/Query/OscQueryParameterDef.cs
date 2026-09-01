@@ -5,9 +5,18 @@ namespace VRCFaceTracking.Core.OSC.Query;
 
 public class OscQueryParameterDef : IParameterDefinition
 {
-    public string Address { get; }
-    public string Name { get; }
-    public Type Type { get; }
+    public string Address
+    {
+        get;
+    }
+    public string Name
+    {
+        get;
+    }
+    public Type Type
+    {
+        get;
+    }
 
     public OscQueryParameterDef(string address, OscQueryNode node)
     {

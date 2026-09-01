@@ -28,13 +28,13 @@ public class ActivationService : IActivationService
     private UIElement? _shell;
 
     public ActivationService(
-        ActivationHandler<LaunchActivatedEventArgs> defaultHandler, 
-        IEnumerable<IActivationHandler> activationHandlers, 
-        IThemeSelectorService themeSelectorService, 
+        ActivationHandler<LaunchActivatedEventArgs> defaultHandler,
+        IEnumerable<IActivationHandler> activationHandlers,
+        IThemeSelectorService themeSelectorService,
         OscQueryService parameterOutputService,
-        IMainService mainService, 
-        IModuleDataService moduleDataService, 
-        ModuleInstaller moduleInstaller, 
+        IMainService mainService,
+        IModuleDataService moduleDataService,
+        ModuleInstaller moduleInstaller,
         ILibManager libManager,
         ILogger<ActivationService> logger,
         OpenVRService openVrService)
@@ -98,15 +98,15 @@ public class ActivationService : IActivationService
     private async Task StartupAsync()
     {
         await _themeSelectorService.SetRequestedThemeAsync();
-        
+
         _logger.LogInformation("VRCFT Version {version} initializing...", Assembly.GetExecutingAssembly().GetName().Version);
-        
+
         _logger.LogInformation("Initializing OSC...");
         await _parameterOutputService.InitializeAsync().ConfigureAwait(false);
 
         _logger.LogInformation("Initializing main service...");
         await _mainService.InitializeAsync().ConfigureAwait(false);
-        
+
         _logger.LogInformation("Initializing OpenVR...");
         if (!_openVrService.Initialize())
         {
@@ -127,9 +127,9 @@ public class ActivationService : IActivationService
         var remoteModules = await _moduleDataService.GetRemoteModules();
         var outdatedModules = remoteModules.Where(rm => localModules.Any(lm =>
         {
-            if (rm.ModuleId != lm.ModuleId || lm.IsLocal) 
+            if (rm.ModuleId != lm.ModuleId || lm.IsLocal)
                 return false;
-            
+
             try
             {
                 var remoteVersion = new Version(rm.Version);
@@ -148,10 +148,10 @@ public class ActivationService : IActivationService
             _logger.LogInformation($"Updating {outdatedModule.ModuleName} from {localModules.First(rm => rm.ModuleId == outdatedModule.ModuleId).Version} to {outdatedModule.Version}");
             await _moduleInstaller.InstallRemoteModule(outdatedModule);
         }
-        
+
         _logger.LogInformation("Initializing modules...");
         App.MainWindow.DispatcherQueue.TryEnqueue(() => _libManager.Initialize());
-        
+
         await Task.CompletedTask;
     }
 }

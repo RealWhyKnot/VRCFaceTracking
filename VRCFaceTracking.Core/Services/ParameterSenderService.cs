@@ -11,7 +11,7 @@ public class ParameterSenderService : BackgroundService
     // We probably don't need a queue since we use osc message bundles, but for now, we're keeping it as
     // we might want to allow a way for the user to specify bundle or single message sends in the future
     private static readonly Queue<OscMessage> SendQueue = new();
- 
+
     private readonly OscSendService _sendService;
     private readonly ILogger<ParameterSenderService> _logger;
     private readonly UnifiedTrackingMutator _mutator; // We don't use this but we do want DI to run its constructor
@@ -34,7 +34,7 @@ public class ParameterSenderService : BackgroundService
             }
         }
     }
-    
+
     public ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger)
     {
         _sendService = sendService;
@@ -44,7 +44,7 @@ public class ParameterSenderService : BackgroundService
 
     public static void Enqueue(OscMessage message) => SendQueue.Enqueue(message);
     public static void Clear() => SendQueue.Clear();
-    
+
     protected async override Task ExecuteAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)

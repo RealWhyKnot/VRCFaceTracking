@@ -6,9 +6,18 @@ namespace VRCFaceTracking.Core.Models.ParameterDefinition.FileBased;
 
 public class AvatarConfigFile : IAvatarInfo
 {
-    public string id { get; set; }
-    public string name { get; set; }
-    public AvatarConfigFileParameter[] parameters { get; set; }
+    public string id
+    {
+        get; set;
+    }
+    public string name
+    {
+        get; set;
+    }
+    public AvatarConfigFileParameter[] parameters
+    {
+        get; set;
+    }
 
     [JsonIgnore] public string Name => name;
 

@@ -95,7 +95,10 @@ public class OpenVRService
         }
     }
 
-    public bool IsInitialized { get; private set; }
+    public bool IsInitialized
+    {
+        get; private set;
+    }
 
     public bool AutoStart
     {
@@ -115,4 +118,4 @@ public class OpenVRService
             }
         }
     }
-} 
+}

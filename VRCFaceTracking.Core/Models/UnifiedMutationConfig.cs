@@ -10,7 +10,7 @@ public struct UnifiedMutationConfig
     public UnifiedMutationConfig()
     {
         ShapeMutations = new MutationConfig[(int)UnifiedExpressions.Max + 1];
-        for (int i = 0; i < ShapeMutations.Length; i++)
+        for (var i = 0; i < ShapeMutations.Length; i++)
         {
             ShapeMutations[i] = new MutationConfig()
             {

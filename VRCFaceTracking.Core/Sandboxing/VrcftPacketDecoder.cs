@@ -1,6 +1,7 @@
 ﻿using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Sandboxing;
+
 public class VrcftPacketDecoder
 {
     /// <summary>
@@ -14,19 +15,19 @@ public class VrcftPacketDecoder
         packet = new IpcPacket();
 
         // Verify magic numbers
-        for ( int i = 0; i < IpcPacket.SIZE_PACKET_TYPE; i++ )
+        for (var i = 0; i < IpcPacket.SIZE_PACKET_TYPE; i++)
         {
-            if ( data[i] != IpcPacket.HANDSHAKE_MAGIC[i] )
+            if (data[i] != IpcPacket.HANDSHAKE_MAGIC[i])
             {
                 return false;
             }
         }
 
         // Read packet type
-        IpcPacket.PacketType packetType = (IpcPacket.PacketType) (BitConverter.ToUInt32(data, 4));
+        IpcPacket.PacketType packetType = (IpcPacket.PacketType)(BitConverter.ToUInt32(data, 4));
 
         // Based on packet type, switch to specific packet decoder
-        switch ( packetType )
+        switch (packetType)
         {
             // Handshake
             case IpcPacket.PacketType.Handshake:
@@ -116,7 +117,7 @@ public class VrcftPacketDecoder
 #else
                 return false;
 #endif
-        } 
+        }
 
         return true;
     }

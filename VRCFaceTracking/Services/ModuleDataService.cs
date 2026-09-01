@@ -38,7 +38,7 @@ public class ModuleDataService : IModuleDataService
             {
                 return new List<InstallableTrackingModule>();
             }
-            
+
             var content = await response.Content.ReadAsStringAsync();
             return await Json.ToObjectAsync<List<InstallableTrackingModule>>(content);
         }
@@ -60,10 +60,13 @@ public class ModuleDataService : IModuleDataService
     {
         // Send a PATCH request to the downloads endpoint with the module ID in the body
         var rating = new RatingObject
-            { UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString() };
+        {
+            UserId = _identityService.GetUniqueUserId(),
+            ModuleId = moduleMetadata.ModuleId.ToString()
+        };
         var content = new StringContent(JsonConvert.SerializeObject(rating), Encoding.UTF8, "application/json");
         var response = await _httpClient.PatchAsync("downloads", content);
-        
+
         if (response.StatusCode == HttpStatusCode.OK)
         {
             return;
@@ -105,8 +108,11 @@ public class ModuleDataService : IModuleDataService
             }
 
             var rating = new RatingObject
-                { UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString() };
-        
+            {
+                UserId = _identityService.GetUniqueUserId(),
+                ModuleId = moduleMetadata.ModuleId.ToString()
+            };
+
             var response = await _httpClient.SendAsync(new HttpRequestMessage
             {
                 Method = HttpMethod.Get,
@@ -122,7 +128,7 @@ public class ModuleDataService : IModuleDataService
             }
 
             var ratingResponse = await Json.ToObjectAsync<RatingObject>(await response.Content.ReadAsStringAsync());
-            
+
             _logger.LogDebug("Rating for {ModuleId} was {Rating}. Caching...", moduleMetadata.ModuleId, ratingResponse.Rating);
             _ratingCache[moduleMetadata.ModuleId] = ratingResponse.Rating;
             return ratingResponse.Rating;
@@ -141,7 +147,8 @@ public class ModuleDataService : IModuleDataService
             // Same format as get but we PUT this time
             var ratingObject = new RatingObject
             {
-                UserId = _identityService.GetUniqueUserId(), ModuleId = moduleMetadata.ModuleId.ToString(),
+                UserId = _identityService.GetUniqueUserId(),
+                ModuleId = moduleMetadata.ModuleId.ToString(),
                 Rating = rating
             };
 
@@ -198,5 +205,5 @@ public class ModuleDataService : IModuleDataService
         }
 
         return installedModules;
-    } 
+    }
 }

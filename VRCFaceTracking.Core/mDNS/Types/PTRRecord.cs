@@ -3,12 +3,12 @@
 public class PTRRecord : IDnsSerializer
 {
     public List<string> DomainLabels;
-        
+
     public PTRRecord()
     {
         DomainLabels = new List<string>();
     }
-        
+
     public byte[] Serialize()
     {
         return BigWriter.WriteDomainLabels(DomainLabels);

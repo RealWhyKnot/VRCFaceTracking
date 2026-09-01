@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
+
 public static class MutationComponentFactory
 {
     public static ObservableCollection<IMutationComponent> CreateComponents(object instance)
@@ -22,8 +23,8 @@ public static class MutationComponentFactory
         string name,
         float min,
         float max,
-        object instance, 
-        object value, 
+        object instance,
+        object value,
         FieldInfo field,
         ObservableCollection<IMutationComponent> components,
         Action? updateField = null)
@@ -84,8 +85,8 @@ public static class MutationComponentFactory
                 {
                     var valueArray = value as Array;
                     Type enumType = attribute.EnumType;
-                    
-                    for (int i = 0; i < valueArray.Length; i++)
+
+                    for (var i = 0; i < valueArray.Length; i++)
                     {
                         var name = Enum.GetName(enumType, i);
                         if (name == null) break;
@@ -96,7 +97,7 @@ public static class MutationComponentFactory
                                 {
                                     return;
                                 }
-                                
+
                                 var typedMutation = (TrackingMutation)instance;
                                 await typedMutation.Save();
                             });
@@ -109,7 +110,7 @@ public static class MutationComponentFactory
                     {
                         return;
                     }
-                    
+
                     var typedMutation = (TrackingMutation)instance;
                     await typedMutation.Save();
                 });

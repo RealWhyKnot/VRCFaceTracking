@@ -16,7 +16,7 @@ public class LocalSettingsService : ILocalSettingsService
     private readonly IFileService _fileService;
     private readonly LocalSettingsOptions _options;
     private readonly ILogger<LocalSettingsService> _logger;
-    
+
     private readonly string _localApplicationData = Core.Utils.PersistentDataDirectory;
     private readonly string _applicationDataFolder;
     private readonly string _localSettingsFile;
@@ -24,12 +24,12 @@ public class LocalSettingsService : ILocalSettingsService
     private IDictionary<string, object> _settings;
 
     private bool _isInitialized;
-    
+
     // Save debouncing
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private CancellationTokenSource? _cts = new();
     private static readonly TimeSpan Debounce = TimeSpan.FromMilliseconds(300);
-    
+
     public LocalSettingsService(IFileService fileService, IOptions<LocalSettingsOptions> options, ILogger<LocalSettingsService> logger)
     {
         _fileService = fileService;
@@ -142,7 +142,7 @@ public class LocalSettingsService : ILocalSettingsService
     {
         var type = instance.GetType();
         var properties = type.GetProperties();
-        
+
         foreach (var property in properties)
         {
             var attributes = property.GetCustomAttributes(typeof(SavedSettingAttribute), false);
@@ -196,7 +196,7 @@ public class LocalSettingsService : ILocalSettingsService
     {
         _cts?.Cancel();
         _cts?.Dispose();
-        
+
         var cts = new CancellationTokenSource();
         _cts = cts;
 
@@ -209,7 +209,7 @@ public class LocalSettingsService : ILocalSettingsService
             // Newer save req came in. Skip this one and let the new one do the write.
             return;
         }
-        
+
         await _semaphore.WaitAsync();
         try
         {

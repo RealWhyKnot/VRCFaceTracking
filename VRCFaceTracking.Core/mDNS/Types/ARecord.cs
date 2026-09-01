@@ -5,12 +5,12 @@ namespace VRCFaceTracking.Core.OSC.Query.mDNS;
 public class ARecord : IDnsSerializer
 {
     public IPAddress Address;
-        
+
     public ARecord()
     {
-            
+
     }
-        
+
     public byte[] Serialize()
     {
         return Address.GetAddressBytes();

@@ -8,7 +8,7 @@ public sealed partial class MainWindow : WindowEx
     public MainWindow()
     {
         InitializeComponent();
-        
+
         AppWindow.Closing += async (window, args) =>
         {
             args.Cancel = true;
