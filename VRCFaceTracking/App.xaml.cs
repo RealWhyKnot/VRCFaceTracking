@@ -39,6 +39,7 @@ public partial class App : Application
         get;
     }
     
+    private static App? _instance;
     private ILogger? _logger;
 
     private static readonly LogLevelGate LogGate = new();
@@ -52,7 +53,12 @@ public partial class App : Application
     public static T GetService<T>()
         where T : class
     {
-        if ((App.Current as App)!.Host.Services.GetService(typeof(T)) is not T service)
+        if (_instance?.Host == null)
+        {
+            throw new InvalidOperationException($"{typeof(T).Name} requested before the host was built.");
+        }
+
+        if (_instance.Host.Services.GetService(typeof(T)) is not T service)
         {
             throw new ArgumentException($"{typeof(T)} needs to be registered in ConfigureServices within App.xaml.cs.");
         }
@@ -60,13 +66,28 @@ public partial class App : Application
         return service;
     }
 
-    public static WindowEx MainWindow { get; } = new MainWindow();
+    private static WindowEx? _mainWindow;
+
+    public static WindowEx MainWindow => _mainWindow ??= new MainWindow();
 
     public App()
     {
+        _instance = this;
         LogGate.Set(BuildInfo.VerboseForced);
+        var bootLogger = FileLog.CreateLogger("App");
+        bootLogger.LogDebug("App constructing");
         CrashHandlers.Install(FileLog.CreateLogger("Crash"), FileLog.Flush);
-        InitializeComponent();
+        UnhandledException += ExceptionHandler;
+        try
+        {
+            InitializeComponent();
+        }
+        catch (Exception e)
+        {
+            bootLogger.LogCritical(e, "App XAML initialization failed");
+            FileLog.Flush();
+            throw;
+        }
         
         // Check for a "reset" file in the root of the app directory. If one is found, wipe all files from inside it
         // and delete the file.
@@ -158,13 +179,13 @@ public partial class App : Application
         
         var logBuilder = App.GetService<ILoggerFactory>();
         _logger = logBuilder.CreateLogger("App");
+        _logger.LogDebug("Host built");
     }
 
     protected async override void OnLaunched(LaunchActivatedEventArgs args)
     {
         base.OnLaunched(args);
-
-        Current.UnhandledException += ExceptionHandler;
+        _logger?.LogDebug("OnLaunched");
 
         await App.GetService<ILocalSettingsService>().Load(LoggingSettings);
         LogGate.Set(LoggingSettings.VerboseEffective);
