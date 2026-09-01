@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:labs="using:CommunityToolkit.Labs.WinUI"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
     xmlns:models="using:VRCFaceTracking.Models"
     mc:Ignorable="d">
     <Page.Resources>
@@ -32,21 +32,21 @@
                     <RepositionThemeTransition IsStaggeringEnabled="False" />
                 </StackPanel.ChildrenTransitions>
                 
-                <labs:SettingsCard x:Uid="ThemeSettings">
-                    <labs:SettingsCard.HeaderIcon>
+                <toolkit:SettingsCard x:Uid="ThemeSettings">
+                    <toolkit:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE790;" />
-                    </labs:SettingsCard.HeaderIcon>
+                    </toolkit:SettingsCard.HeaderIcon>
                     <ComboBox x:Name="themeMode" SelectionChanged="themeMode_SelectionChanged">
                         <ComboBoxItem Content="Light" Tag="Light" />
                         <ComboBoxItem Content="Dark" Tag="Dark" />
                         <ComboBoxItem Content="Use system setting" Tag="Default" />
                     </ComboBox>
-                </labs:SettingsCard>
+                </toolkit:SettingsCard>
 
-                <labs:SettingsCard x:Uid="OscSettings">
-                    <labs:SettingsCard.HeaderIcon>
+                <toolkit:SettingsCard x:Uid="OscSettings">
+                    <toolkit:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xEC05;" />
-                    </labs:SettingsCard.HeaderIcon>
+                    </toolkit:SettingsCard.HeaderIcon>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -81,69 +81,69 @@
                                 Value="{x:Bind OscTarget.OutPort, Mode=TwoWay}"/>
                         </StackPanel>
                     </Grid>
-                </labs:SettingsCard>
+                </toolkit:SettingsCard>
                 
-                <labs:SettingsCard x:Uid="AutoStartSettings" IsEnabled="{x:Bind ViewModel.IsOpenVREnabled, Mode=OneWay}">
-                    <labs:SettingsCard.HeaderIcon>
+                <toolkit:SettingsCard x:Uid="AutoStartSettings" IsEnabled="{x:Bind ViewModel.IsOpenVREnabled, Mode=OneWay}">
+                    <toolkit:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE840;" />
-                    </labs:SettingsCard.HeaderIcon>
+                    </toolkit:SettingsCard.HeaderIcon>
                     <ToggleSwitch IsOn="{x:Bind ViewModel.AutoStart, Mode=TwoWay}"/>
-                </labs:SettingsCard>
+                </toolkit:SettingsCard>
 
-                <labs:SettingsExpander x:Uid="DiagnosticsSettings">
-                    <labs:SettingsExpander.HeaderIcon>
+                <toolkit:SettingsExpander x:Uid="DiagnosticsSettings">
+                    <toolkit:SettingsExpander.HeaderIcon>
                         <FontIcon Glyph="&#xE9D9;" />
-                    </labs:SettingsExpander.HeaderIcon>
+                    </toolkit:SettingsExpander.HeaderIcon>
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.VersionText}" />
-                    <labs:SettingsExpander.Items>
-                        <labs:SettingsCard x:Uid="VerboseLoggingSettings"
+                    <toolkit:SettingsExpander.Items>
+                        <toolkit:SettingsCard x:Uid="VerboseLoggingSettings"
                             IsEnabled="{x:Bind ViewModel.IsVerboseToggleEnabled}"
                             Description="{x:Bind ViewModel.VerboseDescription}">
                             <ToggleSwitch IsOn="{x:Bind ViewModel.VerboseLogging, Mode=TwoWay}" />
-                        </labs:SettingsCard>
-                        <labs:SettingsCard x:Uid="LogFilesToKeepSettings">
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard x:Uid="LogFilesToKeepSettings">
                             <NumberBox Minimum="1" Maximum="200" SmallChange="1" SpinButtonPlacementMode="Compact" Value="{x:Bind ViewModel.LogFilesToKeep, Mode=TwoWay}" />
-                        </labs:SettingsCard>
-                        <labs:SettingsCard x:Uid="LogFolderSettings" Description="{x:Bind ViewModel.LogDirectory}">
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard x:Uid="LogFolderSettings" Description="{x:Bind ViewModel.LogDirectory}">
                             <Button x:Uid="OpenLogsButton" Command="{x:Bind ViewModel.OpenLogsCommand}" />
-                        </labs:SettingsCard>
-                    </labs:SettingsExpander.Items>
-                </labs:SettingsExpander>
+                        </toolkit:SettingsCard>
+                    </toolkit:SettingsExpander.Items>
+                </toolkit:SettingsExpander>
                 
-                <labs:SettingsExpander x:Uid="RiskySettings">
-                    <labs:SettingsExpander.HeaderIcon>
+                <toolkit:SettingsExpander x:Uid="RiskySettings">
+                    <toolkit:SettingsExpander.HeaderIcon>
                         <FontIcon Glyph="&#xE7BA;" />
-                    </labs:SettingsExpander.HeaderIcon>
+                    </toolkit:SettingsExpander.HeaderIcon>
                     <ToggleSwitch x:Name="dangerAcceptToggle" Toggled="AcceptToggle_OnToggled" OnContent="Gremlin Mode" IsOn="{x:Bind RiskySettingsViewModel.Enabled, Mode=OneWay}"/>
-                    <labs:SettingsExpander.Items>
-                        <labs:SettingsCard x:Uid="ForceRelevancyToggle"
+                    <toolkit:SettingsExpander.Items>
+                        <toolkit:SettingsCard x:Uid="ForceRelevancyToggle"
                             x:Name="allParamsRelevant"
                             IsEnabled="False">
                             <ToggleSwitch x:Name="allParamsRelevantToggle" IsOn="{x:Bind RiskySettingsViewModel.AllRelevantDebug, Mode=TwoWay}" />
-                        </labs:SettingsCard>
-                        <labs:SettingsCard x:Uid="ForceReInitButton"
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard x:Uid="ForceReInitButton"
                             x:Name="forceReInit"
                             IsEnabled="False">
                             <Button x:Name="forceReInitButton" Click="forceReInitButton_OnClick" x:Uid="ReInitButton" />
-                        </labs:SettingsCard>
-                        <labs:SettingsCard x:Uid="ResetVRCFTButton"
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard x:Uid="ResetVRCFTButton"
                             x:Name="resetVRCFT"
                             IsEnabled="False">
                             <Button x:Name="resetVRCFTButton" Click="resetVRCFTButton_OnClick" x:Uid="ResetButton" />
-                        </labs:SettingsCard>
-                        <labs:SettingsCard x:Uid="ResetAvatarConfButton"
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard x:Uid="ResetAvatarConfButton"
                             x:Name="resetAvatarConfig"
                             IsEnabled="False">
                             <Button x:Name="resetVRCAvatarConf" Click="resetVRCAvatarConf_OnClick" x:Uid="ResetButton" />
-                        </labs:SettingsCard>
-                    </labs:SettingsExpander.Items>
-                </labs:SettingsExpander>
+                        </toolkit:SettingsCard>
+                    </toolkit:SettingsExpander.Items>
+                </toolkit:SettingsExpander>
 
                 <!-- Debug Hardware -->
-                <labs:SettingsCard x:Uid="HardwareDebug" ContentAlignment="Vertical">
-                    <labs:SettingsCard.HeaderIcon>
+                <toolkit:SettingsCard x:Uid="HardwareDebug" ContentAlignment="Vertical">
+                    <toolkit:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xEBE8;"/>
-                    </labs:SettingsCard.HeaderIcon>
+                    </toolkit:SettingsCard.HeaderIcon>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -154,59 +154,59 @@
                         <AppBarSeparator x:Name="HardwareDebugSeparator" Grid.Column="1" />
                         <Image Grid.Column="2" Source="{x:Bind LowerImageSource}" Stretch="Uniform" />
                     </Grid>
-                </labs:SettingsCard>
+                </toolkit:SettingsCard>
 
                 <!--  About  -->
                 <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" x:Uid="About" />
                 
-                <labs:SettingsExpander x:Uid="Copyright" Header="VRCFaceTracking">
+                <toolkit:SettingsExpander x:Uid="Copyright" Header="VRCFaceTracking">
                     <TextBlock
                             Margin="0,-2,0,0"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                             IsTextSelectionEnabled="True"
                             Text="{x:Bind ViewModel.VersionText}" />
-                    <labs:SettingsExpander.Items>
-                        <labs:SettingsCard
+                    <toolkit:SettingsExpander.Items>
+                        <toolkit:SettingsCard
                             x:Uid="PrivacyPolicyCard"
                             IsClickEnabled="True"
                             Click="privacyPolicyCard_Click">
-                            <labs:SettingsCard.ActionIcon>
+                            <toolkit:SettingsCard.ActionIcon>
                                 <FontIcon Glyph="&#xE8A7;" />
-                            </labs:SettingsCard.ActionIcon>
-                        </labs:SettingsCard>
-                        <labs:SettingsCard x:Uid="CloneRepoCard">
+                            </toolkit:SettingsCard.ActionIcon>
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard x:Uid="CloneRepoCard">
                             <TextBlock
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                     IsTextSelectionEnabled="True"
                                     Text="git clone https://github.com/benaclejames/VRCFaceTracking" />
-                        </labs:SettingsCard>
-                        <labs:SettingsCard
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard
                                 x:Uid="BugRequestCard"
                                 IsClickEnabled="True"
                                 Click="bugRequestCard_Click">
-                            <labs:SettingsCard.ActionIcon>
+                            <toolkit:SettingsCard.ActionIcon>
                                 <FontIcon Glyph="&#xE8A7;" />
-                            </labs:SettingsCard.ActionIcon>
-                        </labs:SettingsCard>
-                        <labs:SettingsCard
+                            </toolkit:SettingsCard.ActionIcon>
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard
                                 HorizontalContentAlignment="Left"
                                 ContentAlignment="Vertical"
                                 x:Uid="Dependencies">
                             <StackPanel Margin="-12,0,0,0" Orientation="Vertical">
                                 <HyperlinkButton Content="SimpleRustOSC" NavigateUri="https://github.com/benaclejames/SimpleRustOSC" />
                             </StackPanel>
-                        </labs:SettingsCard>
-                        <labs:SettingsCard
+                        </toolkit:SettingsCard>
+                        <toolkit:SettingsCard
                                 HorizontalContentAlignment="Left"
                                 ContentAlignment="Vertical"
                                 x:Uid="Disclaimer">
-                        </labs:SettingsCard>
-                    </labs:SettingsExpander.Items>
-                </labs:SettingsExpander>
+                        </toolkit:SettingsCard>
+                    </toolkit:SettingsExpander.Items>
+                </toolkit:SettingsExpander>
                 
-                <labs:SettingsExpander x:Uid="Credits" Header="Credits">
-                    <labs:SettingsExpander.Items>
-                        <labs:SettingsCard HorizontalContentAlignment="Stretch"
+                <toolkit:SettingsExpander x:Uid="Credits" Header="Credits">
+                    <toolkit:SettingsExpander.Items>
+                        <toolkit:SettingsCard HorizontalContentAlignment="Stretch"
                                            ContentAlignment="Vertical"
                                            x:Uid="ContributorsCard">
                                 <ItemsControl ItemsSource="{x:Bind ViewModel.Contributors, Mode=OneWay}">
@@ -228,9 +228,9 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                        </labs:SettingsCard>
-                    </labs:SettingsExpander.Items>
-                </labs:SettingsExpander>
+                        </toolkit:SettingsCard>
+                    </toolkit:SettingsExpander.Items>
+                </toolkit:SettingsExpander>
             </StackPanel>
         </ScrollViewer>
     </Grid>
