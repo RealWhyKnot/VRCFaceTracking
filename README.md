@@ -1,35 +1,67 @@
-# 👀 VRCFaceTracking
+# VRCFaceTracking
 
-Provides eye tracking and lip tracking in VRChat by providing a bridge between your tracking hardware and VRChat's OSC server.
-## [Get started here!](https://docs.vrcft.io/docs/intro/getting-started)
+Fork of [benaclejames/VRCFaceTracking](https://github.com/benaclejames/VRCFaceTracking), the
+bridge between face and eye tracking hardware and VRChat's OSC input. Same modules, same
+parameters, same registry. What this fork adds is a way to see what happened when it breaks.
 
-[![Discord](https://discord.com/api/guilds/849300336128032789/widget.png)](https://discord.com/invite/vrcft)
+- One dated log file per run under `%LocalAppData%\VRCFaceTracking\logs`, with the version,
+  channel, OS and process in the header. The newest 20 runs are kept (configurable).
+- The module host writes its own `vrcft_module_<name>_<time>.log`, so a module that dies before it
+  can talk to the app still leaves a trail. When a module process stops, the app logs the exit
+  code and the last stderr lines and marks the module as crashed instead of spinning.
+- Unhandled exceptions on any thread are written and flushed before the process goes down.
+- No Sentry. Nothing leaves your machine.
+- Exits with SteamVR when launched as a SteamVR overlay app.
 
-## 🎥 Demo
+Avatar setup, parameter lists and module docs are unchanged: [docs.vrcft.io](https://docs.vrcft.io).
 
-[![](https://i.imgur.com/iQkw12C.jpg)](https://youtu.be/ZTVnh8aaf9U)
+## Install
 
-## 🛠 Avatar Setup
+Grab the zip from the latest release, unzip it anywhere, run `VRCFaceTracking.exe`. It is the
+same unpackaged layout the Steam build uses; settings and installed modules in
+`%AppData%\VRCFaceTracking` carry over.
 
-For this app to work, you'll need to be using an avatar with the correct parameters or an avatar config file with the correct mappings. The system is designed to control your avatar's eyes and lips via simple blend states but what the parameters control is completely up to you.
+Releases tagged `-beta` are prereleases built from the latest master. They log verbosely by
+default. Stable releases log warnings and errors only unless you turn on verbose logging in
+Settings, under Diagnostics.
 
-### [List of Parameters](https://docs.vrcft.io/docs/tutorial-avatars/tutorial-avatars-extras/parameters/)
+## Logs
 
-## 👀 [Eye Parameters](https://docs.vrcft.io/docs/tutorial-avatars/tutorial-avatars-extras/parameters/#eye-tracking-parameters)
+Settings has a Diagnostics section with the verbose toggle, the number of log files to keep and
+an "Open folder" button. Dev and beta builds keep verbose logging on and grey the toggle out.
 
-### [Eye Tracking Setup Guide](https://github.com/benaclejames/VRCFaceTracking/wiki/Eye-Tracking-Setup)
+Everything the Output page shows is also in the file, plus Debug lines when verbose is on.
 
-It's not required to use all of these parameters. In fact, you don't need to use any of them if you intend on using VRChat's built-in eye tracking system. Similar to the setup of parameters with Unity Animation Controllers, these are all case-sensitive and must be copied **EXACTLY** as shown into your Avatar's base parameters. A typical setup might look something like this:<br>
-![](https://i.imgur.com/kfJD1Bl.png)
+## Build from source
 
-We strongly encourage you to [consult the docs](https://docs.vrcft.io) for a setup guide and more info as to what each parameter does
+Needs the .NET 10 SDK and the Windows 10 SDK 22621 (both come with the Visual Studio 2022
+".NET desktop" and "Windows application development" workloads).
 
-## :lips: [Lip and Face Parameters](https://docs.vrcft.io/docs/tutorial-avatars/tutorial-avatars-extras/parameters/#expression-tracking-parameters)
+```
+powershell -ExecutionPolicy Bypass -File build.ps1
+```
 
-There are a large number of parameters you can use for lip and face tracking. 
+`build.ps1` stamps a dev version like `2026.9.1.0-A1B2` into `version.txt`, builds Debug x64,
+runs the unit tests and turns on the repo's git hooks. `-Channel beta` or `-Channel release`
+picks the other channels, `-Configuration Release` builds Release, `-Publish` produces the
+self-contained folder under `build/publish` that releases ship, `-Format` runs `dotnet format`
+first. Plain `dotnet build VRCFaceTracking.sln -p:Platform=x64` works too.
 
-### [Combined Lip Parameters](https://docs.vrcft.io/docs/tutorial-avatars/tutorial-avatars-extras/parameters/#addtional-simplified-tracking-parameters) - Combined parameters to group mutually exclusive face shapes.
+The version is `YYYY.M.D.N` where N counts builds or releases on that day. Local builds append a
+four-character stamp; the hooks append the same stamp to commit subjects so a log line can be
+matched to the commit it came from.
 
-## ⛓ External Modules
+## Releases
 
-Use the module registry to download addons and add support for your hardware!
+Push a tag `vYYYY.M.D.N` for a stable release or `vYYYY.M.D.N-beta` for a prerelease. The
+release workflow checks that N is the next free number for that day, builds, tests, publishes,
+zips, writes a SHA-256 next to the zip and creates the GitHub release with notes generated from
+the conventional commit subjects since the previous tag. The nightly workflow tags a beta when
+master moved since the last tag; it needs a `RELEASE_TOKEN` secret with `contents: write`.
+
+CI on every push formats (`dotnet format --verify-no-changes`), builds both the dev and release
+channels, runs the tests and checks commit subjects against `type(scope): summary`.
+
+## Licence
+
+Apache-2.0, same as upstream. See [LICENSE](LICENSE).
