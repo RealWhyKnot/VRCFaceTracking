@@ -10,7 +10,7 @@ public class ParameterSenderService : BackgroundService
 {
     // We probably don't need a queue since we use osc message bundles, but for now, we're keeping it as
     // we might want to allow a way for the user to specify bundle or single message sends in the future
-    private static readonly Queue<OscMessage> SendQueue = new();
+    private static readonly List<OscMessage> SendQueue = new();
 
     private readonly OscSendService _sendService;
     private readonly ILogger<ParameterSenderService> _logger;
@@ -42,7 +42,7 @@ public class ParameterSenderService : BackgroundService
         _mutator = mutator;
     }
 
-    public static void Enqueue(OscMessage message) => SendQueue.Enqueue(message);
+    public static void Enqueue(OscMessage message) => SendQueue.Add(message);
     public static void Clear() => SendQueue.Clear();
 
     protected async override Task ExecuteAsync(CancellationToken cancellationToken)
@@ -53,15 +53,14 @@ public class ParameterSenderService : BackgroundService
             {
                 await Task.Delay(10, cancellationToken);
 
-                await UnifiedTracking.UpdateData(cancellationToken);
+                UnifiedTracking.UpdateData();
 
-                // Send all messages in OSCParams.SendQueue
                 if (SendQueue.Count <= 0)
                 {
                     continue;
                 }
 
-                await _sendService.Send(SendQueue.ToArray(), cancellationToken);
+                await _sendService.Send(SendQueue, cancellationToken);
 
                 SendQueue.Clear();
             }

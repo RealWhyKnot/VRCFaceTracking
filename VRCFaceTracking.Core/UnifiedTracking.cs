@@ -64,5 +64,5 @@ public class UnifiedTracking
     /// <summary>
     /// Central update function that updates all output parameter data and pushes the latest expressions from VRCFaceTracking modules into the internal expressions buffer.
     /// </summary>
-    public static async Task UpdateData(CancellationToken ct) => OnUnifiedDataUpdated.Invoke(await Task.Run(() => Mutator.MutateData(Data), ct));
+    public static void UpdateData() => OnUnifiedDataUpdated.Invoke(Mutator.MutateData(Data));
 }

@@ -106,7 +106,7 @@ public class OscMessage
     /// <param name="buffer">Target byte buffer to serialize to, starting from index 0</param>
     /// <param name="ct">Cancellation Token</param>
     /// <returns>Length of serialized data</returns>
-    public async Task<int> Encode(byte[] buffer, CancellationToken ct) => await Task.Run(() => fti_osc.create_osc_message(buffer, ref _meta), ct);
+    public int Encode(byte[] buffer) => fti_osc.create_osc_message(buffer, ref _meta);
 
     public OscMessage(OscMessageMeta meta) => _meta = meta;
 

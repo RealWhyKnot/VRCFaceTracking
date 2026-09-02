@@ -17,6 +17,7 @@ public class OscSendService
 
     private Socket _sendSocket;
     private readonly byte[] _sendBuffer = new byte[4096];
+    private OscMessageMeta[] _metaBuffer = new OscMessageMeta[256];
 
     private CancellationTokenSource _cts;
     public Action<int> OnMessagesDispatched = _ => { };
@@ -77,26 +78,52 @@ public class OscSendService
 
     public async Task Send(OscMessage message, CancellationToken ct)
     {
-        var nextByteIndex = await message.Encode(_sendBuffer, ct);
-        if (nextByteIndex > 4096)
+        var nextByteIndex = message.Encode(_sendBuffer);
+        if (nextByteIndex > _sendBuffer.Length)
         {
             _logger.LogError("OSC message too large to send! Skipping this batch of messages.");
             return;
         }
 
-        await _sendSocket?.SendAsync(_sendBuffer[..nextByteIndex])!;
+        if (_sendSocket == null)
+        {
+            return;
+        }
+
+        await _sendSocket.SendAsync(_sendBuffer.AsMemory(0, nextByteIndex), SocketFlags.None, ct);
         OnMessagesDispatched(1);
     }
 
-    public async Task Send(OscMessage[] messages, CancellationToken ct)
+    public async Task Send(List<OscMessage> messages, CancellationToken ct)
     {
-        var cbt = messages.Select(m => m._meta).ToArray();
-        var index = 0;
-        while (index < cbt.Length)
+        if (_sendSocket == null || messages.Count == 0)
         {
-            var length = await Task.Run(() => fti_osc.create_osc_bundle(_sendBuffer, cbt, messages.Length, ref index), ct);
-            await _sendSocket?.SendAsync(_sendBuffer[..length])!;
+            return;
         }
+
+        if (_metaBuffer.Length < messages.Count)
+        {
+            _metaBuffer = new OscMessageMeta[Math.Max(messages.Count, _metaBuffer.Length * 2)];
+        }
+
+        for (var i = 0; i < messages.Count; i++)
+        {
+            _metaBuffer[i] = messages[i]._meta;
+        }
+
+        var index = 0;
+        while (index < messages.Count)
+        {
+            var length = fti_osc.create_osc_bundle(_sendBuffer, _metaBuffer, messages.Count, ref index);
+            if (length <= 0)
+            {
+                _logger.LogError("OSC bundle encoding failed at message {Index} of {Count}", index, messages.Count);
+                break;
+            }
+
+            await _sendSocket.SendAsync(_sendBuffer.AsMemory(0, length), SocketFlags.None, ct);
+        }
+
         OnMessagesDispatched(index);
     }
 }
