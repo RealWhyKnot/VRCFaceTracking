@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
@@ -116,7 +116,10 @@ public partial class UnifiedTrackingMutator : ObservableObject
             mutation.Logger = _logger;
             mutation.LocalSettingsService = _localSettingsService;
             mutation.CreateProperties();
-            _mutations.Add(mutation);
+            lock (_mutationsLock)
+            {
+                _mutations.Add(mutation);
+            }
         }
         catch (Exception ex)
         {
