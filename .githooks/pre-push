@@ -15,20 +15,18 @@ if ! git rev-parse --verify -q "$upstream" >/dev/null; then
   upstream="HEAD~1"
 fi
 
-mapfile -t changed < <(git diff --name-only --diff-filter=ACMR "$upstream...HEAD" -- '*.cs' 2>/dev/null | while IFS= read -r f; do [ -f "$repo_root/$f" ] && printf '%s\n' "$f"; done)
-if [ "${#changed[@]}" -eq 0 ]; then
+changed="$(git diff --name-only --diff-filter=ACMR "$upstream...HEAD" -- '*.cs' 2>/dev/null | head -1)"
+if [ -z "$changed" ]; then
   echo "pre-push: no C# changes since $upstream; skipping format check." >&2
   exit 0
 fi
 
-echo "pre-push: checking formatting of ${#changed[@]} changed file(s)..." >&2
-includes=()
-for f in "${changed[@]}"; do includes+=("$f"); done
-(cd "$repo_root" && dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore --include "${includes[@]}")
+echo "pre-push: checking formatting (dotnet format --verify-no-changes)..." >&2
+(cd "$repo_root" && dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore -v q)
 if [ "$?" -ne 0 ]; then
   {
     echo ""
-    echo "pre-push BLOCKED: changed files would fail CI's lint job."
+    echo "pre-push BLOCKED: the solution would fail CI's lint job."
     echo "  Fix format:  dotnet format VRCFaceTracking.sln"
     echo "  Bypass:      git push --no-verify"
     echo ""
