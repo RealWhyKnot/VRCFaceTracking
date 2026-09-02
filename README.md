@@ -56,9 +56,10 @@ matched to the commit it came from.
 
 Push a tag `vYYYY.M.D.N` for a stable release or `vYYYY.M.D.N-beta` for a prerelease. The
 release workflow checks that N is the next free number for that day, builds, tests, publishes,
-zips, writes a SHA-256 next to the zip and creates the GitHub release with notes generated from
-the conventional commit subjects since the previous tag. The nightly workflow tags a beta when
-main moved since the last tag; it needs a `RELEASE_TOKEN` secret with `contents: write`.
+zips, attaches a `.integrity.tsv` with the SHA-256 of the zip and every file in it, and creates the
+GitHub release with grouped notes from the conventional commit subjects since the previous tag plus
+the install notes from `.github/release-template`. The nightly workflow tags a beta when main moved
+since the last tag and dispatches the release workflow for it; no extra secret is needed.
 
 CI on every push formats (`dotnet format --verify-no-changes`), builds both the dev and release
 channels, runs the tests and checks commit subjects against `type(scope): summary`.
