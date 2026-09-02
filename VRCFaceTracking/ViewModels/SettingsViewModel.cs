@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Windows.Input;
 
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -57,6 +57,17 @@ public partial class SettingsViewModel : ObservableRecipient
     }
 
     public bool IsOpenVREnabled => OpenVRService.IsInitialized;
+
+    public bool ExitWithSteamVr
+    {
+        get => OpenVRService.ExitWithSteamVr;
+        set
+        {
+            OpenVRService.ExitWithSteamVr = value;
+            _ = _localSettingsService.Save(OpenVRService);
+            OnPropertyChanged();
+        }
+    }
 
     public bool VerboseLogging
     {

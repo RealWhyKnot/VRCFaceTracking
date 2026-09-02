@@ -1,5 +1,5 @@
-﻿using System.Diagnostics;
-using System.Reflection;
+﻿using System.Reflection;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Valve.VR;
 using VRCFaceTracking.Core.Contracts.Services;
@@ -8,83 +8,119 @@ namespace VRCFaceTracking.Services;
 
 public class OpenVRService
 {
-    private CVRSystem _system;
-    private readonly ILogger<OpenVRService> _logger;
-    private readonly IMainService _mainService;
-    private Thread? _eventPollingThread;
-    private readonly CancellationTokenSource _pollingCts = new();
+    private static readonly TimeSpan EventPollInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly uint EventSize = (uint)Marshal.SizeOf<VREvent_t>();
 
-    public OpenVRService(ILogger<OpenVRService> logger, IMainService mainService)
+    private readonly ILogger<OpenVRService> _logger;
+    private CVRSystem? _system;
+    private CancellationTokenSource? _pollingCts;
+
+    public event Action? QuitRequested;
+
+    [SavedSetting("ExitWithSteamVR", false)]
+    public bool ExitWithSteamVr
+    {
+        get; set;
+    }
+
+    public OpenVRService(ILogger<OpenVRService> logger)
     {
         _logger = logger;
-        _mainService = mainService;
     }
 
     public bool Initialize()
     {
-        EVRInitError error = EVRInitError.None;
+        var error = EVRInitError.None;
         _system = OpenVR.Init(ref error, EVRApplicationType.VRApplication_Background);
 
         if (error != EVRInitError.None)
         {
-            _logger.LogWarning("Failed to initialize OpenVR: {0}", error);
+            _logger.LogWarning("Failed to initialize OpenVR: {Error}", error);
             IsInitialized = false;
             return IsInitialized;
         }
 
-        // Our app.vrmanifest is next to the executable, so we can just use the current directory of the executable
-        var currentDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
-        var fullManifestPath = Path.Combine(currentDirectory, "app.vrmanifest"); // Replace is for Linux
+        var currentDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? AppContext.BaseDirectory;
+        var fullManifestPath = Path.Combine(currentDirectory, "app.vrmanifest");
         var manifestRegisterResult = OpenVR.Applications.AddApplicationManifest(fullManifestPath, false);
         if (manifestRegisterResult != EVRApplicationError.None)
         {
-            _logger.LogWarning("Failed to register manifest: {0}", manifestRegisterResult);
+            _logger.LogWarning("Failed to register manifest: {Error}", manifestRegisterResult);
             IsInitialized = false;
             return IsInitialized;
         }
 
         _logger.LogInformation("Successfully initialized OpenVR");
-
         IsInitialized = true;
 
-        StartEventPolling();
+        if (_pollingCts == null)
+        {
+            _pollingCts = new CancellationTokenSource();
+            _ = PumpEventsAsync(_pollingCts.Token);
+        }
 
         return IsInitialized;
     }
 
-    private void StartEventPolling()
+    private async Task PumpEventsAsync(CancellationToken ct)
     {
-        _eventPollingThread = new Thread(() =>
+        using var timer = new PeriodicTimer(EventPollInterval);
+        try
         {
-            var vrEvent = new VREvent_t();
-            var eventSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(VREvent_t));
-
-            while (!_pollingCts.IsCancellationRequested)
+            while (await timer.WaitForNextTickAsync(ct))
             {
-                while (_system.PollNextEvent(ref vrEvent, eventSize))
+                if (_system == null || DrainEvents())
                 {
-                    if ((EVREventType)vrEvent.eventType == EVREventType.VREvent_Quit)
-                    {
-                        _logger.LogInformation("SteamVR is shutting down. Exiting VRCFT.");
-                        _system.AcknowledgeQuit_Exiting();
-
-                        // Teardown modules first to kill child processes,
-                        // then force-exit the application.
-                        _mainService.Teardown().GetAwaiter().GetResult();
-                        Core.Utils.KillAllProcessesOfName("VRCFaceTracking.ModuleProcess");
-                        Environment.Exit(0);
-                        return;
-                    }
+                    return;
                 }
-
-                Thread.Sleep(200);
             }
-        })
+        }
+        catch (OperationCanceledException)
         {
-            IsBackground = true,
-            Name = "OpenVR Event Polling"
-        };
-        _eventPollingThread.Start();
+        }
+    }
+
+    private bool DrainEvents()
+    {
+        var vrEvent = new VREvent_t();
+        while (_system!.PollNextEvent(ref vrEvent, EventSize))
+        {
+            if ((EVREventType)vrEvent.eventType != EVREventType.VREvent_Quit)
+            {
+                continue;
+            }
+
+            if (ExitWithSteamVr)
+            {
+                _logger.LogInformation("SteamVR is shutting down, closing VRCFaceTracking");
+                _system.AcknowledgeQuit_Exiting();
+                Shutdown();
+                QuitRequested?.Invoke();
+            }
+            else
+            {
+                _logger.LogInformation("SteamVR is shutting down, releasing OpenVR and staying open");
+                Shutdown();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public void Shutdown()
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        _pollingCts?.Cancel();
+        _pollingCts = null;
+        IsInitialized = false;
+        _system = null;
+        OpenVR.Shutdown();
     }
 
     public void InitIfNotAlready()
@@ -114,7 +150,7 @@ public class OpenVRService
             var setAutoLaunchResult = OpenVR.Applications.SetApplicationAutoLaunch("benaclejames.vrcft", value);
             if (setAutoLaunchResult != EVRApplicationError.None)
             {
-                _logger.LogError("Failed to set auto launch: {0}", setAutoLaunchResult);
+                _logger.LogError("Failed to set auto launch: {Error}", setAutoLaunchResult);
             }
         }
     }

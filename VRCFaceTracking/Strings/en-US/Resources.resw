@@ -521,4 +521,10 @@
   <data name="RestartModulesButton.Content" xml:space="preserve">
     <value>Restart modules</value>
   </data>
+  <data name="ExitWithSteamVrSettings.Header" xml:space="preserve">
+    <value>Exit with SteamVR</value>
+  </data>
+  <data name="ExitWithSteamVrSettings.Description" xml:space="preserve">
+    <value>Close VRCFaceTracking when SteamVR shuts down. Off by default.</value>
+  </data>
 </root>

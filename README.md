@@ -11,7 +11,8 @@ parameters, same registry. What this fork adds is a way to see what happened whe
   code and the last stderr lines and marks the module as crashed instead of spinning.
 - Unhandled exceptions on any thread are written and flushed before the process goes down.
 - No Sentry. Nothing leaves your machine.
-- Exits with SteamVR when launched as a SteamVR overlay app.
+- Optionally exits when SteamVR shuts down (Settings, off by default). The module host also
+  shuts itself down within ten seconds of losing the app.
 
 Avatar setup, parameter lists and module docs are unchanged: [docs.vrcft.io](https://docs.vrcft.io).
 

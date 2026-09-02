@@ -197,6 +197,10 @@ public partial class App : Application
         Core.Utils.KillAllProcessesOfName("VRCFaceTracking");
         Core.Utils.KillAllProcessesOfName("VRCFaceTracking.ModuleProcess");
 
+        var openVr = App.GetService<OpenVRService>();
+        await App.GetService<ILocalSettingsService>().Load(openVr);
+        openVr.QuitRequested += () => MainWindow.DispatcherQueue.TryEnqueue(() => MainWindow.Close());
+
         await App.GetService<IActivationService>().ActivateAsync(args);
         await Host.StartAsync();
     }
