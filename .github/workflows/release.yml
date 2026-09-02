@@ -99,7 +99,7 @@ jobs:
           $integrity = "build/$name.integrity.tsv"
           $rows = @("$hash`t$((Get-Item $zip).Length)`t$name.zip")
           Get-ChildItem "build/$name" -Recurse -File | Sort-Object FullName | ForEach-Object {
-            $rel = $_.FullName.Substring((Resolve-Path "build/$name").Path.Length + 1).Replace('', '/')
+            $rel = $_.FullName.Substring((Resolve-Path "build/$name").Path.Length + 1).Replace('\', '/')
             $rows += "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())`t$($_.Length)`t$rel"
           }
           [System.IO.File]::WriteAllLines($integrity, [string[]]$rows, (New-Object System.Text.UTF8Encoding($false)))
