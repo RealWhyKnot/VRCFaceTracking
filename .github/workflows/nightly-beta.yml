@@ -7,15 +7,14 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   tag:
     name: Tag a beta when main moved
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      GH_TOKEN: ${{ github.token }}
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -23,8 +22,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Plan, push beta tag, dispatch release
+      - name: Plan and push beta tag
+        id: plan
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           ./.github/scripts/Test-WorkflowSyntax.ps1
           $head = (git rev-parse HEAD).Trim()
@@ -46,6 +48,15 @@ jobs:
           $remote = "https://x-access-token:$($env:GH_TOKEN)@github.com/${{ github.repository }}.git"
           git push $remote $tag
           if ($LASTEXITCODE -ne 0) { throw "git push failed ($LASTEXITCODE)" }
-          gh workflow run release.yml --repo '${{ github.repository }}' --ref $tag -f tag=$tag
-          if ($LASTEXITCODE -ne 0) { throw "gh workflow run failed ($LASTEXITCODE)" }
-          Write-Host "Pushed $tag at $head and dispatched the release workflow"
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "tag=$tag"
+          Write-Host "Pushed $tag at $head"
+
+  release:
+    name: Release the beta
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}

@@ -10,6 +10,11 @@ on:
         description: Existing release tag to build (vYYYY.M.D.N or vYYYY.M.D.N-beta)
         required: true
         type: string
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
 
 permissions:
   contents: write
