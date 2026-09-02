@@ -18,6 +18,7 @@ using VRCFaceTracking.Core.Models;
 using VRCFaceTracking.Core.OSC.Query.mDNS;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Services;
+using VRCFaceTracking.Core.Updates;
 using VRCFaceTracking.Models;
 using VRCFaceTracking.Services;
 using VRCFaceTracking.ViewModels;
@@ -150,6 +151,8 @@ public partial class App : Application
             services.AddSingleton<ParameterSenderService>();
             services.AddSingleton<UnifiedTrackingMutator>();
             services.AddTransient<GithubService>();
+            services.AddSingleton<UpdateSettings>();
+            services.AddSingleton<UpdateService>();
 
             // Views and ViewModels
             services.AddTransient<ModuleRegistryViewModel>();
@@ -188,6 +191,7 @@ public partial class App : Application
         _logger?.LogDebug("OnLaunched");
 
         await App.GetService<ILocalSettingsService>().Load(LoggingSettings);
+        await App.GetService<ILocalSettingsService>().Load(App.GetService<UpdateSettings>());
         LogGate.Set(LoggingSettings.VerboseEffective);
         FileLog.WriteRaw($"channel={BuildInfo.ChannelName} verbose={LogGate.Verbose} forced={BuildInfo.VerboseForced} keep={LoggingSettings.LogFilesToKeep}");
         LogRetention.Prune(Core.Utils.LogDirectory, LogFileNames.MainPattern, LoggingSettings.LogFilesToKeep);
@@ -199,7 +203,7 @@ public partial class App : Application
 
         var openVr = App.GetService<OpenVRService>();
         await App.GetService<ILocalSettingsService>().Load(openVr);
-        openVr.QuitRequested += () => MainWindow.DispatcherQueue.TryEnqueue(() => MainWindow.Close());
+        openVr.QuitRequested += () => MainWindow.DispatcherQueue.TryEnqueue(() => _ = ((MainWindow)MainWindow).CloseAfterTeardown());
 
         await App.GetService<IActivationService>().ActivateAsync(args);
         await Host.StartAsync();

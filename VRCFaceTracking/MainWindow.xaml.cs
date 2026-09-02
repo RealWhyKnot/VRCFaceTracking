@@ -12,12 +12,17 @@ public sealed partial class MainWindow : WindowEx
         AppWindow.Closing += async (window, args) =>
         {
             args.Cancel = true;
-            await App.GetService<IMainService>().Teardown();
-            Close();
+            await CloseAfterTeardown();
         };
 
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets/WindowIcon.ico"));
         Content = null;
         Title = "AppDisplayName".GetLocalized();
+    }
+
+    public async Task CloseAfterTeardown()
+    {
+        await App.GetService<IMainService>().Teardown();
+        Close();
     }
 }

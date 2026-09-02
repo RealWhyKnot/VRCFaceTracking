@@ -10,6 +10,7 @@ using VRCFaceTracking.Contracts.Services;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Logging;
+using VRCFaceTracking.Core.Updates;
 using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Models;
 using VRCFaceTracking.Services;
@@ -22,6 +23,8 @@ public partial class SettingsViewModel : ObservableRecipient
     private readonly LoggingSettings _loggingSettings;
     private readonly LogLevelGate _logGate;
     private readonly ILocalSettingsService _localSettingsService;
+    private readonly UpdateSettings _updateSettings;
+    private readonly UpdateService _updateService;
     [ObservableProperty] private ElementTheme _elementTheme;
     [ObservableProperty] private List<GithubContributor> _contributors;
 
@@ -31,6 +34,11 @@ public partial class SettingsViewModel : ObservableRecipient
     }
 
     public ICommand OpenLogsCommand
+    {
+        get;
+    }
+
+    public ICommand CheckUpdatesCommand
     {
         get;
     }
@@ -106,6 +114,19 @@ public partial class SettingsViewModel : ObservableRecipient
 
     public string LogDirectory => Core.Utils.LogDirectory;
 
+    public bool IsUpdateCheckAvailable => BuildInfo.Channel != BuildChannel.Dev;
+
+    public bool CheckUpdatesOnStartup
+    {
+        get => _updateSettings.CheckOnStartup;
+        set
+        {
+            _updateSettings.CheckOnStartup = value;
+            _ = _localSettingsService.Save(_updateSettings);
+            OnPropertyChanged();
+        }
+    }
+
     public string VersionText => $"{BuildInfo.VersionString} ({BuildInfo.ChannelName})";
 
     private async void LoadContributors()
@@ -114,12 +135,15 @@ public partial class SettingsViewModel : ObservableRecipient
     }
 
     public SettingsViewModel(IThemeSelectorService themeSelectorService, GithubService githubService, OpenVRService openVRService,
-        LoggingSettings loggingSettings, LogLevelGate logGate, ILocalSettingsService localSettingsService)
+        LoggingSettings loggingSettings, LogLevelGate logGate, ILocalSettingsService localSettingsService,
+        UpdateSettings updateSettings, UpdateService updateService)
     {
         _themeSelectorService = themeSelectorService;
         _loggingSettings = loggingSettings;
         _logGate = logGate;
         _localSettingsService = localSettingsService;
+        _updateSettings = updateSettings;
+        _updateService = updateService;
         GithubService = githubService;
         OpenVRService = openVRService;
 
@@ -140,6 +164,8 @@ public partial class SettingsViewModel : ObservableRecipient
             Directory.CreateDirectory(Core.Utils.LogDirectory);
             Process.Start(new ProcessStartInfo("explorer.exe", Core.Utils.LogDirectory) { UseShellExecute = true });
         });
+
+        CheckUpdatesCommand = new AsyncRelayCommand(() => _updateService.CheckAsync(true));
 
         OpenVRService.InitIfNotAlready();
         LoadContributors();

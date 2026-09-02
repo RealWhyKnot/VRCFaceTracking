@@ -96,6 +96,18 @@
                     <ToggleSwitch IsOn="{x:Bind ViewModel.ExitWithSteamVr, Mode=TwoWay}"/>
                 </toolkit:SettingsCard>
 
+                <toolkit:SettingsExpander x:Uid="UpdatesSettings" IsEnabled="{x:Bind ViewModel.IsUpdateCheckAvailable}">
+                    <toolkit:SettingsExpander.HeaderIcon>
+                        <FontIcon Glyph="&#xE777;" />
+                    </toolkit:SettingsExpander.HeaderIcon>
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.CheckUpdatesOnStartup, Mode=TwoWay}" />
+                    <toolkit:SettingsExpander.Items>
+                        <toolkit:SettingsCard x:Uid="CheckUpdatesSettings">
+                            <Button x:Uid="CheckUpdatesButton" Command="{x:Bind ViewModel.CheckUpdatesCommand}" />
+                        </toolkit:SettingsCard>
+                    </toolkit:SettingsExpander.Items>
+                </toolkit:SettingsExpander>
+
                 <toolkit:SettingsExpander x:Uid="DiagnosticsSettings">
                     <toolkit:SettingsExpander.HeaderIcon>
                         <FontIcon Glyph="&#xE9D9;" />

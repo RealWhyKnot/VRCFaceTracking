@@ -422,6 +422,54 @@
   <data name="OpenLogsButton.Content" xml:space="preserve">
     <value>Open folder</value>
   </data>
+  <data name="UpdatesSettings.Header" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="UpdatesSettings.Description" xml:space="preserve">
+    <value>Check for a new version when the app starts</value>
+  </data>
+  <data name="CheckUpdatesSettings.Header" xml:space="preserve">
+    <value>Check now</value>
+  </data>
+  <data name="CheckUpdatesSettings.Description" xml:space="preserve">
+    <value>Looks for a newer release on GitHub</value>
+  </data>
+  <data name="CheckUpdatesButton.Content" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="UpdateDialogTitle" xml:space="preserve">
+    <value>Update available</value>
+  </data>
+  <data name="UpdateDialogContent" xml:space="preserve">
+    <value>Update to {0}?</value>
+  </data>
+  <data name="UpdateDialogUpdate" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="UpdateDialogSkip" xml:space="preserve">
+    <value>Skip this version</value>
+  </data>
+  <data name="UpdateDialogLater" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="UpdateUpToDateTitle" xml:space="preserve">
+    <value>No update available</value>
+  </data>
+  <data name="UpdateUpToDateContent" xml:space="preserve">
+    <value>You are running the newest {0} release.</value>
+  </data>
+  <data name="UpdateUpToDateClose" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="UpdateDownloadingTitle" xml:space="preserve">
+    <value>Downloading update</value>
+  </data>
+  <data name="UpdateFailedTitle" xml:space="preserve">
+    <value>Update failed</value>
+  </data>
+  <data name="UpdateFailedContent" xml:space="preserve">
+    <value>The update could not be applied. See the log for details.</value>
+  </data>
   <data name="ModuleCrashed.Text" xml:space="preserve">
     <value>Module process stopped unexpectedly</value>
   </data>

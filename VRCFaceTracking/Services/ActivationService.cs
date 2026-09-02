@@ -25,6 +25,7 @@ public class ActivationService : IActivationService
     private readonly ILibManager _libManager;
     private readonly ILogger<ActivationService> _logger;
     private readonly OpenVRService _openVrService;
+    private readonly UpdateService _updateService;
     private UIElement? _shell;
 
     public ActivationService(
@@ -37,7 +38,8 @@ public class ActivationService : IActivationService
         ModuleInstaller moduleInstaller,
         ILibManager libManager,
         ILogger<ActivationService> logger,
-        OpenVRService openVrService)
+        OpenVRService openVrService,
+        UpdateService updateService)
     {
         _defaultHandler = defaultHandler;
         _activationHandlers = activationHandlers;
@@ -49,6 +51,7 @@ public class ActivationService : IActivationService
         _libManager = libManager;
         _logger = logger;
         _openVrService = openVrService;
+        _updateService = updateService;
     }
 
     public async Task ActivateAsync(object activationArgs)
@@ -152,6 +155,6 @@ public class ActivationService : IActivationService
         _logger.LogInformation("Initializing modules...");
         App.MainWindow.DispatcherQueue.TryEnqueue(() => _libManager.Initialize());
 
-        await Task.CompletedTask;
+        _ = _updateService.CheckOnStartupAsync();
     }
 }
