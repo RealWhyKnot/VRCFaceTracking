@@ -6,13 +6,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 jobs:
   tag:
     name: Tag a beta when main moved
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -20,12 +23,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Plan and push beta tag
+      - name: Plan, push beta tag, dispatch release
         shell: pwsh
-        env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          if (-not $env:RELEASE_TOKEN) { throw "RELEASE_TOKEN secret is not set; a tag pushed with the default token would not trigger the release workflow." }
           ./.github/scripts/Test-WorkflowSyntax.ps1
           $head = (git rev-parse HEAD).Trim()
           $latest = (git tag --list 'v*' --sort=-creatordate | Select-Object -First 1)
@@ -43,7 +43,9 @@ jobs:
           ./.github/scripts/Assert-ReleaseVersionSequence.ps1 -Tag $tag
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' tag -a $tag -m $tag $head
           if ($LASTEXITCODE -ne 0) { throw "git tag failed ($LASTEXITCODE)" }
-          $remote = "https://x-access-token:$($env:RELEASE_TOKEN)@github.com/${{ github.repository }}.git"
+          $remote = "https://x-access-token:$($env:GH_TOKEN)@github.com/${{ github.repository }}.git"
           git push $remote $tag
           if ($LASTEXITCODE -ne 0) { throw "git push failed ($LASTEXITCODE)" }
-          Write-Host "Pushed $tag at $head"
+          gh workflow run release.yml --repo '${{ github.repository }}' --ref $tag -f tag=$tag
+          if ($LASTEXITCODE -ne 0) { throw "gh workflow run failed ($LASTEXITCODE)" }
+          Write-Host "Pushed $tag at $head and dispatched the release workflow"

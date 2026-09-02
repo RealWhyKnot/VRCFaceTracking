@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build (vYYYY.M.D.N or vYYYY.M.D.N-beta)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,22 +20,26 @@ concurrency:
 
 jobs:
   release:
-    name: Publish ${{ github.ref_name }}
+    name: Publish ${{ inputs.tag || github.ref_name }}
     runs-on: windows-latest
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Resolve tag
         id: tag
         shell: pwsh
         run: |
-          $tag = '${{ github.ref_name }}'
+          $tag = $env:RELEASE_TAG
+          $sha = (git rev-list -n 1 $tag).Trim()
+          if ($LASTEXITCODE -ne 0 -or -not $sha) { throw "Tag '$tag' does not exist in this checkout." }
           $isBeta = $tag -match '^v\d{4}\.\d+\.\d+\.\d+-beta$'
           if (-not $isBeta -and $tag -notmatch '^v\d{4}\.\d+\.\d+\.\d+$') {
             throw "Tag '$tag' must be vYYYY.M.D.N or vYYYY.M.D.N-beta."
@@ -40,6 +50,7 @@ jobs:
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "version=$version"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "channel=$channel"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "prerelease=$($isBeta.ToString().ToLowerInvariant())"
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "sha=$sha"
           Write-Host "tag=$tag version=$version channel=$channel prerelease=$isBeta"
 
       - name: Script self-tests
@@ -81,7 +92,7 @@ jobs:
           Compress-Archive -Path "build/$name/*" -DestinationPath $zip -Force
           $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$zip.sha256", "$hash  $name.zip`n", (New-Object System.Text.UTF8Encoding($false)))
-          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag '${{ github.ref_name }}' -ZipPath $zip -OutFile build/notes.md | Out-Null
+          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag $env:RELEASE_TAG -ZipPath $zip -OutFile build/notes.md | Out-Null
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "zip=$zip"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "sha256=$hash"
           Get-Content build/notes.md
@@ -89,16 +100,16 @@ jobs:
       - name: Publish release
         shell: pwsh
         run: |
-          $tag = '${{ github.ref_name }}'
+          $tag = $env:RELEASE_TAG
           $extra = @()
           if ('${{ steps.tag.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
-          gh release create $tag '${{ steps.package.outputs.zip }}' '${{ steps.package.outputs.zip }}.sha256' --repo '${{ github.repository }}' --target '${{ github.sha }}' --title $tag --notes-file build/notes.md @extra
+          gh release create $tag '${{ steps.package.outputs.zip }}' '${{ steps.package.outputs.zip }}.sha256' --repo '${{ github.repository }}' --target '${{ steps.tag.outputs.sha }}' --title $tag --notes-file build/notes.md @extra
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
 
       - name: Verify uploaded asset
         shell: pwsh
         run: |
-          $tag = '${{ github.ref_name }}'
+          $tag = $env:RELEASE_TAG
           $expected = 'sha256:${{ steps.package.outputs.sha256 }}'
           $zipName = Split-Path -Leaf '${{ steps.package.outputs.zip }}'
           $ok = $false
@@ -119,5 +130,5 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          gh release delete '${{ github.ref_name }}' --repo '${{ github.repository }}' --yes 2>$null
+          gh release delete $env:RELEASE_TAG --repo '${{ github.repository }}' --yes 2>$null
           $global:LASTEXITCODE = 0

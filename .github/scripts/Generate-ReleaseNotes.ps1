@@ -30,7 +30,9 @@ function Get-PreviousTag {
 Push-Location (Resolve-Path -LiteralPath $RepoRoot).Path
 try {
   $previous = Get-PreviousTag -Tag $Tag
-  $range = if ($previous) { "$previous..$Tag" } else { $Tag }
+  $baseFile = Join-Path (Get-Location).Path ".github/release-base"
+  $base = if (Test-Path -LiteralPath $baseFile) { (Get-Content -LiteralPath $baseFile -Raw).Trim() } else { "" }
+  $range = if ($previous) { "$previous..$Tag" } elseif ($base) { "$base..$Tag" } else { $Tag }
   $subjects = @(Invoke-Git -Arguments @("log", "--format=%s", "--no-merges", $range))
 
   $sections = [ordered]@{
