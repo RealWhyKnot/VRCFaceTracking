@@ -1,36 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace VRCFaceTracking.Core.Sandboxing.IPC;
 
 public class EventUpdatePacket : IpcPacket
 {
+    private static readonly byte[] Encoded = Build();
+
     public override PacketType GetPacketType() => PacketType.EventUpdate;
 
-    // We send a challenge to the vrcft host, and if we receive a reply with the same data, we consider the connection successfully ACKed.
-    // In other words, this packet is the handshake begin and ACK packet.
-    public override byte[] GetBytes()
+    private static byte[] Build()
     {
-        // Build handshake packet
-
-        var packetTypeBytes = BitConverter.GetBytes((uint)GetPacketType());
-
-        var packetSize = SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE;
-
-        // Prepare buffer
-        var finalDataStream = new byte[packetSize];
-        Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, finalDataStream, 0, SIZE_PACKET_MAGIC);          // Magic
-        Buffer.BlockCopy(packetTypeBytes, 0, finalDataStream, 4, SIZE_PACKET_TYPE);           // Packet Type
-
-        return finalDataStream;
+        var data = new byte[SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE];
+        Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, data, 0, SIZE_PACKET_MAGIC);
+        BitConverter.TryWriteBytes(data.AsSpan(4), (uint)PacketType.EventUpdate);
+        return data;
     }
+
+    public override byte[] GetBytes() => Encoded;
 
     public override void Decode(in byte[] data)
     {
-
     }
-
 }

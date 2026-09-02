@@ -1,4 +1,4 @@
-using System.CommandLine;
+﻿using System.CommandLine;
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -28,14 +28,12 @@ public class ModuleProcessMain
     private static readonly Queue<IpcPacket> _packetsToSend = new();
     private static Timer? _connectionTimer;
 
-    private static readonly object _callbackLock = new();
-    private static bool _shouldCallReceive = false;
+    private static readonly AutoResetEvent _wakeup = new(false);
+    private static volatile bool _shouldCallReceive;
     public static void QueueReceiveEvent()
     {
-        lock (_callbackLock)
-        {
-            _shouldCallReceive = true;
-        }
+        _shouldCallReceive = true;
+        _wakeup.Set();
     }
 
     public static int Main(string[] args)
@@ -330,11 +328,6 @@ public class ModuleProcessMain
             }
 
         };
-        if (OperatingSystem.IsWindows())
-        {
-            Core.Utils.TimeBeginPeriod(1);
-        }
-
         Client.Connect(modulePath);
         Logger.LogInformation("Initializing {module}", DefModuleAssembly.Assembly.ToString());
 
@@ -355,19 +348,18 @@ public class ModuleProcessMain
 
             if (_shouldCallReceive)
             {
+                _shouldCallReceive = false;
                 Client.ReceivePackets();
             }
 
-            Thread.Sleep(1);
+            if (_packetsToSend.Count == 0)
+            {
+                _wakeup.WaitOne(20);
+            }
         }
 
         DefModuleAssembly._updateCts?.Cancel();
         _connectionTimer?.Dispose();
-
-        if (OperatingSystem.IsWindows())
-        {
-            Core.Utils.TimeEndPeriod(1);
-        }
 
         _fileLogger?.Flush();
         Environment.Exit(ModuleProcessExitCodes.OK);
