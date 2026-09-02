@@ -35,7 +35,8 @@ jobs:
             $latestSha = (git rev-list -n 1 $latest).Trim()
             if ($latestSha -eq $head) { Write-Host "No commits since $latest; nothing to tag."; exit 0 }
           }
-          $today = (Get-Date).ToUniversalTime().ToString('yyyy.M.d')
+          $zone = [TimeZoneInfo]::FindSystemTimeZoneById('America/Chicago')
+          $today = [TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $zone).ToString('yyyy.M.d')
           $pattern = "^v$([regex]::Escape($today))\.(\d+)(-[A-Za-z0-9]{4})?$"
           $highest = -1
           foreach ($t in @(git tag --list "v$today.*")) {
