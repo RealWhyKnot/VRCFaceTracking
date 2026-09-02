@@ -56,7 +56,7 @@ public sealed partial class OutputPage : Page
             CachedFileManager.DeferUpdates(file);
 
             // write to file
-            var logString = AllLog.Aggregate("", (current, log) => current + log + "\n");
+            var logString = string.Join("\n", AllLog.Select(log => log.Message));
             await FileIO.AppendTextAsync(file, logString);
 
             FileUpdateStatus status = await CachedFileManager.CompleteUpdatesAsync(file);
@@ -81,7 +81,7 @@ public sealed partial class OutputPage : Page
 
     private void CopyToClipboard_OnClick(object sender, RoutedEventArgs e)
     {
-        var logString = AllLog.Aggregate("", (current, log) => current + log + "\n");
+        var logString = string.Join("\n", AllLog.Select(log => log.Message));
         var package = new DataPackage();
         package.SetText(logString);
         Clipboard.SetContent(package);
@@ -94,17 +94,18 @@ public sealed partial class OutputPage : Page
 
         // We need to subscribe to the observablecollection onchanged event to scroll to the bottom. Note that we need a small delay because windows.
         // If we don't then we'll be scrolling a line too short.
-        FilteredLog.CollectionChanged += (sender, args) =>
+        var scrollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        scrollTimer.Tick += (_, _) =>
         {
-            // Start a timer for 1ms to scroll to the bottom
-            var timer = new DispatcherTimer();
-            timer.Interval = TimeSpan.FromMilliseconds(1);
-            timer.Tick += (sender, args) =>
+            scrollTimer.Stop();
+            ScrollToBottom();
+        };
+        FilteredLog.CollectionChanged += (_, _) =>
+        {
+            if (!scrollTimer.IsEnabled)
             {
-                timer.Stop();
-                ScrollToBottom();
-            };
-            timer.Start();
+                scrollTimer.Start();
+            }
         };
     }
 }

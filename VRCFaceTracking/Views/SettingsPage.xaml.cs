@@ -44,8 +44,8 @@ public sealed partial class SettingsPage : Page
         InitializeHardwareDebugStream(UnifiedTracking.LipImageData, ref _lowerImageStream, ref _lowerStream);
 
         Loaded += OnPageLoaded;
-
-        UnifiedTracking.OnUnifiedDataUpdated += _ => DispatcherQueue?.TryEnqueue(OnTrackingDataUpdated);
+        Loaded += (_, _) => UnifiedTracking.OnUnifiedDataUpdated += OnUnifiedDataUpdated;
+        Unloaded += (_, _) => UnifiedTracking.OnUnifiedDataUpdated -= OnUnifiedDataUpdated;
         InitializeComponent();
     }
 
@@ -58,6 +58,23 @@ public sealed partial class SettingsPage : Page
             bitmap = new WriteableBitmap(imageSize.x, imageSize.y);
             targetStream = bitmap.PixelBuffer.AsStream();
         }
+    }
+
+    private volatile bool _frameQueued;
+
+    private void OnUnifiedDataUpdated(UnifiedTrackingData _)
+    {
+        if (_frameQueued)
+        {
+            return;
+        }
+
+        _frameQueued = true;
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            _frameQueued = false;
+            OnTrackingDataUpdated();
+        });
     }
 
     private async void OnTrackingDataUpdated()
