@@ -150,7 +150,7 @@ try {
     }
   }
 
-  $body = ($lines -join "`n").TrimEnd()
+  $body = (($lines -join "`n") -replace "`r`n", "`n").TrimEnd()
 
   if (-not $SkipScrub) {
     $offenders = @()
