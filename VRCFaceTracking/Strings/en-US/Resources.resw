@@ -443,4 +443,82 @@
   <data name="InstallCustomModuleFailed" xml:space="preserve">
     <value>Failed to install the module. Check the log for details.</value>
   </data>
+  <data name="ParametersEyeHeader.Text" xml:space="preserve">
+    <value>Eye</value>
+  </data>
+  <data name="ParametersLipHeader.Text" xml:space="preserve">
+    <value>Lip</value>
+  </data>
+  <data name="CopyLogButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Copy log to clipboard</value>
+  </data>
+  <data name="SaveLogButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Save log to file</value>
+  </data>
+  <data name="OpenLogsFolderButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Open the log folder</value>
+  </data>
+  <data name="LogSaved" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="LogSavedRenamed" xml:space="preserve">
+    <value>Saved {0} under a new name.</value>
+  </data>
+  <data name="LogSaveFailed" xml:space="preserve">
+    <value>Could not save {0}.</value>
+  </data>
+  <data name="OperationCancelled" xml:space="preserve">
+    <value>Operation cancelled.</value>
+  </data>
+  <data name="CopiedToClipboard" xml:space="preserve">
+    <value>Copied to clipboard.</value>
+  </data>
+  <data name="ThemeLight.Content" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="ThemeDark.Content" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="ThemeSystem.Content" xml:space="preserve">
+    <value>Use system setting</value>
+  </data>
+  <data name="OscInPortBox.Header" xml:space="preserve">
+    <value>Legacy receive port</value>
+  </data>
+  <data name="OscAddressBox.Header" xml:space="preserve">
+    <value>IP address</value>
+  </data>
+  <data name="OscAddressBox.PlaceholderText" xml:space="preserve">
+    <value>127.0.0.1</value>
+  </data>
+  <data name="OscOutPortBox.Header" xml:space="preserve">
+    <value>Send port</value>
+  </data>
+  <data name="RiskyToggle.OnContent" xml:space="preserve">
+    <value>Gremlin Mode</value>
+  </data>
+  <data name="ContributionsLabel.Text" xml:space="preserve">
+    <value> contributions</value>
+  </data>
+  <data name="ModuleInstallButton.Content" xml:space="preserve">
+    <value>Install module</value>
+  </data>
+  <data name="ModuleActionInstall" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="ModuleActionUninstall" xml:space="preserve">
+    <value>Uninstall</value>
+  </data>
+  <data name="ModuleActionUpdate" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="ModuleActionRestartRequired" xml:space="preserve">
+    <value>Restart VRCFaceTracking to finish</value>
+  </data>
+  <data name="DismissButton.Content" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="RestartModulesButton.Content" xml:space="preserve">
+    <value>Restart modules</value>
+  </data>
 </root>

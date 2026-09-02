@@ -26,4 +26,6 @@ public sealed partial class MainPage : Page
     }
 
     private void NoModuleButton_Click(object sender, RoutedEventArgs e) => NavigationService.NavigateTo(typeof(ModuleRegistryViewModel).FullName!);
+
+    private void RestartModules_OnClick(object sender, RoutedEventArgs e) => ViewModel.LibManager.Initialize();
 }

@@ -20,7 +20,7 @@
                     Style="{ThemeResource TitleTextBlockStyle}" />
             </StackPanel>
             <StackPanel Padding="0,15,0,0">
-                <Button x:Name="InstallButton" IsEnabled="False" Content="Install Module" Click="Install_Click" Style="{StaticResource AccentButtonStyle}"/>
+                <Button x:Name="InstallButton" x:Uid="ModuleInstallButton" IsEnabled="False" Click="Install_Click" Style="{StaticResource AccentButtonStyle}"/>
 
                 <AppBarSeparator/>
                 

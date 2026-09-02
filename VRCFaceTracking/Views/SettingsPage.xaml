@@ -31,15 +31,15 @@
                     <EntranceThemeTransition FromVerticalOffset="50" />
                     <RepositionThemeTransition IsStaggeringEnabled="False" />
                 </StackPanel.ChildrenTransitions>
-                
+
                 <toolkit:SettingsCard x:Uid="ThemeSettings">
                     <toolkit:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE790;" />
                     </toolkit:SettingsCard.HeaderIcon>
                     <ComboBox x:Name="themeMode" SelectionChanged="themeMode_SelectionChanged">
-                        <ComboBoxItem Content="Light" Tag="Light" />
-                        <ComboBoxItem Content="Dark" Tag="Dark" />
-                        <ComboBoxItem Content="Use system setting" Tag="Default" />
+                        <ComboBoxItem x:Uid="ThemeLight" Tag="Light" />
+                        <ComboBoxItem x:Uid="ThemeDark" Tag="Dark" />
+                        <ComboBoxItem x:Uid="ThemeSystem" Tag="Default" />
                     </ComboBox>
                 </toolkit:SettingsCard>
 
@@ -56,7 +56,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                             <NumberBox
-                                Header="Legacy Receive Port"
+                                x:Uid="OscInPortBox"
                                 SpinButtonPlacementMode="Inline"
                                 SmallChange="1"
                                 LargeChange="10"
@@ -64,17 +64,16 @@
                                 Minimum="1"
                                 Maximum="65535"
                                 Value="{x:Bind OscTarget.InPort, Mode=TwoWay}"/>
-                            
+
                             <TextBox
-                                     Header="IP Address" 
-                                     PlaceholderText="127.0.0.1" 
+                                     x:Uid="OscAddressBox"
                                      Text="{x:Bind OscTarget.DestinationAddress, Mode=TwoWay}"/>
-                            
+
                             <NumberBox
-                                Header="Send Port"
+                                x:Uid="OscOutPortBox"
                                 SpinButtonPlacementMode="Inline"
                                 SmallChange="1"
-                                LargeChange="10" 
+                                LargeChange="10"
                                 Minimum="1"
                                 Maximum="65535"
                                 Margin="15, 0, 15, 0"
@@ -82,7 +81,7 @@
                         </StackPanel>
                     </Grid>
                 </toolkit:SettingsCard>
-                
+
                 <toolkit:SettingsCard x:Uid="AutoStartSettings" IsEnabled="{x:Bind ViewModel.IsOpenVREnabled, Mode=OneWay}">
                     <toolkit:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE840;" />
@@ -109,12 +108,12 @@
                         </toolkit:SettingsCard>
                     </toolkit:SettingsExpander.Items>
                 </toolkit:SettingsExpander>
-                
+
                 <toolkit:SettingsExpander x:Uid="RiskySettings">
                     <toolkit:SettingsExpander.HeaderIcon>
                         <FontIcon Glyph="&#xE7BA;" />
                     </toolkit:SettingsExpander.HeaderIcon>
-                    <ToggleSwitch x:Name="dangerAcceptToggle" Toggled="AcceptToggle_OnToggled" OnContent="Gremlin Mode" IsOn="{x:Bind RiskySettingsViewModel.Enabled, Mode=OneWay}"/>
+                    <ToggleSwitch x:Name="dangerAcceptToggle" x:Uid="RiskyToggle" Toggled="AcceptToggle_OnToggled" IsOn="{x:Bind RiskySettingsViewModel.Enabled, Mode=OneWay}"/>
                     <toolkit:SettingsExpander.Items>
                         <toolkit:SettingsCard x:Uid="ForceRelevancyToggle"
                             x:Name="allParamsRelevant"
@@ -158,7 +157,7 @@
 
                 <!--  About  -->
                 <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" x:Uid="About" />
-                
+
                 <toolkit:SettingsExpander x:Uid="Copyright" Header="VRCFaceTracking">
                     <TextBlock
                             Margin="0,-2,0,0"
@@ -178,7 +177,7 @@
                             <TextBlock
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                     IsTextSelectionEnabled="True"
-                                    Text="git clone https://github.com/benaclejames/VRCFaceTracking" />
+                                    Text="git clone https://github.com/RealWhyKnot/VRCFaceTracking" />
                         </toolkit:SettingsCard>
                         <toolkit:SettingsCard
                                 x:Uid="BugRequestCard"
@@ -203,7 +202,7 @@
                         </toolkit:SettingsCard>
                     </toolkit:SettingsExpander.Items>
                 </toolkit:SettingsExpander>
-                
+
                 <toolkit:SettingsExpander x:Uid="Credits" Header="Credits">
                     <toolkit:SettingsExpander.Items>
                         <toolkit:SettingsCard HorizontalContentAlignment="Stretch"
@@ -220,10 +219,10 @@
                                                 </Grid.ColumnDefinitions>
                                                 <!-- Left alligned hyperlink w/ text -->
                                                 <HyperlinkButton Grid.Column="0" Margin="-12,0,0,0" Content="{x:Bind login}" NavigateUri="{x:Bind html_url}"/>
-                                                
+
                                                 <!-- Right alligned text -->
                                                 <TextBlock Grid.Column="1" Text="{x:Bind contributions}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right"/>
-                                                <TextBlock Grid.Column="2" Text=" Contributions" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="2" x:Uid="ContributionsLabel" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

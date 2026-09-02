@@ -32,15 +32,21 @@
                       <ColumnDefinition Width="Auto"/>
                   </Grid.ColumnDefinitions>
                   <StackPanel Padding="10, 10, 0, 10" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                      <Button ToolTipService.ToolTip="Copy to Clipboard" Click="CopyToClipboard_OnClick" Height="36">
+                      <Button x:Uid="CopyLogButton" Click="CopyToClipboard_OnClick" Height="36">
                           <Button.Content>
                               <FontIcon FontSize="20" Glyph="&#xE8C8;" />
                           </Button.Content>
                       </Button>
                       <AppBarSeparator Margin="5, 0, 5, 0"/>
-                      <Button ToolTipService.ToolTip="Save to File" Click="SaveToFile_OnClick" Height="36">
+                      <Button x:Uid="SaveLogButton" Click="SaveToFile_OnClick" Height="36">
                           <Button.Content>
                               <FontIcon FontSize="20" Glyph="&#xEA35;" />
+                          </Button.Content>
+                      </Button>
+                      <AppBarSeparator Margin="5, 0, 5, 0"/>
+                      <Button x:Uid="OpenLogsFolderButton" Click="OpenLogsFolder_OnClick" Height="36">
+                          <Button.Content>
+                              <FontIcon FontSize="20" Glyph="&#xED25;" />
                           </Button.Content>
                       </Button>
                       <TextBlock x:Name="SaveStatus" TextWrapping="Wrap" VerticalAlignment="Center" Style="{ThemeResource DetailBodyBaseMediumStyle}" Padding="20, 0, 0, 0"/>

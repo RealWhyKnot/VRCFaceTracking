@@ -2,6 +2,7 @@
 using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Services;
 using VRCFaceTracking.ViewModels;
 using Windows.ApplicationModel.DataTransfer;
@@ -62,20 +63,20 @@ public sealed partial class OutputPage : Page
             FileUpdateStatus status = await CachedFileManager.CompleteUpdatesAsync(file);
             if (status == FileUpdateStatus.Complete)
             {
-                SaveStatus.Text = "File " + file.Name + " was saved.";
+                SaveStatus.Text = string.Format("LogSaved".GetLocalized(), file.Name);
             }
             else if (status == FileUpdateStatus.CompleteAndRenamed)
             {
-                SaveStatus.Text = "File " + file.Name + " was renamed and saved.";
+                SaveStatus.Text = string.Format("LogSavedRenamed".GetLocalized(), file.Name);
             }
             else
             {
-                SaveStatus.Text = "File " + file.Name + " couldn't be saved.";
+                SaveStatus.Text = string.Format("LogSaveFailed".GetLocalized(), file.Name);
             }
         }
         else
         {
-            SaveStatus.Text = "Operation cancelled.";
+            SaveStatus.Text = "OperationCancelled".GetLocalized();
         }
     }
 
@@ -85,7 +86,13 @@ public sealed partial class OutputPage : Page
         var package = new DataPackage();
         package.SetText(logString);
         Clipboard.SetContent(package);
-        SaveStatus.Text = "Copied to clipboard.";
+        SaveStatus.Text = "CopiedToClipboard".GetLocalized();
+    }
+
+    private void OpenLogsFolder_OnClick(object sender, RoutedEventArgs e)
+    {
+        Directory.CreateDirectory(Core.Utils.LogDirectory);
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", Core.Utils.LogDirectory) { UseShellExecute = true });
     }
 
     private void LogScroller_OnLoaded(object sender, RoutedEventArgs e)

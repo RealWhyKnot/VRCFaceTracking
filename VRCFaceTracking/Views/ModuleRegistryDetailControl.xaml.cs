@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Models;
 using VRCFaceTracking.Core.Services;
+using VRCFaceTracking.Helpers;
 using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking.Views;
@@ -44,16 +45,16 @@ public sealed partial class ModuleRegistryDetailControl
         switch (control.ListDetailsMenuItem!.InstallationState)
         {
             case InstallState.NotInstalled:
-                control.InstallButton.Content = "Install";
+                control.InstallButton.Content = "ModuleActionInstall".GetLocalized();
                 break;
             case InstallState.Installed:
-                control.InstallButton.Content = "Uninstall";
+                control.InstallButton.Content = "ModuleActionUninstall".GetLocalized();
                 break;
             case InstallState.Outdated:
-                control.InstallButton.Content = "Update";
+                control.InstallButton.Content = "ModuleActionUpdate".GetLocalized();
                 break;
             case InstallState.AwaitingRestart:
-                control.InstallButton.Content = "Please Restart VRCFT";
+                control.InstallButton.Content = "ModuleActionRestartRequired".GetLocalized();
                 control.InstallButton.IsEnabled = false;
                 break;
             default:
@@ -94,7 +95,7 @@ public sealed partial class ModuleRegistryDetailControl
                         await _moduleDataService.IncrementDownloadsAsync(ListDetailsMenuItem!);
                         ListDetailsMenuItem!.Downloads++;
                         _libManager.Initialize();
-                        InstallButton.Content = "Uninstall";
+                        InstallButton.Content = "ModuleActionUninstall".GetLocalized();
                         InstallButton.IsEnabled = true;
                         _mainViewModel.NoModulesInstalled = false;
                     }
@@ -102,7 +103,7 @@ public sealed partial class ModuleRegistryDetailControl
                 }
             case InstallState.Installed:
                 {
-                    InstallButton.Content = "Please Restart VRCFT";
+                    InstallButton.Content = "ModuleActionRestartRequired".GetLocalized();
                     InstallButton.IsEnabled = false;
                     _libManager.TeardownAllAndResetAsync();
                     _moduleInstaller.MarkModuleForDeletion(ListDetailsMenuItem!);

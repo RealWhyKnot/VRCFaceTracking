@@ -529,6 +529,7 @@
                                     <StackPanel Visibility="{x:Bind Crashed, Mode=OneWay, Converter={StaticResource BoolVisConverter}}">
                                         <TextBlock Foreground="{ThemeResource SystemFillColorCriticalBrush}" x:Uid="ModuleCrashed" />
                                         <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind CrashDescription, Mode=OneWay}" />
+                                        <Button x:Uid="RestartModulesButton" Margin="0,8,0,0" Click="RestartModules_OnClick" />
                                     </StackPanel>
                                 </StackPanel>
                                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
