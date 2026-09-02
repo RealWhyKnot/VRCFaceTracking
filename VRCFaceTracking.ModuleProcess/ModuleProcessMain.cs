@@ -16,6 +16,7 @@ namespace VRCFaceTracking.ModuleProcess;
 public class ModuleProcessMain
 {
     private const double CONNECTION_TIMEOUT = 60.0;
+    private const double CONNECTED_TIMEOUT = 10.0;
     private static bool WaitForPackets = true;
     public static ModuleAssembly DefModuleAssembly;
     public static ILoggerFactory? LoggerFactory;
@@ -27,6 +28,7 @@ public class ModuleProcessMain
     private static FileLoggerProvider? _fileLogger;
     private static readonly Queue<IpcPacket> _packetsToSend = new();
     private static Timer? _connectionTimer;
+    private static volatile bool _connected;
 
     private static readonly AutoResetEvent _wakeup = new(false);
     private static volatile bool _shouldCallReceive;
@@ -212,7 +214,8 @@ public class ModuleProcessMain
         Client.OnReceiveShouldBeQueued += QueueReceiveEvent;
         Client.OnPacketReceivedCallback += (in IpcPacket packet) =>
         {
-            _connectionTimer?.Change(TimeSpan.FromSeconds(CONNECTION_TIMEOUT), Timeout.InfiniteTimeSpan);
+            _connected = true;
+            _connectionTimer?.Change(TimeSpan.FromSeconds(CONNECTED_TIMEOUT), Timeout.InfiniteTimeSpan);
 
             switch (packet.GetPacketType())
             {
@@ -333,7 +336,7 @@ public class ModuleProcessMain
 
         _connectionTimer = new Timer(_ =>
         {
-            Logger.LogWarning("No packets received for {timeout}s, assuming connection lost", CONNECTION_TIMEOUT);
+            Logger.LogWarning("No packets from the host for {Timeout}s, shutting the module down", _connected ? CONNECTED_TIMEOUT : CONNECTION_TIMEOUT);
             _fileLogger?.Flush();
             Environment.Exit(ModuleProcessExitCodes.NETWORK_CONNECTION_TIMED_OUT);
         }, null, TimeSpan.FromSeconds(CONNECTION_TIMEOUT), Timeout.InfiniteTimeSpan);
