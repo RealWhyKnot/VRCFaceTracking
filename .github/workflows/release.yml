@@ -91,9 +91,16 @@ jobs:
           $zip = "build/$name.zip"
           Compress-Archive -Path "build/$name/*" -DestinationPath $zip -Force
           $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          [System.IO.File]::WriteAllText("$zip.sha256", "$hash  $name.zip`n", (New-Object System.Text.UTF8Encoding($false)))
-          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag $env:RELEASE_TAG -ZipPath $zip -OutFile build/notes.md | Out-Null
+          $integrity = "build/$name.integrity.tsv"
+          $rows = @("$hash`t$((Get-Item $zip).Length)`t$name.zip")
+          Get-ChildItem "build/$name" -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $rel = $_.FullName.Substring((Resolve-Path "build/$name").Path.Length + 1).Replace('', '/')
+            $rows += "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())`t$($_.Length)`t$rel"
+          }
+          [System.IO.File]::WriteAllLines($integrity, [string[]]$rows, (New-Object System.Text.UTF8Encoding($false)))
+          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag $env:RELEASE_TAG -Repo '${{ github.repository }}' -ZipPath $zip -IntegrityName "$name.integrity.tsv" -OutFile build/notes.md | Out-Null
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "zip=$zip"
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "integrity=$integrity"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "sha256=$hash"
           Get-Content build/notes.md
 
@@ -103,7 +110,7 @@ jobs:
           $tag = $env:RELEASE_TAG
           $extra = @()
           if ('${{ steps.tag.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
-          gh release create $tag '${{ steps.package.outputs.zip }}' '${{ steps.package.outputs.zip }}.sha256' --repo '${{ github.repository }}' --target '${{ steps.tag.outputs.sha }}' --title $tag --notes-file build/notes.md @extra
+          gh release create $tag '${{ steps.package.outputs.zip }}' '${{ steps.package.outputs.integrity }}' --repo '${{ github.repository }}' --target '${{ steps.tag.outputs.sha }}' --title $tag --notes-file build/notes.md @extra
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
 
       - name: Verify uploaded asset

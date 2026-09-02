@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 [CmdletBinding()]
 param()
 
@@ -59,11 +59,11 @@ try {
   $text = (& $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ZipPath $zip -OutFile $out) -join "`n"
   if ($LASTEXITCODE -ne 0) { throw "generator failed" }
 
-  Assert-Contains -Text $text -Expected "## v2026.9.2.0-beta" -Message "Heading missing."
-  Assert-Contains -Text $text -Expected "Changes since v2026.9.1.0." -Message "Previous tag missing."
-  Assert-Contains -Text $text -Expected "### Features`n- filter: eye gaze linearisation" -Message "Feature entry wrong (scope or stamp)."
-  Assert-Contains -Text $text -Expected "### Fixes`n- keepalive flap" -Message "Fix entry missing."
-  Assert-Contains -Text $text -Expected "- loose subject without a type" -Message "Untyped subject should land in Changes."
+  Assert-Contains -Text $text -Expected "# VRCFaceTracking v2026.9.2.0-beta" -Message "Heading missing."
+  Assert-Contains -Text $text -Expected "compare/v2026.9.1.0...v2026.9.2.0-beta" -Message "Full changelog link missing."
+  Assert-Contains -Text $text -Expected "### Features`n- feat(filter): eye gaze linearisation by VRCFaceTracking Tests in " -Message "Feature entry wrong (scope, author or stamp)."
+  Assert-Contains -Text $text -Expected "### Bug Fixes`n- fix: keepalive flap" -Message "Fix entry missing."
+  Assert-Contains -Text $text -Expected "### Other Changes`n- loose subject without a type" -Message "Untyped subject should land in Other Changes."
   Assert-NotContains -Text $text -Expected "scaffold" -Message "Commits before the previous tag leaked in."
   Assert-NotContains -Text $text -Expected "lint job" -Message "[skip changelog] commit leaked in."
   Assert-NotContains -Text $text -Expected "CD34" -Message "Build stamp not stripped."
@@ -72,8 +72,8 @@ try {
   if (-not (Test-Path -LiteralPath $out)) { throw "OutFile not written." }
 
   $first = (& $generate -Tag "v2026.9.1.0" -RepoRoot $root) -join "`n"
-  Assert-Contains -Text $first -Expected "### Maintenance`n- scaffold" -Message "First tag should include all history."
-  Assert-NotContains -Text $first -Expected "Changes since" -Message "First tag has no previous tag."
+  Assert-Contains -Text $first -Expected "### Chores`n- chore: scaffold" -Message "First tag should include all history."
+  Assert-NotContains -Text $first -Expected "Full Changelog" -Message "First tag without a base has no compare link."
 
   Write-Host "Release notes tests passed."
 }
