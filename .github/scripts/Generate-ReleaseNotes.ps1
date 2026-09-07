@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string] $Tag,
+  [Parameter(Mandatory = $true)][string] $ChangelogPath,
   [string] $Repo = $(if ($env:GITHUB_REPOSITORY) { $env:GITHUB_REPOSITORY } else { 'RealWhyKnot/VRCFaceTracking' }),
   [string] $RepoRoot = (Get-Location).Path,
   [string] $ZipPath = "",
@@ -30,41 +31,15 @@ function Get-PreviousTag {
   return ""
 }
 
-$authorHandles = @{ 'WhyKnot' = 'RealWhyKnot' }
-
-$categories = @(
-  @{ Prefix = 'feat'; Name = 'Features' }
-  @{ Prefix = 'fix'; Name = 'Bug Fixes' }
-  @{ Prefix = 'perf'; Name = 'Performance' }
-  @{ Prefix = 'refactor'; Name = 'Refactors' }
-  @{ Prefix = 'revert'; Name = 'Reverts' }
-  @{ Prefix = 'docs'; Name = 'Documentation' }
-  @{ Prefix = 'style'; Name = 'Style' }
-  @{ Prefix = 'test'; Name = 'Tests' }
-  @{ Prefix = 'ci'; Name = 'CI' }
-  @{ Prefix = 'chore'; Name = 'Chores' }
-  @{ Prefix = 'diag'; Name = 'Diagnostics' }
-)
-
 Push-Location (Resolve-Path -LiteralPath $RepoRoot).Path
 try {
   $previous = Get-PreviousTag -Tag $Tag
-  $baseFile = Join-Path (Get-Location).Path ".github/release-base"
-  $base = if (Test-Path -LiteralPath $baseFile) { (Get-Content -LiteralPath $baseFile -Raw).Trim() } else { "" }
-  $range = if ($previous) { "$previous..$Tag" } elseif ($base) { "$base..$Tag" } else { $Tag }
-  $compareFrom = if ($previous) { $previous } elseif ($base) { $base.Substring(0, 12) } else { "" }
 
-  $raw = @(Invoke-Git -Arguments @("log", "--no-merges", "--format=%h%x09%an%x09%s", $range))
-  $entries = foreach ($line in $raw) {
-    if (-not $line -or $line -match '\[skip changelog\]') { continue }
-    $parts = $line -split "`t", 3
-    if ($parts.Count -lt 3) { continue }
-    $author = $parts[1]
-    $authorText = if ($authorHandles.ContainsKey($author)) { "@$($authorHandles[$author])" } else { $author }
-    $subject = ($parts[2] -replace '\s*\([0-9]{4}\.[0-9]+\.[0-9]+\.[0-9]+(-[A-Fa-f0-9]{4})?\)\s*$', '').Trim()
-    if (-not $subject) { continue }
-    [pscustomobject]@{ Short = $parts[0]; Author = $authorText; Subject = $subject }
+  if (-not (Test-Path -LiteralPath $ChangelogPath)) {
+    throw "Changelog not found at $ChangelogPath. It comes from RealWhyKnot/workflows/release-notes."
   }
+  $changelog = (Get-Content -LiteralPath $ChangelogPath -Raw -Encoding UTF8).Trim()
+  if (-not $changelog) { throw "Changelog at $ChangelogPath is empty." }
 
   $repoShort = ($Repo -split '/')[-1]
   $tagSha = ([string](@(Invoke-Git -Arguments @("rev-list", "-n", "1", $Tag)) | Select-Object -First 1)).Trim()
@@ -81,39 +56,7 @@ try {
   }
 
   $lines = [System.Collections.Generic.List[string]]::new()
-  $lines.Add("# $repoShort $Tag") | Out-Null
-  $lines.Add("") | Out-Null
-  $lines.Add("## What's Changed") | Out-Null
-  $lines.Add("") | Out-Null
-
-  $any = $false
-  $used = @{}
-  foreach ($category in $categories) {
-    $pattern = "^$($category.Prefix)(\((?<scope>[^)]+)\))?!?:\s*(?<summary>.+)$"
-    $items = @($entries | Where-Object { $_.Subject -match $pattern })
-    if ($items.Count -eq 0) { continue }
-    $any = $true
-    $lines.Add("### $($category.Name)") | Out-Null
-    foreach ($item in $items) {
-      $used[$item.Short] = $true
-      $lines.Add("- $($item.Subject) by $($item.Author) in $($item.Short)") | Out-Null
-    }
-    $lines.Add("") | Out-Null
-  }
-  $other = @($entries | Where-Object { -not $used.ContainsKey($_.Short) })
-  if ($other.Count -gt 0) {
-    $any = $true
-    $lines.Add("### Other Changes") | Out-Null
-    foreach ($item in $other) { $lines.Add("- $($item.Subject) by $($item.Author) in $($item.Short)") | Out-Null }
-    $lines.Add("") | Out-Null
-  }
-  if (-not $any) {
-    $lines.Add("_No user-facing changes recorded._") | Out-Null
-    $lines.Add("") | Out-Null
-  }
-  if ($compareFrom) {
-    $lines.Add("**Full Changelog**: https://github.com/$Repo/compare/$compareFrom...$Tag") | Out-Null
-  }
+  $lines.Add($changelog) | Out-Null
 
   if ($ZipPath) {
     $zip = Get-Item -LiteralPath $ZipPath

@@ -56,24 +56,31 @@ try {
   [System.IO.File]::WriteAllBytes($zip, [byte[]](1..64))
   $out = Join-Path $root "notes.md"
 
-  $text = (& $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ZipPath $zip -OutFile $out) -join "`n"
+  $changelog = Join-Path $root "changelog.md"
+  $changelogText = "# VRCFaceTracking v2026.9.2.0-beta`n`n## What's Changed`n`n### Features`n- feat(filter): eye gaze linearisation by @RealWhyKnot in abc1234`n`n**Full Changelog**: https://github.com/RealWhyKnot/VRCFaceTracking/compare/v2026.9.1.0...v2026.9.2.0-beta`n"
+  [System.IO.File]::WriteAllText($changelog, $changelogText, (New-Object System.Text.UTF8Encoding($false)))
+
+  $text = (& $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ChangelogPath $changelog -ZipPath $zip -OutFile $out) -join "`n"
   if ($LASTEXITCODE -ne 0) { throw "generator failed" }
 
-  Assert-Contains -Text $text -Expected "# VRCFaceTracking v2026.9.2.0-beta" -Message "Heading missing."
+  Assert-Contains -Text $text -Expected "# VRCFaceTracking v2026.9.2.0-beta" -Message "The changelog heading must survive."
+  Assert-Contains -Text $text -Expected "- feat(filter): eye gaze linearisation by @RealWhyKnot in abc1234" -Message "The changelog body must survive."
   Assert-Contains -Text $text -Expected "compare/v2026.9.1.0...v2026.9.2.0-beta" -Message "Full changelog link missing."
-  Assert-Contains -Text $text -Expected "### Features`n- feat(filter): eye gaze linearisation by VRCFaceTracking Tests in " -Message "Feature entry wrong (scope, author or stamp)."
-  Assert-Contains -Text $text -Expected "### Bug Fixes`n- fix: keepalive flap" -Message "Fix entry missing."
-  Assert-Contains -Text $text -Expected "### Other Changes`n- loose subject without a type" -Message "Untyped subject should land in Other Changes."
-  Assert-NotContains -Text $text -Expected "scaffold" -Message "Commits before the previous tag leaked in."
-  Assert-NotContains -Text $text -Expected "lint job" -Message "[skip changelog] commit leaked in."
-  Assert-NotContains -Text $text -Expected "CD34" -Message "Build stamp not stripped."
+  if ($text.IndexOf("# VRCFaceTracking v2026.9.2.0-beta") -ne 0) { throw "The changelog must lead the body." }
   $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
   Assert-Contains -Text $text -Expected "SHA256 ``$hash``" -Message "Zip hash missing."
   if (-not (Test-Path -LiteralPath $out)) { throw "OutFile not written." }
 
-  $first = (& $generate -Tag "v2026.9.1.0" -RepoRoot $root) -join "`n"
-  Assert-Contains -Text $first -Expected "### Chores`n- chore: scaffold" -Message "First tag should include all history."
-  Assert-NotContains -Text $first -Expected "Full Changelog" -Message "First tag without a base has no compare link."
+  $missing = Join-Path $root "nope.md"
+  $threw = $false
+  try { & $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ChangelogPath $missing | Out-Null } catch { $threw = $true }
+  if (-not $threw) { throw "A missing changelog must throw." }
+
+  $unicode = Join-Path $root "unicode.md"
+  [System.IO.File]::WriteAllText($unicode, ("## What's Changed`n`n- feat: caf" + [char]0x00E9 + " by @RealWhyKnot in abc1234`n"), (New-Object System.Text.UTF8Encoding($false)))
+  $threw = $false
+  try { & $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ChangelogPath $unicode | Out-Null } catch { $threw = $true }
+  if (-not $threw) { throw "Non-ASCII in the changelog must throw." }
 
   Write-Host "Release notes tests passed."
 }

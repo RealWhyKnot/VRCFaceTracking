@@ -103,10 +103,22 @@ jobs:
             $rows += "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())`t$($_.Length)`t$rel"
           }
           [System.IO.File]::WriteAllLines($integrity, [string[]]$rows, (New-Object System.Text.UTF8Encoding($false)))
-          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag $env:RELEASE_TAG -Repo '${{ github.repository }}' -ZipPath $zip -IntegrityName "$name.integrity.tsv" -OutFile build/notes.md | Out-Null
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "zip=$zip"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "integrity=$integrity"
           Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "sha256=$hash"
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "name=$name"
+
+      - name: Build the changelog
+        id: changelog
+        uses: RealWhyKnot/workflows/release-notes@v1
+        with:
+          tag: ${{ env.RELEASE_TAG }}
+          title: VRCFaceTracking ${{ env.RELEASE_TAG }}
+
+      - name: Compose the release body
+        shell: pwsh
+        run: |
+          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag $env:RELEASE_TAG -Repo '${{ github.repository }}' -ChangelogPath '${{ steps.changelog.outputs.file }}' -ZipPath '${{ steps.package.outputs.zip }}' -IntegrityName '${{ steps.package.outputs.name }}.integrity.tsv' -OutFile build/notes.md | Out-Null
           Get-Content build/notes.md
 
       - name: Publish release
