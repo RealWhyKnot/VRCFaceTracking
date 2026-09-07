@@ -9,11 +9,14 @@ namespace VRCFaceTracking.Services;
 public class OpenVRService
 {
     private static readonly TimeSpan EventPollInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan ReconnectInterval = TimeSpan.FromSeconds(30);
     private static readonly uint EventSize = (uint)Marshal.SizeOf<VREvent_t>();
 
     private readonly ILogger<OpenVRService> _logger;
+    private readonly object _initLock = new();
     private CVRSystem? _system;
     private CancellationTokenSource? _pollingCts;
+    private Task? _reconnectLoop;
 
     public event Action? QuitRequested;
 
@@ -28,38 +31,64 @@ public class OpenVRService
         _logger = logger;
     }
 
-    public bool Initialize()
+    public bool Initialize(bool quiet = false)
     {
-        var error = EVRInitError.None;
-        _system = OpenVR.Init(ref error, EVRApplicationType.VRApplication_Background);
-
-        if (error != EVRInitError.None)
+        lock (_initLock)
         {
-            _logger.LogWarning("Failed to initialize OpenVR: {Error}", error);
-            IsInitialized = false;
+            if (IsInitialized)
+            {
+                return true;
+            }
+
+            var error = EVRInitError.None;
+            _system = OpenVR.Init(ref error, EVRApplicationType.VRApplication_Background);
+
+            if (error != EVRInitError.None)
+            {
+                _logger.Log(quiet ? LogLevel.Debug : LogLevel.Warning, "Failed to initialize OpenVR: {Error}", error);
+                _system = null;
+                return false;
+            }
+
+            var currentDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? AppContext.BaseDirectory;
+            var fullManifestPath = Path.Combine(currentDirectory, "app.vrmanifest");
+            var manifestRegisterResult = OpenVR.Applications.AddApplicationManifest(fullManifestPath, false);
+            if (manifestRegisterResult != EVRApplicationError.None)
+            {
+                _logger.Log(quiet ? LogLevel.Debug : LogLevel.Warning, "Failed to register manifest: {Error}", manifestRegisterResult);
+                _system = null;
+                OpenVR.Shutdown();
+                return false;
+            }
+
+            _logger.LogInformation("Successfully initialized OpenVR");
+            IsInitialized = true;
+
+            if (_pollingCts == null)
+            {
+                _pollingCts = new CancellationTokenSource();
+                _ = PumpEventsAsync(_pollingCts.Token);
+            }
+
             return IsInitialized;
         }
+    }
 
-        var currentDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? AppContext.BaseDirectory;
-        var fullManifestPath = Path.Combine(currentDirectory, "app.vrmanifest");
-        var manifestRegisterResult = OpenVR.Applications.AddApplicationManifest(fullManifestPath, false);
-        if (manifestRegisterResult != EVRApplicationError.None)
+    public void StartReconnectLoop()
+    {
+        _reconnectLoop ??= ReconnectAsync();
+    }
+
+    private async Task ReconnectAsync()
+    {
+        using var timer = new PeriodicTimer(ReconnectInterval);
+        while (await timer.WaitForNextTickAsync())
         {
-            _logger.LogWarning("Failed to register manifest: {Error}", manifestRegisterResult);
-            IsInitialized = false;
-            return IsInitialized;
+            if (!IsInitialized)
+            {
+                Initialize(true);
+            }
         }
-
-        _logger.LogInformation("Successfully initialized OpenVR");
-        IsInitialized = true;
-
-        if (_pollingCts == null)
-        {
-            _pollingCts = new CancellationTokenSource();
-            _ = PumpEventsAsync(_pollingCts.Token);
-        }
-
-        return IsInitialized;
     }
 
     private async Task PumpEventsAsync(CancellationToken ct)
@@ -111,16 +140,19 @@ public class OpenVRService
 
     public void Shutdown()
     {
-        if (!IsInitialized)
+        lock (_initLock)
         {
-            return;
-        }
+            if (!IsInitialized)
+            {
+                return;
+            }
 
-        _pollingCts?.Cancel();
-        _pollingCts = null;
-        IsInitialized = false;
-        _system = null;
-        OpenVR.Shutdown();
+            _pollingCts?.Cancel();
+            _pollingCts = null;
+            IsInitialized = false;
+            _system = null;
+            OpenVR.Shutdown();
+        }
     }
 
     public void InitIfNotAlready()

@@ -113,8 +113,9 @@ public class ActivationService : IActivationService
         _logger.LogInformation("Initializing OpenVR...");
         if (!_openVrService.Initialize())
         {
-            _logger.LogWarning("Failed to initialize OpenVR during ActivationService startup. Skipping.");
+            _logger.LogWarning("Failed to initialize OpenVR during ActivationService startup. Will keep retrying in the background.");
         }
+        _openVrService.StartReconnectLoop();
 
         // Before we initialize, we need to delete pending restart modules and check for updates for all our installed modules
         _logger.LogDebug("Checking for deletion requests for installed modules...");
