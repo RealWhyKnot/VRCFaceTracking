@@ -5,6 +5,7 @@
 .vs/
 bin/
 obj/
+build/
 *.exe
 *.pdb
 *.dll
