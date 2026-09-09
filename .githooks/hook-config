@@ -1,2 +1,4 @@
 STAMP_PATTERN='\([0-9]{4}\.[0-9]+\.[0-9]+\.[0-9]+(-[A-Fa-f0-9]{4})?\)'
 CHECK_CONVENTIONAL=1
+VERSION_FILE='commit-version.txt'
+VERSION_IN_GITDIR=1
