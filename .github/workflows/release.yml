@@ -40,23 +40,15 @@ jobs:
 
       - name: Resolve tag
         id: tag
-        shell: pwsh
-        run: |
-          $tag = $env:RELEASE_TAG
-          $sha = (git rev-list -n 1 $tag).Trim()
-          if ($LASTEXITCODE -ne 0 -or -not $sha) { throw "Tag '$tag' does not exist in this checkout." }
-          $isBeta = $tag -match '^v\d{4}\.\d+\.\d+\.\d+-beta$'
-          if (-not $isBeta -and $tag -notmatch '^v\d{4}\.\d+\.\d+\.\d+$') {
-            throw "Tag '$tag' must be vYYYY.M.D.N or vYYYY.M.D.N-beta."
-          }
-          ./.github/scripts/Assert-ReleaseVersionSequence.ps1 -Tag $tag
-          $version = $tag.Substring(1)
-          $channel = if ($isBeta) { 'beta' } else { 'release' }
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "version=$version"
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "channel=$channel"
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "prerelease=$($isBeta.ToString().ToLowerInvariant())"
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "sha=$sha"
-          Write-Host "tag=$tag version=$version channel=$channel prerelease=$isBeta"
+        uses: RealWhyKnot/workflows/resolve-tag@v1
+        with:
+          tag: ${{ env.RELEASE_TAG }}
+          tag-pattern: '^v\d{4}\.\d+\.\d+\.\d+(-beta)?$'
+
+      - name: Validate release version sequence
+        uses: RealWhyKnot/workflows/version-sequence@v1
+        with:
+          tag: ${{ steps.tag.outputs.tag }}
 
       - name: Script self-tests
         shell: pwsh
