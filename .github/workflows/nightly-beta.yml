@@ -11,6 +11,10 @@ permissions:
 jobs:
   tag:
     uses: RealWhyKnot/workflows/.github/workflows/nightly-beta.yml@v1
+    with:
+      ignore-paths: |
+        VRCFaceTracking.Core.Tests/**
+        .vsconfig
 
   release:
     needs: tag
