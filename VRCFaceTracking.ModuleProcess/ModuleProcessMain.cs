@@ -17,7 +17,7 @@ public class ModuleProcessMain
 {
     private const double CONNECTION_TIMEOUT = 60.0;
     private const double CONNECTED_TIMEOUT = 10.0;
-    private static bool WaitForPackets = true;
+    private static volatile bool WaitForPackets = true;
     public static ModuleAssembly DefModuleAssembly;
     public static ILoggerFactory? LoggerFactory;
     public static ILogger<ModuleProcessMain> Logger;
@@ -29,6 +29,7 @@ public class ModuleProcessMain
     private static readonly Queue<IpcPacket> _packetsToSend = new();
     private static Timer? _connectionTimer;
     private static volatile bool _connected;
+    private static Thread? _updateThread;
 
     private static readonly AutoResetEvent _wakeup = new(false);
     private static volatile bool _shouldCallReceive;
@@ -66,7 +67,7 @@ public class ModuleProcessMain
             WaitForPackets = false;
             DefModuleAssembly?._updateCts?.Cancel();
             cts.Cancel();
-            cts.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+            _updateThread?.Join(TimeSpan.FromSeconds(5));
             _fileLogger.Flush();
         };
 
@@ -251,7 +252,7 @@ public class ModuleProcessMain
                         }
 
                         DefModuleAssembly._updateCts = new CancellationTokenSource();
-                        var thread = new Thread(() =>
+                        _updateThread = new Thread(() =>
                         {
                             try
                             {
@@ -267,8 +268,8 @@ public class ModuleProcessMain
                                 throw;
                             }
                         });
-                        thread.IsBackground = true;
-                        thread.Start();
+                        _updateThread.IsBackground = true;
+                        _updateThread.Start();
 
                         var pktNew = new ReplyInitPacket()
                         {
@@ -285,6 +286,7 @@ public class ModuleProcessMain
                     {
                         Logger.LogInformation("Received Teardown packet");
                         DefModuleAssembly._updateCts?.Cancel();
+                        _updateThread?.Join(TimeSpan.FromSeconds(2));
                         try
                         {
                             DefModuleAssembly.TrackingModule.Teardown();
@@ -301,8 +303,8 @@ public class ModuleProcessMain
 
                         Logger.LogInformation("Sent teardown ACK");
 
-                        _fileLogger?.Flush();
-                        Environment.Exit(ModuleProcessExitCodes.OK);
+                        WaitForPackets = false;
+                        _wakeup.Set();
                         break;
                     }
 
@@ -362,6 +364,7 @@ public class ModuleProcessMain
         }
 
         DefModuleAssembly._updateCts?.Cancel();
+        _updateThread?.Join(TimeSpan.FromSeconds(2));
         _connectionTimer?.Dispose();
 
         _fileLogger?.Flush();

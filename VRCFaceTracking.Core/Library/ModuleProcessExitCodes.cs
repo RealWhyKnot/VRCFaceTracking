@@ -19,6 +19,7 @@ public static class ModuleProcessExitCodes
         PARENT_EXITED => "host process exited",
         -1 or 1 => $"killed (exit code {code})",
         unchecked((int)0xC000013A) => "terminated by console close",
+        unchecked((int)0x40010004) => "terminated externally (0x40010004)",
         unchecked((int)0xC0000005) => "access violation (0xC0000005)",
         unchecked((int)0xE0434352) => "unhandled .NET exception (0xE0434352)",
         > 0 and < 256 => $"exit code {code}",

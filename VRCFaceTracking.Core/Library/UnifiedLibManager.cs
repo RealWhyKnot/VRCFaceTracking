@@ -37,6 +37,11 @@ public class UnifiedLibManager : ILibManager
     {
         get; private set;
     }
+
+    private static volatile bool _appShutdownRequested;
+    private static volatile bool _teardownInProgress;
+    public static bool IsTearingDown => _appShutdownRequested || _teardownInProgress;
+    public static void MarkAppShutdown() => _appShutdownRequested = true;
     #endregion
 
     #region Modules
@@ -47,6 +52,7 @@ public class UnifiedLibManager : ILibManager
     }
     private readonly List<ModuleRuntimeInfo> _moduleThreads = new();
     private readonly IModuleDataService _moduleDataService;
+    private readonly object _modulesLock = new();
 
     private string _sandboxProcessPath
     {
@@ -98,14 +104,16 @@ public class UnifiedLibManager : ILibManager
             _sandboxServer = new VrcftSandboxServer(_loggerFactory, reservedPorts);
             _sandboxServer.OnPacketReceived += (in IpcPacket packet, in int port) =>
             {
-                // Get sandbox module internal index
-                var moduleIndex = -1;
-                for (var i = 0; i < AvailableSandboxModules.Count; i++)
+                ModuleRuntimeInfo knownModule = null;
+                lock (_modulesLock)
                 {
-                    if (AvailableSandboxModules[i].SandboxProcessPort == port)
+                    for (var i = 0; i < AvailableSandboxModules.Count; i++)
                     {
-                        moduleIndex = i;
-                        break;
+                        if (AvailableSandboxModules[i].SandboxProcessPort == port)
+                        {
+                            knownModule = AvailableSandboxModules[i];
+                            break;
+                        }
                     }
                 }
 
@@ -121,7 +129,7 @@ public class UnifiedLibManager : ILibManager
                                 _logger.LogWarning("Ignoring invalid handshake from port {port}", port);
                                 break;
                             }
-                            lock (AvailableSandboxModules)
+                            lock (_modulesLock)
                             {
                                 var pidRegistered = false;
 
@@ -184,7 +192,7 @@ public class UnifiedLibManager : ILibManager
 
                     case IpcPacket.PacketType.ReplyGetSupported:
                         {
-                            if (moduleIndex == -1)
+                            if (knownModule == null)
                             {
                                 _logger.LogWarning("Ignoring {type} packet from unregistered port {port}", packet.GetPacketType(), port);
                                 break;
@@ -192,7 +200,7 @@ public class UnifiedLibManager : ILibManager
 
                             // We now know whether or not the module supports face or eye tracking
                             ReplySupportedPacket replySupportedPacket = (ReplySupportedPacket)packet;
-                            var module = AvailableSandboxModules[moduleIndex];
+                            var module = knownModule;
 
                             module.SupportsEyeTracking = module.SupportsEyeTracking && replySupportedPacket.eyeAvailable;
                             module.SupportsExpressionTracking = module.SupportsExpressionTracking && replySupportedPacket.expressionAvailable;
@@ -213,14 +221,14 @@ public class UnifiedLibManager : ILibManager
 
                     case IpcPacket.PacketType.ReplyInit:
                         {
-                            if (moduleIndex == -1)
+                            if (knownModule == null)
                             {
                                 _logger.LogWarning("Ignoring {type} packet from unregistered port {port}", packet.GetPacketType(), port);
                                 break;
                             }
 
                             ReplyInitPacket replyInitPacket = (ReplyInitPacket)packet;
-                            var module = AvailableSandboxModules[moduleIndex];
+                            var module = knownModule;
                             module.ModuleInformation.Name = replyInitPacket.ModuleInformationName;
 
                             // Update support variables
@@ -252,8 +260,11 @@ public class UnifiedLibManager : ILibManager
                             ExpressionStatus = replyInitPacket.expressionSuccess ? ModuleState.Active : ModuleState.Uninitialized;
 
                             module.ModuleInformation.Active = true;
-                            module.ModuleInformation.UsingEye = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingEye) && replyInitPacket.eyeSuccess;
-                            module.ModuleInformation.UsingExpression = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingExpression) && replyInitPacket.expressionSuccess;
+                            lock (_modulesLock)
+                            {
+                                module.ModuleInformation.UsingEye = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingEye) && replyInitPacket.eyeSuccess;
+                                module.ModuleInformation.UsingExpression = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingExpression) && replyInitPacket.expressionSuccess;
+                            }
                             module.ModuleInformation.StaticImages = replyInitPacket.IconDataStreams;
                             EnsureModuleThreadStartedSandboxed(module);
 
@@ -312,13 +323,13 @@ public class UnifiedLibManager : ILibManager
                         }
                     case IpcPacket.PacketType.ReplyUpdate:
                         {
-                            if (moduleIndex == -1)
+                            if (knownModule == null)
                             {
                                 break;
                             }
 
                             ReplyUpdatePacket replyUpdatePacket = (ReplyUpdatePacket)packet;
-                            var module = AvailableSandboxModules[moduleIndex];
+                            var module = knownModule;
 
                             if (module.Status == ModuleState.Active && module.ModuleInformation.Active)
                             {
@@ -339,39 +350,59 @@ public class UnifiedLibManager : ILibManager
             };
         }
 
+        if (_initializeWorker != null && _initializeWorker.IsAlive)
+        {
+            _logger.LogWarning("Module initialization is already in progress; ignoring this request");
+            return;
+        }
+
         // Start Initialization
         _initializeWorker = new Thread(() =>
         {
-            // Kill lingering threads
-            TeardownAllAndResetAsync();
-
-            // Find all modules
-            var modules = _moduleDataService.GetInstalledModules().Concat(_moduleDataService.GetLegacyModules());
-            var modulePaths = modules.Select(m => m.AssemblyLoadPath);
-
-            // Load all modules
-            AvailableSandboxModules.Clear();
-            InitialiseSandboxesBaseOnPaths(modulePaths.ToArray());
-
-            if (AvailableSandboxModules != null && AvailableSandboxModules.Count > 0)
+            try
             {
-                _logger.LogDebug("Initializing requested runtimes...");
-            }
-            else
-            {
-                _dispatcherService.Run(() =>
+                // Kill lingering threads
+                TeardownAllAndResetAsync();
+
+                // Find all modules
+                var modules = _moduleDataService.GetInstalledModules().Concat(_moduleDataService.GetLegacyModules());
+                var modulePaths = modules.Select(m => m.AssemblyLoadPath);
+
+                var startedAny = false;
+                lock (_modulesLock)
                 {
-                    LoadedModulesMetadata.Clear();
-                    LoadedModulesMetadata.Add(new ModuleMetadataInternal
-                    {
-                        Active = false,
-                        Name = "No Modules Loaded"
-                    });
-                });
-                _logger.LogWarning("No modules loaded.");
-            }
+                    AvailableSandboxModules.Clear();
+                }
+                InitialiseSandboxesBaseOnPaths(modulePaths.ToArray());
+                lock (_modulesLock)
+                {
+                    startedAny = AvailableSandboxModules.Count > 0;
+                }
 
+                if (startedAny)
+                {
+                    _logger.LogDebug("Initializing requested runtimes...");
+                }
+                else
+                {
+                    _dispatcherService.Run(() =>
+                    {
+                        LoadedModulesMetadata.Clear();
+                        LoadedModulesMetadata.Add(new ModuleMetadataInternal
+                        {
+                            Active = false,
+                            Name = "No Modules Loaded"
+                        });
+                    });
+                    _logger.LogWarning("No modules loaded.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Module initialization failed");
+            }
         });
+        _initializeWorker.IsBackground = true;
         _logger.LogInformation("Starting initialization tracking");
         _initializeWorker.Start();
     }
@@ -406,7 +437,7 @@ public class UnifiedLibManager : ILibManager
                     ModuleInformation = new(),
                     EventBus = new()
                 };
-                lock (AvailableSandboxModules)
+                lock (_modulesLock)
                 {
                     _logger.LogInformation("Started module process {pid} for {dllPath}", pid, dll);
                     AvailableSandboxModules.Add(runtimeInfo);
@@ -425,7 +456,7 @@ public class UnifiedLibManager : ILibManager
         module.UpdateCancellationToken?.Cancel();
         module.IsActive = false;
 
-        if (exitCode == ModuleProcessExitCodes.OK || module.TeardownRequested)
+        if (exitCode == ModuleProcessExitCodes.OK || module.TeardownRequested || IsTearingDown)
         {
             _logger.LogInformation("Module process for {module} exited ({description})", module.ModuleClassName, ModuleProcessExitCodes.Describe(exitCode));
             return;
@@ -466,7 +497,7 @@ public class UnifiedLibManager : ILibManager
     {
         var packet = new EventSetVerbosePacket { Verbose = verbose };
         ModuleRuntimeInfo[] modules;
-        lock (AvailableSandboxModules)
+        lock (_modulesLock)
         {
             modules = AvailableSandboxModules.ToArray();
         }
@@ -482,12 +513,15 @@ public class UnifiedLibManager : ILibManager
 
     private void EnsureModuleThreadStartedSandboxed(ModuleRuntimeInfo module)
     {
-        if (_moduleThreads.Any(pair =>
-            (pair.SandboxProcessPID == module.SandboxProcessPID) &&
-            (pair.SandboxProcessPort == module.SandboxProcessPort)
-        ))
+        lock (_modulesLock)
         {
-            return;
+            if (_moduleThreads.Any(pair =>
+                (pair.SandboxProcessPID == module.SandboxProcessPID) &&
+                (pair.SandboxProcessPort == module.SandboxProcessPort)
+            ))
+            {
+                return;
+            }
         }
 
         var port = module.SandboxProcessPort;
@@ -504,11 +538,15 @@ public class UnifiedLibManager : ILibManager
             }
             _logger.LogDebug("Thread for {module} ended", module.GetType().Name);
         });
+        thread.IsBackground = true;
         thread.Start();
         module.UpdateCancellationToken = cts;
         module.UpdateThread = thread;
 
-        _moduleThreads.Add(module);
+        lock (_modulesLock)
+        {
+            _moduleThreads.Add(module);
+        }
     }
 
     private void AttemptSandboxedModuleInitialize(ModuleRuntimeInfo module)
@@ -539,8 +577,11 @@ public class UnifiedLibManager : ILibManager
         module.TeardownRequested = true;
 
         // Send a message to the module sub-process
-        var eventTeardownPacket = new EventTeardownPacket();
-        _sandboxServer.SendData(eventTeardownPacket, module.SandboxProcessPort);
+        if (module.SandboxProcessPort > 0)
+        {
+            var eventTeardownPacket = new EventTeardownPacket();
+            _sandboxServer.SendData(eventTeardownPacket, module.SandboxProcessPort);
+        }
 
         // Kill the update thread
         module.UpdateCancellationToken?.Cancel();
@@ -553,7 +594,7 @@ public class UnifiedLibManager : ILibManager
             _logger.LogDebug("Module process has not yet exited");
             try
             {
-                if (!(module.Process?.WaitForExit(200) ?? false))
+                if (!(module.Process?.WaitForExit(1000) ?? false))
                 {
                     _logger.LogDebug("Module {id} didn't exit gracefully. Forcing kill...", module.Process?.Id ?? -1);
                     module.Process?.Kill(entireProcessTree: true);
@@ -606,51 +647,72 @@ public class UnifiedLibManager : ILibManager
     public void TeardownAllAndResetAsync()
     {
         _logger.LogInformation("Tearing down all modules...");
-
-        foreach (var module in _moduleThreads)
+        _teardownInProgress = true;
+        try
         {
-            var success = false;
-            if (module == null || (module.Process?.HasExited ?? true))
-                continue;
-            try
+            ModuleRuntimeInfo[] threadModules;
+            ModuleRuntimeInfo[] sandboxModules;
+            lock (_modulesLock)
             {
-                success = TeardownModuleSandboxed(module);
+                threadModules = _moduleThreads.ToArray();
+                sandboxModules = AvailableSandboxModules.ToArray();
             }
-            finally
+
+            foreach (var module in threadModules.Concat(sandboxModules))
             {
-                if (!success)
+                if (module != null)
                 {
-                    _logger.LogWarning($"Module: {module.Module.ModuleInformation.Name} failed to shut down. Killing its thread.");
-                    module.UpdateThread.Interrupt();
+                    module.TeardownRequested = true;
                 }
             }
+
+            foreach (var module in threadModules)
+            {
+                TeardownOneModule(module);
+            }
+            lock (_modulesLock)
+            {
+                _moduleThreads.Clear();
+            }
+
+            foreach (var module in sandboxModules)
+            {
+                TeardownOneModule(module);
+            }
+            lock (_modulesLock)
+            {
+                AvailableSandboxModules.Clear();
+            }
+
+            EyeStatus = ModuleState.Uninitialized;
+            ExpressionStatus = ModuleState.Uninitialized;
         }
-
-        _moduleThreads.Clear();
-
-        foreach (var module in AvailableSandboxModules)
+        finally
         {
-            var success = false;
-            if (module == null || (module.Process?.HasExited ?? true)) // c# objects may be null, use null coalesce to detect if a module has been destroyed but we have a lingering ref to it
-                continue;
-            try
-            {
-                success = TeardownModuleSandboxed(module);
-            }
-            finally
-            {
-                if (!success)
-                {
-                    var moduleName = module.ModuleInformation?.Name ?? module.ModuleClassName ?? "Unknown";
-                    _logger.LogWarning($"Module: {moduleName} failed to shut down. Killing its thread.");
-                    module.UpdateThread?.Interrupt();
-                }
-            }
+            _teardownInProgress = false;
+        }
+    }
+
+    private void TeardownOneModule(ModuleRuntimeInfo module)
+    {
+        if (module == null || (module.Process?.HasExited ?? true))
+        {
+            return;
         }
 
-        AvailableSandboxModules.Clear();
-
-        EyeStatus = ModuleState.Uninitialized;
-        ExpressionStatus = ModuleState.Uninitialized;
+        var success = false;
+        try
+        {
+            success = TeardownModuleSandboxed(module);
+        }
+        finally
+        {
+            if (!success)
+            {
+                var moduleName = module.ModuleInformation?.Name ?? module.ModuleClassName ?? "Unknown";
+                _logger.LogWarning("Module: {module} failed to shut down. Killing its thread.", moduleName);
+                module.UpdateThread?.Interrupt();
+            }
+        }
     }
 }

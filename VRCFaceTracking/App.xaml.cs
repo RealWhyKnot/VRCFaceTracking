@@ -221,6 +221,24 @@ public partial class App : Application
         }
     }
 
+    public static async Task StopHostAsync()
+    {
+        if (_instance?.Host == null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await _instance.Host.StopAsync(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _instance._logger?.LogWarning(ex, "Host did not stop cleanly");
+        }
+    }
+
     public static TEnum GetEnum<TEnum>(string text) where TEnum : struct
     {
         if (!typeof(TEnum).GetTypeInfo().IsEnum)
