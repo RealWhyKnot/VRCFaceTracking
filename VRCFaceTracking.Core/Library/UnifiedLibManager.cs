@@ -172,7 +172,7 @@ public class UnifiedLibManager : ILibManager
                                         IsActive = true,
                                         Process = sandboxProcess,
                                         ModuleClassName = Path.GetFileNameWithoutExtension(pkt.ModulePath),
-                                        ModuleInformation = new(),
+                                        ModuleInformation = new() { ModulePath = pkt.ModulePath },
                                         EventBus = new(),
                                     };
                                     AvailableSandboxModules.Add(runtimeInfo);
@@ -210,8 +210,8 @@ public class UnifiedLibManager : ILibManager
                             // Now tell it to initialise
                             EventInitPacket eventInitPacket = new EventInitPacket()
                             {
-                                expressionAvailable = ExpressionStatus == ModuleState.Uninitialized,
-                                eyeAvailable = EyeStatus == ModuleState.Uninitialized,
+                                expressionAvailable = replySupportedPacket.expressionAvailable,
+                                eyeAvailable = replySupportedPacket.eyeAvailable,
                             };
                             _logger.LogInformation("Got supported for module {module}. Expr: {} Eye: {}...",
                                 module.ModuleClassName,
@@ -233,9 +233,8 @@ public class UnifiedLibManager : ILibManager
                             var module = knownModule;
                             module.ModuleInformation.Name = replyInitPacket.ModuleInformationName;
 
-                            // Update support variables
-                            module.SupportsEyeTracking = module.SupportsEyeTracking && replyInitPacket.eyeSuccess;
-                            module.SupportsExpressionTracking = module.SupportsExpressionTracking && replyInitPacket.expressionSuccess;
+                            module.EyeInitialized = replyInitPacket.eyeSuccess;
+                            module.ExpressionInitialized = replyInitPacket.expressionSuccess;
 
                             _logger.LogInformation("Got init for module {module}. Eye: {eye} Expr: {expr}...",
                                 module.ModuleClassName,
@@ -267,25 +266,18 @@ public class UnifiedLibManager : ILibManager
                                     UsingExpression = module.ModuleInformation.UsingExpression,
                                 };
                                 _sandboxServer.SendData(statusUpdatePkt, portCopy);
+
+                                if (args.PropertyName == nameof(ModuleMetadataInternal.Active))
+                                {
+                                    RecomputeCapabilityAssignments();
+                                }
                             };
 
-                            if (replyInitPacket.eyeSuccess)
-                            {
-                                EyeStatus = ModuleState.Active;
-                            }
-                            if (replyInitPacket.expressionSuccess)
-                            {
-                                ExpressionStatus = ModuleState.Active;
-                            }
-
+                            module.Status = ModuleState.Active;
                             module.ModuleInformation.Active = true;
-                            lock (_modulesLock)
-                            {
-                                module.ModuleInformation.UsingEye = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingEye) && replyInitPacket.eyeSuccess;
-                                module.ModuleInformation.UsingExpression = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingExpression) && replyInitPacket.expressionSuccess;
-                            }
                             module.ModuleInformation.StaticImages = replyInitPacket.IconDataStreams;
                             EnsureModuleThreadStartedSandboxed(module);
+                            RecomputeCapabilityAssignments();
 
                             _dispatcherService.Run(() =>
                             {
@@ -352,20 +344,7 @@ public class UnifiedLibManager : ILibManager
 
                             if (module.Status == ModuleState.Active && module.ModuleInformation.Active)
                             {
-                                var allowed = TrackingCapability.None;
-                                if (module.ModuleInformation.UsingEye)
-                                {
-                                    allowed |= TrackingCapabilities.EyeHalf;
-                                }
-                                if (module.ModuleInformation.UsingExpression)
-                                {
-                                    allowed |= TrackingCapabilities.ExpressionHalf;
-                                }
-                                if (allowed != TrackingCapability.None)
-                                {
-                                    allowed |= TrackingCapability.Head;
-                                }
-                                replyUpdatePacket.UpdateGlobalState(allowed);
+                                replyUpdatePacket.UpdateGlobalState(module.ModuleInformation.EffectiveCapabilities);
                             }
 
                             break;
@@ -434,15 +413,59 @@ public class UnifiedLibManager : ILibManager
         _initializeWorker.Start();
     }
 
+    private void RecomputeCapabilityAssignments()
+    {
+        ModuleRuntimeInfo[] modules;
+        lock (_modulesLock)
+        {
+            modules = AvailableSandboxModules.OrderBy(m => m.SpawnOrder).ToArray();
+        }
+
+        var participants = new List<ModuleRuntimeInfo>(modules.Length);
+        var candidates = new List<CapabilityCandidate>(modules.Length);
+        foreach (var module in modules)
+        {
+            var info = module.ModuleInformation;
+            var participates = !module.TeardownRequested && info.Active && !info.Crashed &&
+                               (module.EyeInitialized || module.ExpressionInitialized);
+            if (participates)
+            {
+                participants.Add(module);
+                candidates.Add(new CapabilityCandidate(module.EyeInitialized, module.ExpressionInitialized, null));
+            }
+            else
+            {
+                ApplyAssignment(info, TrackingCapability.None);
+            }
+        }
+
+        var assigned = CapabilityAssigner.Assign(candidates);
+        for (var i = 0; i < participants.Count; i++)
+        {
+            ApplyAssignment(participants[i].ModuleInformation, assigned[i]);
+        }
+
+        EyeStatus = assigned.Any(a => a.HasFlag(TrackingCapability.Eyes)) ? ModuleState.Active : ModuleState.Uninitialized;
+        ExpressionStatus = assigned.Any(a => a.HasFlag(TrackingCapability.Mouth)) ? ModuleState.Active : ModuleState.Uninitialized;
+    }
+
+    private static void ApplyAssignment(ModuleMetadataInternal info, TrackingCapability assigned)
+    {
+        info.EffectiveCapabilities = assigned;
+        info.UsingEye = (assigned & TrackingCapabilities.EyeHalf) != TrackingCapability.None;
+        info.UsingExpression = (assigned & TrackingCapabilities.ExpressionHalf) != TrackingCapability.None;
+    }
+
     private void InitialiseSandboxesBaseOnPaths(IEnumerable<string> paths)
     {
+        var spawnOrder = 0;
         foreach (var dll in paths)
         {
-            StartModuleProcess(dll, new ModuleMetadataInternal());
+            StartModuleProcess(dll, new ModuleMetadataInternal(), spawnOrder++);
         }
     }
 
-    private bool StartModuleProcess(string dll, ModuleMetadataInternal metadata)
+    private bool StartModuleProcess(string dll, ModuleMetadataInternal metadata, int spawnOrder)
     {
         try
         {
@@ -469,6 +492,7 @@ public class UnifiedLibManager : ILibManager
                 Process = sandboxProcess,
                 ModuleClassName = Path.GetFileNameWithoutExtension(dll),
                 ModuleInformation = metadata,
+                SpawnOrder = spawnOrder,
                 EventBus = new()
             };
             lock (_modulesLock)
@@ -546,6 +570,7 @@ public class UnifiedLibManager : ILibManager
             module.Status = ModuleState.Crashed;
             info.CrashDescription = description;
             info.Crashed = true;
+            RecomputeCapabilityAssignments();
         });
     }
 
@@ -559,6 +584,10 @@ public class UnifiedLibManager : ILibManager
                 AvailableSandboxModules.Remove(deadModule);
             }
 
+            var info = deadModule.ModuleInformation;
+            ApplyAssignment(info, TrackingCapability.None);
+            RecomputeCapabilityAssignments();
+
             if (delay > TimeSpan.Zero)
             {
                 await Task.Delay(delay);
@@ -569,23 +598,12 @@ public class UnifiedLibManager : ILibManager
                 return;
             }
 
-            var info = deadModule.ModuleInformation;
-            if (info.UsingEye)
-            {
-                EyeStatus = ModuleState.Uninitialized;
-            }
-            if (info.UsingExpression)
-            {
-                ExpressionStatus = ModuleState.Uninitialized;
-            }
-            info.UsingEye = false;
-            info.UsingExpression = false;
             info.Crashed = false;
             info.CrashDescription = string.Empty;
 
             deadModule.Process?.Dispose();
 
-            if (StartModuleProcess(deadModule.SandboxModulePath, info))
+            if (StartModuleProcess(deadModule.SandboxModulePath, info, deadModule.SpawnOrder))
             {
                 _logger.LogInformation("Restarted module process for {module}", deadModule.ModuleClassName);
             }

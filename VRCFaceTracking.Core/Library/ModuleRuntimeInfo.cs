@@ -62,6 +62,10 @@ public class ModuleRuntimeInfo
     /// </summary>
     public bool SupportsExpressionTracking;
 
+    public bool EyeInitialized;
+    public bool ExpressionInitialized;
+    public int SpawnOrder;
+
     /// <summary>
     /// Queue of packets to send
     /// </summary>
