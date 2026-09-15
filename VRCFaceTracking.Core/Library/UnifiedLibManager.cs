@@ -1,6 +1,6 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
@@ -29,7 +29,6 @@ public class UnifiedLibManager : ILibManager
     {
         get;
     }
-    private readonly bool _hasInitializedAtLeastOneModule = false;
     private readonly IDispatcherService _dispatcherService;
     #endregion
 
@@ -51,10 +50,6 @@ public class UnifiedLibManager : ILibManager
 
     #region Modules
 
-    private List<Assembly> AvailableModules
-    {
-        get; set;
-    }
     private readonly List<ModuleRuntimeInfo> _moduleThreads = new();
     private readonly IModuleDataService _moduleDataService;
     private readonly ILocalSettingsService _localSettingsService;
@@ -105,6 +100,12 @@ public class UnifiedLibManager : ILibManager
 
     public void Initialize()
     {
+        if (_initializeWorker != null && _initializeWorker.IsAlive)
+        {
+            _logger.LogWarning("Module initialization is already in progress; ignoring this request");
+            return;
+        }
+
         LoadedModulesMetadata.Clear();
         InitProgress.Begin();
 
@@ -175,6 +176,16 @@ public class UnifiedLibManager : ILibManager
                                         break;
                                     }
 
+                                    var metadata = new ModuleMetadataInternal { ModulePath = pkt.ModulePath };
+                                    lock (_overridesLock)
+                                    {
+                                        metadata.AllowedCapabilities = _capabilityOverrides.TryGetValue(pkt.ModulePath, out var stored) ? stored : null;
+                                    }
+
+                                    var nextSpawnOrder = AvailableSandboxModules.Count == 0
+                                        ? 0
+                                        : AvailableSandboxModules.Max(m => m.SpawnOrder) + 1;
+
                                     ModuleRuntimeInfo runtimeInfo = new ModuleRuntimeInfo()
                                     {
                                         SandboxProcessPID = pkt.PID,
@@ -183,7 +194,8 @@ public class UnifiedLibManager : ILibManager
                                         IsActive = true,
                                         Process = sandboxProcess,
                                         ModuleClassName = Path.GetFileNameWithoutExtension(pkt.ModulePath),
-                                        ModuleInformation = new() { ModulePath = pkt.ModulePath },
+                                        ModuleInformation = metadata,
+                                        SpawnOrder = nextSpawnOrder,
                                         EventBus = new(),
                                     };
                                     AvailableSandboxModules.Add(runtimeInfo);
@@ -266,7 +278,7 @@ public class UnifiedLibManager : ILibManager
                             }
 
                             var portCopy = port; // So that we can use it in the lambda method
-                            module.ModuleInformation.PropertyChanged += (_, args) =>
+                            void StatusChanged(object _, PropertyChangedEventArgs args)
                             {
                                 if (args.PropertyName == nameof(ModuleMetadataInternal.AllowedCapabilities))
                                 {
@@ -295,7 +307,14 @@ public class UnifiedLibManager : ILibManager
                                 {
                                     RecomputeCapabilityAssignments();
                                 }
-                            };
+                            }
+
+                            if (module.StatusChangedHandler != null)
+                            {
+                                module.ModuleInformation.PropertyChanged -= module.StatusChangedHandler;
+                            }
+                            module.StatusChangedHandler = StatusChanged;
+                            module.ModuleInformation.PropertyChanged += StatusChanged;
 
                             module.Status = ModuleState.Active;
                             module.ModuleInformation.Active = true;
@@ -414,12 +433,6 @@ public class UnifiedLibManager : ILibManager
             };
         }
 
-        if (_initializeWorker != null && _initializeWorker.IsAlive)
-        {
-            _logger.LogWarning("Module initialization is already in progress; ignoring this request");
-            return;
-        }
-
         Interlocked.Increment(ref _initGeneration);
         _restartPolicy.ResetAll();
 
@@ -429,7 +442,7 @@ public class UnifiedLibManager : ILibManager
             try
             {
                 // Kill lingering threads
-                TeardownAllAndResetAsync();
+                TeardownAllAndReset();
 
                 LoadCapabilityOverrides();
 
@@ -452,11 +465,18 @@ public class UnifiedLibManager : ILibManager
                 {
                     _logger.LogDebug("Initializing requested runtimes...");
                     var generation = Volatile.Read(ref _initGeneration);
-                    _ = Task.Delay(InitTimeout).ContinueWith(_ =>
+                    _ = Task.Delay(InitTimeout).ContinueWith(async _ =>
                     {
+                        if (generation != Volatile.Read(ref _initGeneration))
+                        {
+                            return;
+                        }
+
+                        InitProgress.TimeOutPending();
+                        await Task.Delay(TimeSpan.FromSeconds(15));
                         if (generation == Volatile.Read(ref _initGeneration))
                         {
-                            InitProgress.TimeOutPending();
+                            InitProgress.Finish();
                         }
                     });
                 }
@@ -546,7 +566,7 @@ public class UnifiedLibManager : ILibManager
         }
     }
 
-    private void RecomputeCapabilityAssignments()
+    private void RecomputeCapabilityAssignments() => _dispatcherService.Run(() =>
     {
         ModuleRuntimeInfo[] modules;
         lock (_modulesLock)
@@ -578,9 +598,9 @@ public class UnifiedLibManager : ILibManager
             ApplyAssignment(participants[i].ModuleInformation, assigned[i]);
         }
 
-        EyeStatus = assigned.Any(a => a.HasFlag(TrackingCapability.Eyes)) ? ModuleState.Active : ModuleState.Uninitialized;
-        ExpressionStatus = assigned.Any(a => a.HasFlag(TrackingCapability.Mouth)) ? ModuleState.Active : ModuleState.Uninitialized;
-    }
+        EyeStatus = participants.Any(m => m.EyeInitialized) ? ModuleState.Active : ModuleState.Uninitialized;
+        ExpressionStatus = participants.Any(m => m.ExpressionInitialized) ? ModuleState.Active : ModuleState.Uninitialized;
+    });
 
     private static void ApplyAssignment(ModuleMetadataInternal info, TrackingCapability assigned)
     {
@@ -591,12 +611,17 @@ public class UnifiedLibManager : ILibManager
 
     private void InitialiseSandboxesBaseOnPaths(IEnumerable<string> paths)
     {
-        var spawnOrder = 0;
-        foreach (var dll in paths)
+        var dlls = paths.ToArray();
+        foreach (var dll in dlls)
         {
-            if (StartModuleProcess(dll, new ModuleMetadataInternal(), spawnOrder++))
+            InitProgress.Add(dll, Path.GetFileNameWithoutExtension(dll));
+        }
+
+        for (var i = 0; i < dlls.Length; i++)
+        {
+            if (!StartModuleProcess(dlls[i], new ModuleMetadataInternal(), i))
             {
-                InitProgress.Add(dll, Path.GetFileNameWithoutExtension(dll));
+                InitProgress.Resolve(dlls[i]);
             }
         }
     }
@@ -742,6 +767,12 @@ public class UnifiedLibManager : ILibManager
             info.CrashDescription = string.Empty;
 
             deadModule.Process?.Dispose();
+
+            if (deadModule.StatusChangedHandler != null)
+            {
+                info.PropertyChanged -= deadModule.StatusChangedHandler;
+                deadModule.StatusChangedHandler = null;
+            }
 
             if (StartModuleProcess(deadModule.SandboxModulePath, info, deadModule.SpawnOrder))
             {
@@ -934,7 +965,7 @@ public class UnifiedLibManager : ILibManager
     }
 
     // Signal all active modules to gracefully shut down their respective runtimes
-    public void TeardownAllAndResetAsync()
+    public void TeardownAllAndReset()
     {
         _logger.LogInformation("Tearing down all modules...");
         _teardownInProgress = true;

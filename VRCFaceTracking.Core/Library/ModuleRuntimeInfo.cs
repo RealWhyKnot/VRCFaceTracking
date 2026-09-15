@@ -1,5 +1,5 @@
-﻿using System.Diagnostics;
-using System.Runtime.Loader;
+﻿using System.ComponentModel;
+using System.Diagnostics;
 using VRCFaceTracking.Core.Sandboxing;
 using VRCFaceTracking.Core.Sandboxing.IPC;
 
@@ -7,16 +7,8 @@ namespace VRCFaceTracking.Core.Library;
 
 public class ModuleRuntimeInfo
 {
-    // @NOTE: The following 4 properties should all be removed by the time sandboxing is done
-
-#if true
-
-    public ExtTrackingModule Module;
-    public AssemblyLoadContext AssemblyLoadContext;
     public CancellationTokenSource UpdateCancellationToken;
     public Thread UpdateThread;
-
-#endif
 
     /// <summary>
     /// Whether the module is active and will receive update events.
@@ -65,6 +57,7 @@ public class ModuleRuntimeInfo
     public bool EyeInitialized;
     public bool ExpressionInitialized;
     public int SpawnOrder;
+    public PropertyChangedEventHandler StatusChangedHandler;
 
     /// <summary>
     /// Queue of packets to send

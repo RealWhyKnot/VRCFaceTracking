@@ -20,7 +20,6 @@ public class VrcftSandboxServer : UdpFullDuplex
 {
     private static readonly Random Random = new();
 
-    private readonly List<int> _connectedClients = new();
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<VrcftSandboxServer> _logger;
     public OnPacketReceived OnPacketReceived;
@@ -56,14 +55,13 @@ public class VrcftSandboxServer : UdpFullDuplex
                     _logger.LogInformation($"Received handshake from port {endpoint.Port}. Sending ACK...");
                     // Return ACK
                     SendData(in packet, in endpoint);
-                    _connectedClients.Add(endpoint.Port);
                 }
             }
             if (OnPacketReceived != null)
             {
                 if (packet.GetPacketType() == IpcPacket.PacketType.SplitPacketChunk)
                 {
-                    PartialPacket.DecodePacket(data, out var combinedData);
+                    PartialPacket.DecodePacket(data, out var combinedData, endpoint.Port);
                     if (combinedData.Length > 0)
                     {
                         OnBytesReceived(combinedData, endpoint);

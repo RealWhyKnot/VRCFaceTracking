@@ -14,6 +14,6 @@ public interface ILibManager
         get;
     }
     public void Initialize();
-    void TeardownAllAndResetAsync();
+    void TeardownAllAndReset();
     void SetImageStreamEnabled(bool enabled);
 }

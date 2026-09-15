@@ -18,7 +18,7 @@ public class PartialPacket : IpcPacket
     // Global counter for which partial packet we are encoding
     private static uint _encodePartialPacketCounter = 0;
     private static uint _encodePartialPacketBase = 0;
-    private static readonly Dictionary<uint, PartialPacketChunkTemporaryBuffer> _packetBuffers = new();
+    private static readonly Dictionary<ulong, PartialPacketChunkTemporaryBuffer> _packetBuffers = new();
 
     private struct PartialPacketChunk
     {
@@ -37,12 +37,12 @@ public class PartialPacket : IpcPacket
     private static void PruneStaleBuffers()
     {
         var cutoff = DateTime.UtcNow - STALE_BUFFER_LIFETIME;
-        List<uint> stale = null;
+        List<ulong> stale = null;
         foreach (var pair in _packetBuffers)
         {
             if (pair.Value.LastChunkUtc < cutoff)
             {
-                (stale ??= new List<uint>()).Add(pair.Key);
+                (stale ??= new List<ulong>()).Add(pair.Key);
             }
         }
         if (stale != null)
@@ -63,7 +63,7 @@ public class PartialPacket : IpcPacket
     {
     }
 
-    public static void DecodePacket(byte[] data, out byte[] packetData)
+    public static void DecodePacket(byte[] data, out byte[] packetData, int senderKey = 0)
     {
         packetData = new byte[0];
 
@@ -75,7 +75,7 @@ public class PartialPacket : IpcPacket
         PruneStaleBuffers();
 
         // Get packetID and packet part out of data
-        var packetId = BitConverter.ToUInt32(data, 12);
+        var packetId = ((ulong)(uint)senderKey << 32) | BitConverter.ToUInt32(data, 12);
         var packetPart = BitConverter.ToUInt32(data, 8);
 
         var packetChunk = new PartialPacketChunk()

@@ -85,7 +85,9 @@ public partial class MulticastDnsService : ObservableObject
 
         foreach (var sender in Receivers)
         {
-            Listen(sender.Key, sender.Value);
+            var client = sender.Key;
+            var token = sender.Value;
+            _ = Task.Run(() => Listen(client, token));
         }
     }
 

@@ -34,7 +34,7 @@ public class MainStandalone : IMainService
         _logger.LogInformation("VRCFT Standalone Exiting!");
         await _mutator.Save();
 
-        _libManager.TeardownAllAndResetAsync();
+        _libManager.TeardownAllAndReset();
 
         if (OperatingSystem.IsWindows())
         {
