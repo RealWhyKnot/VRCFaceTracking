@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking.Core.Contracts.Services;
 
@@ -8,6 +9,11 @@ public interface ILibManager
     {
         get; set;
     }
+    public ModuleInitProgress InitProgress
+    {
+        get;
+    }
     public void Initialize();
     void TeardownAllAndResetAsync();
+    void SetImageStreamEnabled(bool enabled);
 }

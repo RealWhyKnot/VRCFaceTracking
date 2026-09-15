@@ -84,6 +84,16 @@ public class VrcftPacketDecoder
                     packet.Decode(data);
                     break;
 
+                case IpcPacket.PacketType.EventSetImageStream:
+                    packet = new EventSetImageStreamPacket();
+                    packet.Decode(data);
+                    break;
+
+                case IpcPacket.PacketType.DebugStreamFrame:
+                    packet = new ImageFrameUpdatePacket();
+                    packet.Decode(data);
+                    break;
+
 
 
                 // EventGetSupported

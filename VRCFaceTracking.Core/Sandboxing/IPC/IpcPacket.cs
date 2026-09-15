@@ -25,6 +25,7 @@ public class IpcPacket
         EventUpdateStatus = 204,
         EventLog = 205,
         EventSetVerbose = 206,
+        EventSetImageStream = 207,
 
         // Replies to the above events
         ReplyGetSupported = 300,

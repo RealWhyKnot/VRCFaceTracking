@@ -20,6 +20,10 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
     {
         get; set;
     }
+    public bool IsPlaceholder
+    {
+        get; set;
+    }
     private bool _active;
 
     public bool Active
@@ -94,7 +98,55 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
             }
             _allowedCapabilities = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowedCapabilities)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsAutomatic)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowEyes)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowBrows)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowMouth)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowTongue)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowHead)));
         }
+    }
+
+    public bool IsAutomatic => _allowedCapabilities == null;
+
+    public bool AllowEyes
+    {
+        get => GetAllowed(TrackingCapability.Eyes);
+        set => SetAllowed(TrackingCapability.Eyes, value);
+    }
+
+    public bool AllowBrows
+    {
+        get => GetAllowed(TrackingCapability.Brows);
+        set => SetAllowed(TrackingCapability.Brows, value);
+    }
+
+    public bool AllowMouth
+    {
+        get => GetAllowed(TrackingCapability.Mouth);
+        set => SetAllowed(TrackingCapability.Mouth, value);
+    }
+
+    public bool AllowTongue
+    {
+        get => GetAllowed(TrackingCapability.Tongue);
+        set => SetAllowed(TrackingCapability.Tongue, value);
+    }
+
+    public bool AllowHead
+    {
+        get => GetAllowed(TrackingCapability.Head);
+        set => SetAllowed(TrackingCapability.Head, value);
+    }
+
+    public void ResetCapabilitiesToAutomatic() => AllowedCapabilities = null;
+
+    private bool GetAllowed(TrackingCapability flag) => (_allowedCapabilities ?? TrackingCapability.All).HasFlag(flag);
+
+    private void SetAllowed(TrackingCapability flag, bool value)
+    {
+        var current = _allowedCapabilities ?? TrackingCapability.All;
+        AllowedCapabilities = value ? current | flag : current & ~flag;
     }
 
     private bool _supportedEye;

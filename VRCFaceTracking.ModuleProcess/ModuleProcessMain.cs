@@ -33,6 +33,37 @@ public class ModuleProcessMain
 
     private static readonly AutoResetEvent _wakeup = new(false);
     private static volatile bool _shouldCallReceive;
+    private static volatile bool _imageStreamEnabled;
+    private const int ImageFrameIntervalMs = 100;
+    private static readonly System.Diagnostics.Stopwatch _eyeFrameTimer = System.Diagnostics.Stopwatch.StartNew();
+    private static readonly System.Diagnostics.Stopwatch _lipFrameTimer = System.Diagnostics.Stopwatch.StartNew();
+
+    private static void TryEnqueueImageFrame(Core.Types.Image image, byte kind, System.Diagnostics.Stopwatch timer)
+    {
+        if (timer.ElapsedMilliseconds < ImageFrameIntervalMs)
+        {
+            return;
+        }
+
+        var data = image?.ImageData;
+        var (x, y) = image?.ImageSize ?? default;
+        if (image is not { SupportsImage: true } || data == null ||
+            x < 1 || y < 1 ||
+            x > ImageFrameUpdatePacket.MaxDimension || y > ImageFrameUpdatePacket.MaxDimension ||
+            data.Length != x * y * 4)
+        {
+            return;
+        }
+
+        timer.Restart();
+        _packetsToSend.Enqueue(new ImageFrameUpdatePacket
+        {
+            Kind = kind,
+            Width = x,
+            Height = y,
+            Data = (byte[])data.Clone(),
+        });
+    }
     public static void QueueReceiveEvent()
     {
         _shouldCallReceive = true;
@@ -321,6 +352,18 @@ public class ModuleProcessMain
                     {
                         var pkt = new ReplyUpdatePacket();
                         _packetsToSend.Enqueue(pkt);
+                        if (_imageStreamEnabled)
+                        {
+                            TryEnqueueImageFrame(UnifiedTracking.EyeImageData, ImageFrameUpdatePacket.EyeKind, _eyeFrameTimer);
+                            TryEnqueueImageFrame(UnifiedTracking.LipImageData, ImageFrameUpdatePacket.LipKind, _lipFrameTimer);
+                        }
+                        break;
+                    }
+
+                case IpcPacket.PacketType.EventSetImageStream:
+                    {
+                        var pkt = (EventSetImageStreamPacket)packet;
+                        _imageStreamEnabled = pkt.Enabled;
                         break;
                     }
 

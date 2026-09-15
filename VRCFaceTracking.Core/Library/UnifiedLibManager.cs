@@ -7,6 +7,7 @@ using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Sandboxing;
 using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Types;
 
 namespace VRCFaceTracking.Core.Library;
 
@@ -23,6 +24,10 @@ public class UnifiedLibManager : ILibManager
     public ObservableCollection<ModuleMetadataInternal> LoadedModulesMetadata
     {
         get; set;
+    }
+    public ModuleInitProgress InitProgress
+    {
+        get;
     }
     private readonly bool _hasInitializedAtLeastOneModule = false;
     private readonly IDispatcherService _dispatcherService;
@@ -55,7 +60,9 @@ public class UnifiedLibManager : ILibManager
     private readonly ILocalSettingsService _localSettingsService;
     private readonly object _modulesLock = new();
     private readonly ModuleRestartPolicy _restartPolicy = new();
+    private static readonly TimeSpan InitTimeout = TimeSpan.FromSeconds(30);
     private int _initGeneration;
+    private volatile bool _imageStreamEnabled;
 
     private const string CapabilityOverridesSettingKey = "ModuleCapabilityOverrides";
     private readonly object _overridesLock = new();
@@ -85,6 +92,7 @@ public class UnifiedLibManager : ILibManager
         _localSettingsService = localSettingsService;
 
         LoadedModulesMetadata = new ObservableCollection<ModuleMetadataInternal>();
+        InitProgress = new ModuleInitProgress(dispatcherService);
         _sandboxProcessPath = Path.Combine(AppContext.BaseDirectory, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "VRCFaceTracking.ModuleProcess.exe" : "VRCFaceTracking.ModuleProcess");
         if (!File.Exists(_sandboxProcessPath))
         {
@@ -98,11 +106,7 @@ public class UnifiedLibManager : ILibManager
     public void Initialize()
     {
         LoadedModulesMetadata.Clear();
-        LoadedModulesMetadata.Add(new ModuleMetadataInternal
-        {
-            Active = false,
-            Name = "Initializing Modules..."
-        });
+        InitProgress.Begin();
 
         // Spawn sandbox server if it's null
         if (_sandboxServer == null)
@@ -150,6 +154,7 @@ public class UnifiedLibManager : ILibManager
                                         AvailableSandboxModules[i] = structCopy;
 
                                         _logger.LogInformation("Initializing {module}...", AvailableSandboxModules[i].ModuleClassName.ToString());
+                                        InitProgress.Advance(AvailableSandboxModules[i].SandboxModulePath, ModuleInitStage.Capabilities);
                                         AttemptSandboxedModuleInitialize(AvailableSandboxModules[i]);
                                         pidRegistered = true;
 
@@ -184,6 +189,7 @@ public class UnifiedLibManager : ILibManager
                                     AvailableSandboxModules.Add(runtimeInfo);
 
                                     _logger.LogInformation("Initializing {module}...", runtimeInfo.ModuleClassName);
+                                    InitProgress.Advance(runtimeInfo.SandboxModulePath, ModuleInitStage.Capabilities);
                                     AttemptSandboxedModuleInitialize(runtimeInfo);
                                     pidRegistered = true;
                                 }
@@ -228,6 +234,7 @@ public class UnifiedLibManager : ILibManager
                                 eventInitPacket.expressionAvailable,
                                 eventInitPacket.eyeAvailable);
                             _sandboxServer.SendData(eventInitPacket, port);
+                            InitProgress.Advance(module.SandboxModulePath, ModuleInitStage.Initializing);
                             break;
                         }
 
@@ -254,6 +261,7 @@ public class UnifiedLibManager : ILibManager
                             // Skip any modules that don't succeed, otherwise set UnifiedLib to have these states active and add module to module list.
                             if (!replyInitPacket.eyeSuccess && !replyInitPacket.expressionSuccess)
                             {
+                                InitProgress.Resolve(module.SandboxModulePath);
                                 break;
                             }
 
@@ -294,6 +302,11 @@ public class UnifiedLibManager : ILibManager
                             module.ModuleInformation.StaticImages = replyInitPacket.IconDataStreams;
                             EnsureModuleThreadStartedSandboxed(module);
                             RecomputeCapabilityAssignments();
+                            InitProgress.Resolve(module.SandboxModulePath);
+                            if (_imageStreamEnabled)
+                            {
+                                _sandboxServer.SendData(new EventSetImageStreamPacket { Enabled = true }, port);
+                            }
 
                             _dispatcherService.Run(() =>
                             {
@@ -325,16 +338,13 @@ public class UnifiedLibManager : ILibManager
                                     LoadedModulesMetadata.Add(new ModuleMetadataInternal
                                     {
                                         Active = false,
-                                        Name = "No Modules Loaded"
+                                        Name = "No Modules Loaded",
+                                        IsPlaceholder = true
                                     });
                                 }
                                 else
                                 {
-                                    // Remove our dummy module
-                                    if (LoadedModulesMetadata.Count > 0 &&
-                                        LoadedModulesMetadata[0].Active == false &&
-                                           (LoadedModulesMetadata[0].Name == "No Modules Loaded" ||
-                                            LoadedModulesMetadata[0].Name == "Initializing Modules..."))
+                                    if (LoadedModulesMetadata.Count > 0 && LoadedModulesMetadata[0].IsPlaceholder)
                                     {
                                         LoadedModulesMetadata.RemoveAt(0);
                                     }
@@ -364,6 +374,38 @@ public class UnifiedLibManager : ILibManager
                                 {
                                     replyUpdatePacket.UpdateGlobalState(module.ModuleInformation.EffectiveCapabilities);
                                 }
+                            }
+
+                            break;
+                        }
+                    case IpcPacket.PacketType.DebugStreamFrame:
+                        {
+                            if (knownModule == null || !_imageStreamEnabled)
+                            {
+                                break;
+                            }
+
+                            var framePacket = (ImageFrameUpdatePacket)packet;
+                            var module = knownModule;
+                            if (module.Status != ModuleState.Active || !module.ModuleInformation.Active)
+                            {
+                                break;
+                            }
+
+                            var frame = new Image
+                            {
+                                ImageSize = (framePacket.Width, framePacket.Height),
+                                ImageData = framePacket.Data,
+                                SupportsImage = true,
+                            };
+                            var capabilities = module.ModuleInformation.EffectiveCapabilities;
+                            if (framePacket.Kind == ImageFrameUpdatePacket.EyeKind && capabilities.HasFlag(TrackingCapability.Eyes))
+                            {
+                                UnifiedTracking.EyeImageData = frame;
+                            }
+                            else if (framePacket.Kind == ImageFrameUpdatePacket.LipKind && capabilities.HasFlag(TrackingCapability.Mouth))
+                            {
+                                UnifiedTracking.LipImageData = frame;
                             }
 
                             break;
@@ -409,16 +451,26 @@ public class UnifiedLibManager : ILibManager
                 if (startedAny)
                 {
                     _logger.LogDebug("Initializing requested runtimes...");
+                    var generation = Volatile.Read(ref _initGeneration);
+                    _ = Task.Delay(InitTimeout).ContinueWith(_ =>
+                    {
+                        if (generation == Volatile.Read(ref _initGeneration))
+                        {
+                            InitProgress.TimeOutPending();
+                        }
+                    });
                 }
                 else
                 {
+                    InitProgress.Finish();
                     _dispatcherService.Run(() =>
                     {
                         LoadedModulesMetadata.Clear();
                         LoadedModulesMetadata.Add(new ModuleMetadataInternal
                         {
                             Active = false,
-                            Name = "No Modules Loaded"
+                            Name = "No Modules Loaded",
+                            IsPlaceholder = true
                         });
                     });
                     _logger.LogWarning("No modules loaded.");
@@ -542,7 +594,10 @@ public class UnifiedLibManager : ILibManager
         var spawnOrder = 0;
         foreach (var dll in paths)
         {
-            StartModuleProcess(dll, new ModuleMetadataInternal(), spawnOrder++);
+            if (StartModuleProcess(dll, new ModuleMetadataInternal(), spawnOrder++))
+            {
+                InitProgress.Add(dll, Path.GetFileNameWithoutExtension(dll));
+            }
         }
     }
 
@@ -632,6 +687,7 @@ public class UnifiedLibManager : ILibManager
 
     private void MarkModuleCrashed(ModuleRuntimeInfo module, string description)
     {
+        InitProgress.Resolve(module.SandboxModulePath);
         _dispatcherService.Run(() =>
         {
             var info = module.ModuleInformation;
@@ -640,8 +696,7 @@ public class UnifiedLibManager : ILibManager
                 info.Name = module.ModuleClassName;
             }
 
-            if (LoadedModulesMetadata.Count > 0 && !LoadedModulesMetadata[0].Active &&
-                (LoadedModulesMetadata[0].Name == "No Modules Loaded" || LoadedModulesMetadata[0].Name == "Initializing Modules..."))
+            if (LoadedModulesMetadata.Count > 0 && LoadedModulesMetadata[0].IsPlaceholder)
             {
                 LoadedModulesMetadata.RemoveAt(0);
             }
@@ -700,6 +755,31 @@ public class UnifiedLibManager : ILibManager
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to restart {module}", deadModule.ModuleClassName);
+        }
+    }
+
+    public void SetImageStreamEnabled(bool enabled)
+    {
+        _imageStreamEnabled = enabled;
+        var packet = new EventSetImageStreamPacket { Enabled = enabled };
+        ModuleRuntimeInfo[] modules;
+        lock (_modulesLock)
+        {
+            modules = AvailableSandboxModules.ToArray();
+        }
+
+        foreach (var module in modules)
+        {
+            if (module.SandboxProcessPort > 0 && !(module.Process?.HasExited ?? true))
+            {
+                _sandboxServer?.SendData(packet, module.SandboxProcessPort);
+            }
+        }
+
+        if (!enabled)
+        {
+            UnifiedTracking.EyeImageData = new Image();
+            UnifiedTracking.LipImageData = new Image();
         }
     }
 
