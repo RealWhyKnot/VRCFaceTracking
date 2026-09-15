@@ -1,15 +1,15 @@
 using System.Collections.Concurrent;
-using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Logging;
+using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Models;
 
 namespace VRCFaceTracking.Services.Logging;
 
 public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
 {
-    public static readonly ObservableCollection<LogLine> AllLogs = new();
+    public static readonly BoundedObservableCollection<LogLine> AllLogs = new(10000);
 
     private static readonly ConcurrentQueue<LogLine> _pending = new();
     private static DispatcherTimer? _flushTimer;

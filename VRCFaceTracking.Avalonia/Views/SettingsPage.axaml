@@ -80,6 +80,69 @@
                 </Grid>
             </Border>
 
+            <ui:SettingsExpander
+                Header="{x:Static s:Resources.ExitWithSteamVrHeader}"
+                Description="{x:Static s:Resources.ExitWithSteamVrDescription}"
+                IsVisible="{Binding IsOpenVRSupported}">
+                <ToggleSwitch
+                    IsChecked="{Binding ExitWithSteamVr, Mode=TwoWay}"
+                    OffContent=""
+                    OnContent="" />
+            </ui:SettingsExpander>
+
+            <TextBlock Text="{x:Static s:Resources.LoggingSectionHeader}" FontSize="12" FontWeight="SemiBold" Opacity="0.6" Margin="0,16,0,6" />
+
+            <ui:SettingsExpander
+                Header="{x:Static s:Resources.VerboseLoggingHeader}"
+                Description="{Binding VerboseDescription}">
+                <ToggleSwitch
+                    IsChecked="{Binding VerboseLogging, Mode=TwoWay}"
+                    IsEnabled="{Binding IsVerboseToggleEnabled}"
+                    OffContent=""
+                    OnContent="" />
+            </ui:SettingsExpander>
+
+            <ui:SettingsExpander
+                Header="{x:Static s:Resources.LogFilesToKeepHeader}"
+                Description="{x:Static s:Resources.LogFilesToKeepDescription}">
+                <NumericUpDown
+                    Minimum="1"
+                    Maximum="200"
+                    Increment="1"
+                    FormatString="0"
+                    MinWidth="120"
+                    Value="{Binding LogFilesToKeep, Mode=TwoWay}" />
+            </ui:SettingsExpander>
+
+            <ui:SettingsExpander
+                Header="{x:Static s:Resources.LogFolderHeader}"
+                Description="{Binding LogDirectory}">
+                <Button Content="{x:Static s:Resources.OpenLogsButtonContent}" Command="{Binding OpenLogsCommand}" />
+            </ui:SettingsExpander>
+
+            <TextBlock Text="{x:Static s:Resources.UpdatesSectionHeader}" FontSize="12" FontWeight="SemiBold" Opacity="0.6" Margin="0,16,0,6"
+                       IsVisible="{Binding IsUpdateCheckAvailable}" />
+
+            <ui:SettingsExpander
+                Header="{x:Static s:Resources.UpdatesHeader}"
+                Description="{x:Static s:Resources.UpdatesDescription}"
+                IsVisible="{Binding IsUpdateCheckAvailable}">
+                <ToggleSwitch
+                    IsChecked="{Binding CheckUpdatesOnStartup, Mode=TwoWay}"
+                    OffContent=""
+                    OnContent="" />
+
+                <ui:SettingsExpander.Items>
+                    <ui:SettingsExpanderItem
+                        Content="{x:Static s:Resources.CheckUpdatesHeader}"
+                        Description="{x:Static s:Resources.CheckUpdatesDescription}">
+                        <ui:SettingsExpanderItem.Footer>
+                            <Button Content="{x:Static s:Resources.CheckUpdatesButtonContent}" Command="{Binding CheckUpdatesCommand}" />
+                        </ui:SettingsExpanderItem.Footer>
+                    </ui:SettingsExpanderItem>
+                </ui:SettingsExpander.Items>
+            </ui:SettingsExpander>
+
             <TextBlock Text="ADVANCED" FontSize="12" FontWeight="SemiBold" Opacity="0.6" Margin="0,16,0,6" />
 
             <ui:SettingsExpander

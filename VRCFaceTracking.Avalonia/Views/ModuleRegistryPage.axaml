@@ -8,15 +8,12 @@
     x:DataType="vm:ModuleRegistryViewModel"
     x:Class="VRCFaceTracking.Views.ModuleRegistryPage">
 
-    <Grid ColumnDefinitions="300,*" Margin="0,12,0,0">
+    <Grid ColumnDefinitions="300,*" Margin="{StaticResource PageRootMargin}">
 
         <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="0,0,10,0">
 
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
-                <Border Grid.Column="0" Height="32" CornerRadius="6" BorderThickness="1"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        Padding="10,0">
+                <Border Grid.Column="0" Height="32" Classes="card" Padding="10,0">
                     <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
                         <ui:SymbolIcon Grid.Column="0" Symbol="Find" FontSize="14"
                                        VerticalAlignment="Center" Opacity="0.55" Margin="0,0,8,0" />
@@ -45,7 +42,7 @@
                 </Button>
             </Grid>
 
-            <Border Grid.Row="1" CornerRadius="6" BorderThickness="1" Background="{DynamicResource ControlFillColorDefaultBrush}">
+            <Border Grid.Row="1" Classes="card" Padding="0">
                 <ListBox
                     ItemsSource="{Binding FilteredModuleInfos, Mode=OneWay}"
                     SelectedItem="{Binding Selected}"
@@ -59,17 +56,17 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock FontSize="14" FontWeight="SemiBold"
+                                    <TextBlock Classes="title"
                                                Text="{Binding ModuleName}"
                                                TextTrimming="CharacterEllipsis" />
-                                    <TextBlock FontSize="12" Opacity="0.6"
+                                    <TextBlock Classes="caption"
                                                Text="{Binding AuthorName}"
                                                TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <Border Grid.Column="1" CornerRadius="4" Padding="6,2"
                                         Margin="8,0,0,0" VerticalAlignment="Center"
                                         x:Name="StateBadge">
-                                    <TextBlock FontSize="11" Text="{Binding InstallationState, Mode=OneWay}" />
+                                    <TextBlock FontSize="11" Text="{Binding InstallationState, Mode=OneWay, Converter={StaticResource InstallStateToTextConverter}}" />
                                 </Border>
                             </Grid>
                         </DataTemplate>
@@ -89,10 +86,10 @@
 
             <Border
                 IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}"
-                CornerRadius="6"
-                BorderThickness="1">
+                Classes="card"
+                Padding="0">
                 <ScrollViewer Padding="20">
-                    <StackPanel Spacing="14" DataContext="{Binding Selected.TrackingModuleMetadata}">
+                    <StackPanel Spacing="14" DataContext="{Binding Selected}">
 
                         <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
                             <StackPanel Spacing="4">

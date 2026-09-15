@@ -9,11 +9,10 @@
     x:Class="VRCFaceTracking.Views.MainPage">
 
     <ScrollViewer>
-        <StackPanel Margin="0,10,0,20" Spacing="12">
+        <StackPanel Margin="{StaticResource PageRootMargin}" Classes="page-stack">
             <Border
                 IsVisible="{Binding NoModulesInstalled, Mode=OneWay}"
-                CornerRadius="6"
-                BorderThickness="1"
+                Classes="card"
                 Padding="20,15">
                 <Border.BorderBrush>
                     <SolidColorBrush Color="#FFC107" Opacity="0.6" />
@@ -25,64 +24,128 @@
                     <ui:SymbolIcon Symbol="Alert" FontSize="20" VerticalAlignment="Center" Foreground="#FFC107" />
                     <StackPanel VerticalAlignment="Center" Spacing="2">
                         <TextBlock FontSize="14" FontWeight="SemiBold" Text="{x:Static s:Resources.no_modules_installed_warning_Title}" />
-                        <TextBlock FontSize="12" Opacity="0.7"
+                        <TextBlock Classes="caption"
                                    Text="{x:Static s:Resources.no_modules_installed_warning_Description}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <TextBlock FontSize="13" FontWeight="SemiBold" Opacity="0.6" Text="Modules" />
+            <TextBlock Classes="section-header" Text="{x:Static s:Resources.ModulesSectionHeader}" />
+
+            <Border Classes="card" IsVisible="{Binding LibManager.InitProgress.IsInitializing}">
+                <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                    <ui:ProgressRing Width="32" Height="32" IsIndeterminate="True"
+                                     IsVisible="{Binding LibManager.InitProgress.HasPending}" />
+                    <StackPanel Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Classes="title" Text="{x:Static s:Resources.ModulesInitializingHeader}" />
+                        <ItemsControl ItemsSource="{Binding LibManager.InitProgress.Modules}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock FontSize="12" Text="{Binding Name}" />
+                                        <TextBlock Classes="caption"
+                                                   Text="{Binding Stage, Converter={StaticResource ModuleInitStageConverter}}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
             <ItemsControl ItemsSource="{Binding LibManager.LoadedModulesMetadata}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="model:ModuleMetadataInternal">
-                        <Border CornerRadius="6" BorderThickness="1" Margin="0,0,0,4" Background="{DynamicResource ControlFillColorDefaultBrush}">
-                            <Grid Margin="16,14" ColumnDefinitions="Auto,*,Auto">
+                        <Border Classes="card" Padding="0" Margin="0,0,0,4">
+                            <StackPanel>
+                                <Grid Margin="16,14" ColumnDefinitions="Auto,*,Auto">
 
-                                <ItemsControl Grid.Column="0" Margin="0,0,12,0"
-                                              ItemsSource="{Binding StaticImages}"
-                                              IsVisible="{Binding StaticImages, Converter={StaticResource HasModuleImagesConverter}}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="6" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border CornerRadius="6" ClipToBounds="True"
-                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}">
-                                                <Image Source="{Binding Converter={StaticResource StreamToBitmapConverter}}"
-                                                       Height="72"
-                                                       Stretch="Uniform" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                    <ItemsControl Grid.Column="0" Margin="0,0,12,0"
+                                                  ItemsSource="{Binding StaticImages}"
+                                                  IsVisible="{Binding StaticImages, Converter={StaticResource HasModuleImagesConverter}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="6" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border CornerRadius="6" ClipToBounds="True"
+                                                        Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                                    <Image Source="{Binding Converter={StaticResource StreamToBitmapConverter}}"
+                                                           Height="72"
+                                                           Stretch="Uniform" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
 
-                                <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center" Spacing="4">
-                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Name, Mode=OneWay}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="12">
-                                        <TextBlock Text="{x:Static s:Resources.EyeTrackingActive_Text}" FontSize="12" Opacity="0.7"
-                                                   IsVisible="{Binding UsingEye, Mode=OneWay}" />
-                                        <TextBlock Text="{x:Static s:Resources.FaceTrackingActive_Text}" FontSize="12" Opacity="0.7"
-                                                   IsVisible="{Binding UsingExpression, Mode=OneWay}" />
+                                    <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center" Spacing="4">
+                                        <TextBlock Classes="title" FontSize="16" Text="{Binding Name, Mode=OneWay}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <TextBlock Text="{x:Static s:Resources.EyeTrackingActive_Text}" Classes="caption"
+                                                       IsVisible="{Binding UsingEye, Mode=OneWay}" />
+                                            <TextBlock Text="{x:Static s:Resources.FaceTrackingActive_Text}" Classes="caption"
+                                                       IsVisible="{Binding UsingExpression, Mode=OneWay}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Crashed, Mode=OneWay}">
+                                            <TextBlock FontSize="12" Foreground="#E81123" Text="{x:Static s:Resources.ModuleCrashedText}" />
+                                            <TextBlock Classes="caption" Text="{Binding CrashDescription, Mode=OneWay}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
 
-                                <ToggleSwitch
-                                    Grid.Column="2"
-                                    IsChecked="{Binding Active, Mode=TwoWay}"
-                                    OffContent=""
-                                    OnContent=""
-                                    VerticalAlignment="Center" />
-                            </Grid>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <Button Content="{x:Static s:Resources.ModuleRestartButtonContent}"
+                                                IsVisible="{Binding Crashed, Mode=OneWay}"
+                                                Click="RestartModules_OnClick" />
+                                        <ToggleSwitch
+                                            IsChecked="{Binding Active, Mode=TwoWay}"
+                                            OffContent=""
+                                            OnContent=""
+                                            VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Expander Margin="8,0,8,8" Padding="8,4"
+                                          Background="Transparent"
+                                          IsVisible="{Binding Active, Mode=OneWay}">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock FontSize="12" Text="{x:Static s:Resources.ModuleTrackingHeader}" />
+                                            <TextBlock FontSize="12" Opacity="0.5" Text="{x:Static s:Resources.ModuleTrackingAutomatic}"
+                                                       IsVisible="{Binding IsAutomatic, Mode=OneWay}" />
+                                            <TextBlock FontSize="12" Opacity="0.5" Text="{x:Static s:Resources.ModuleTrackingCustom}"
+                                                       IsVisible="{Binding !IsAutomatic, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Expander.Header>
+                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                        <CheckBox Content="{x:Static s:Resources.CapabilityEyes}"
+                                                  IsChecked="{Binding AllowEyes, Mode=TwoWay}"
+                                                  IsEnabled="{Binding SupportedEye, Mode=OneWay}" />
+                                        <CheckBox Content="{x:Static s:Resources.CapabilityBrows}"
+                                                  IsChecked="{Binding AllowBrows, Mode=TwoWay}"
+                                                  IsEnabled="{Binding SupportedEye, Mode=OneWay}" />
+                                        <CheckBox Content="{x:Static s:Resources.CapabilityMouth}"
+                                                  IsChecked="{Binding AllowMouth, Mode=TwoWay}"
+                                                  IsEnabled="{Binding SupportedExpression, Mode=OneWay}" />
+                                        <CheckBox Content="{x:Static s:Resources.CapabilityTongue}"
+                                                  IsChecked="{Binding AllowTongue, Mode=TwoWay}"
+                                                  IsEnabled="{Binding SupportedExpression, Mode=OneWay}" />
+                                        <CheckBox Content="{x:Static s:Resources.CapabilityHead}"
+                                                  IsChecked="{Binding AllowHead, Mode=TwoWay}" />
+                                        <Button Content="{x:Static s:Resources.ModuleTrackingResetContent}"
+                                                IsEnabled="{Binding !IsAutomatic, Mode=OneWay}"
+                                                Click="ResetCapabilities_OnClick" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <TextBlock FontSize="13" FontWeight="SemiBold" Opacity="0.6" Text="Status" Margin="0,8,0,0" />
-            <Border CornerRadius="6" BorderThickness="1" Padding="16,14" Background="{DynamicResource ControlFillColorDefaultBrush}">
+            <TextBlock Classes="section-header" Text="{x:Static s:Resources.StatusSectionHeader}" />
+            <Border Classes="card">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -93,14 +156,14 @@
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
                         <ui:SymbolIcon Symbol="Wifi4" FontSize="24" VerticalAlignment="Center" />
                         <StackPanel Spacing="3" VerticalAlignment="Center">
-                            <TextBlock FontWeight="SemiBold" FontSize="14" Text="{x:Static s:Resources.OSCStatus_Text}" />
+                            <TextBlock Classes="title" Text="{x:Static s:Resources.OSCStatus_Text}" />
                             <StackPanel Orientation="Horizontal" Spacing="4"
                                         IsVisible="{Binding OscTarget.IsConnected}">
-                                <TextBlock FontSize="12" Opacity="0.7" Text="Recv:" />
+                                <TextBlock Classes="caption" Text="Recv:" />
                                 <TextBlock FontSize="12" Text="{Binding OscTarget.InPort, Mode=OneWay}" />
-                                <TextBlock FontSize="12" Opacity="0.7" Text="  Send:" />
+                                <TextBlock Classes="caption" Text="  Send:" />
                                 <TextBlock FontSize="12" Text="{Binding OscTarget.OutPort, Mode=OneWay}" />
-                                <TextBlock FontSize="12" Opacity="0.7" Text=" @" />
+                                <TextBlock Classes="caption" Text=" @" />
                                 <TextBlock FontSize="12" Text="{Binding OscTarget.DestinationAddress, Mode=OneWay}" />
                             </StackPanel>
                             <TextBlock FontSize="12" Opacity="0.5" Text="Not connected"
@@ -111,16 +174,16 @@
                     <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="4">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
                             <TextBlock FontSize="12" Text="{Binding MessagesInPerSec, Mode=OneWay}" />
-                            <TextBlock FontSize="12" Opacity="0.6" Text="{x:Static s:Resources.msIncoming_Text}" />
+                            <TextBlock Classes="caption" Text="{x:Static s:Resources.msIncoming_Text}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
                             <TextBlock FontSize="12" Text="{Binding MessagesOutPerSec, Mode=OneWay}" />
-                            <TextBlock FontSize="12" Opacity="0.6" Text="{x:Static s:Resources.msOutgoing_Text}" />
+                            <TextBlock Classes="caption" Text="{x:Static s:Resources.msOutgoing_Text}" />
                         </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>
-            <Border CornerRadius="6" BorderThickness="1" Padding="16,14" Background="{DynamicResource ControlFillColorDefaultBrush}">
+            <Border Classes="card">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -131,12 +194,12 @@
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
                         <ui:SymbolIcon Symbol="Contact" FontSize="24" VerticalAlignment="Center" />
                         <StackPanel Spacing="3" VerticalAlignment="Center">
-                            <TextBlock FontWeight="SemiBold" FontSize="14" Text="{Binding ParameterOutputService.AvatarInfo.Name, Mode=OneWay}" />
-                            <TextBlock FontSize="12" Opacity="0.7" Text="{Binding ParameterOutputService.AvatarInfo.Id, Mode=OneWay}" />
+                            <TextBlock Classes="title" Text="{Binding ParameterOutputService.AvatarInfo.Name, Mode=OneWay}" />
+                            <TextBlock Classes="caption" Text="{Binding ParameterOutputService.AvatarInfo.Id, Mode=OneWay}" />
                             <StackPanel Orientation="Horizontal" Spacing="6"
                                         IsVisible="{Binding ParameterOutputService.AvatarInfo.Id, Mode=OneWay, Converter={StaticResource IsLocalTestAvatarConverter}}">
                                 <Ellipse Width="8" Height="8" Fill="Red" VerticalAlignment="Center" />
-                                <TextBlock FontSize="12" Opacity="0.7" VerticalAlignment="Center"
+                                <TextBlock Classes="caption" VerticalAlignment="Center"
                                            Text="{x:Static s:Resources.LocalTestAvatar_Text}"
                                            ToolTip.Tip="{x:Static s:Resources.LocalTestAvatarTooltip_Content}" />
                             </StackPanel>
@@ -146,13 +209,13 @@
                     <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="4">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
                             <TextBlock FontSize="12" Text="{Binding ParameterOutputService.AvatarParameters.Count, Mode=OneWay}" />
-                            <TextBlock FontSize="12" Opacity="0.6" Text="{x:Static s:Resources.Parameters_Text}" />
+                            <TextBlock Classes="caption" Text="{x:Static s:Resources.Parameters_Text}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6"
                                     IsVisible="{Binding ParameterOutputService.AvatarParameters, Mode=OneWay, Converter={StaticResource HasLegacyParametersConverter}}">
                             <Ellipse Width="8" Height="8" Fill="Orange" VerticalAlignment="Center" />
                             <TextBlock FontSize="12" Text="{Binding ParameterOutputService.AvatarParameters, Mode=OneWay, Converter={StaticResource LegacyParameterCountConverter}}" />
-                            <TextBlock FontSize="12" Opacity="0.6" Text="{x:Static s:Resources.LegacyParameters_Text}" />
+                            <TextBlock Classes="caption" Text="{x:Static s:Resources.LegacyParameters_Text}" />
                         </StackPanel>
                     </StackPanel>
                 </Grid>

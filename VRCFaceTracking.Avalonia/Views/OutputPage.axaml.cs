@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.DependencyInjection;
@@ -12,6 +13,7 @@ public partial class OutputPage : UserControl
     private OutputViewModel ViewModel => (OutputViewModel)DataContext!;
     private const double StickThreshold = 40;
     private bool _snapping;
+    private bool _autoScroll = true;
 
     public OutputPage()
     {
@@ -23,7 +25,7 @@ public partial class OutputPage : UserControl
 
     private void OnLogItemsScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        if (_snapping || LogItems.Scroll is not { } scroll)
+        if (!_autoScroll || _snapping || LogItems.Scroll is not { } scroll)
             return;
 
         if (e.ExtentDelta.Y <= 0)
@@ -45,18 +47,20 @@ public partial class OutputPage : UserControl
         finally { _snapping = false; }
     }
 
-    private async void CopyToClipboard_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private static string JoinedLogText()
+        => string.Join(Environment.NewLine, OutputPageLogger.AllLogs.Select(l => l.Message));
+
+    private async void CopyToClipboard_Click(object? sender, RoutedEventArgs e)
     {
-        var text = Ioc.Default.GetRequiredService<LogBufferProvider>().Snapshot();
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
         if (clipboard != null)
         {
-            await clipboard.SetTextAsync(text);
-            StatusText.Text = "Copied to clipboard.";
+            await clipboard.SetTextAsync(JoinedLogText());
+            StatusText.Text = Strings.Resources.CopiedToClipboard;
         }
     }
 
-    private async void SaveToFile_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void SaveToFile_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
@@ -68,13 +72,49 @@ public partial class OutputPage : UserControl
             FileTypeChoices = [new FilePickerFileType("Text") { Patterns = ["*.txt"] }]
         });
 
-        if (file != null)
+        if (file == null)
+        {
+            StatusText.Text = Strings.Resources.OperationCancelled;
+            return;
+        }
+
+        try
         {
             await using var stream = await file.OpenWriteAsync();
             await using var writer = new StreamWriter(stream);
-            var text = Ioc.Default.GetRequiredService<LogBufferProvider>().Snapshot();
-            await writer.WriteAsync(text);
-            StatusText.Text = "Log saved.";
+            await writer.WriteAsync(JoinedLogText());
+            StatusText.Text = string.Format(Strings.Resources.LogSaved, file.Name);
+        }
+        catch
+        {
+            StatusText.Text = string.Format(Strings.Resources.LogSaveFailed, file.Name);
+        }
+    }
+
+    private async void OpenLogsFolder_Click(object? sender, RoutedEventArgs e)
+    {
+        var dir = Core.Utils.LogDirectory;
+        Directory.CreateDirectory(dir);
+        var launcher = TopLevel.GetTopLevel(this)?.Launcher;
+        if (launcher != null)
+        {
+            await launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(dir));
+        }
+    }
+
+    private void ClearLogs_Click(object? sender, RoutedEventArgs e)
+        => OutputPageLogger.AllLogs.Clear();
+
+    private void AutoScrollToggle_IsCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        _autoScroll = sender is ToggleButton { IsChecked: true };
+        if (_autoScroll && LogItems?.Scroll is { } scroll)
+        {
+            var target = scroll.Extent.Height - scroll.Viewport.Height;
+            if (target > 0)
+            {
+                scroll.Offset = scroll.Offset.WithY(target);
+            }
         }
     }
 }

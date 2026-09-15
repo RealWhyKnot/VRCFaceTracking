@@ -19,9 +19,12 @@
 
         <helpers:StreamToBitmapConverter x:Key="StreamToBitmapConverter" />
         <helpers:HasModuleImagesConverter x:Key="HasModuleImagesConverter" />
+        <helpers:InstallStateToTextConverter x:Key="InstallStateToTextConverter" />
+        <helpers:ModuleInitStageConverter x:Key="ModuleInitStageConverter" />
     </Application.Resources>
 
     <Application.Styles>
         <sty:FluentAvaloniaTheme PreferSystemTheme="False" PreferUserAccentColor="True" />
+        <StyleInclude Source="avares://VRCFaceTracking.Avalonia/Styles/Shared.axaml" />
     </Application.Styles>
 </Application>

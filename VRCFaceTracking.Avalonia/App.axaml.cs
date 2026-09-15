@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using FluentAvalonia.Styling;
@@ -124,6 +125,17 @@ public partial class App : Application
         {
             await GetService<ILocalSettingsService>().Load(LoggingSettings);
             await GetService<ILocalSettingsService>().Load(GetService<UpdateSettings>());
+
+            var savedTheme = await GetService<ILocalSettingsService>().ReadSettingAsync<string?>(ViewModels.SettingsViewModel.ThemeSettingKey);
+            if (!string.IsNullOrEmpty(savedTheme))
+            {
+                Dispatcher.UIThread.Post(() => RequestedThemeVariant = savedTheme switch
+                {
+                    "Light" => ThemeVariant.Light,
+                    "Dark" => ThemeVariant.Dark,
+                    _ => ThemeVariant.Default,
+                });
+            }
             LogGate.Set(LoggingSettings.VerboseEffective);
             FileLog.WriteRaw($"channel={BuildInfo.ChannelName} verbose={LogGate.Verbose} forced={BuildInfo.VerboseForced} keep={LoggingSettings.LogFilesToKeep}");
             LogRetention.Prune(Core.Utils.LogDirectory, LogFileNames.MainPattern, LoggingSettings.LogFilesToKeep);

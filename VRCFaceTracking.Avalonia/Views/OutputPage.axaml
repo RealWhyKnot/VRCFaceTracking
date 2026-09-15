@@ -2,34 +2,60 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ui="using:FluentAvalonia.UI.Controls"
+    xmlns:s="using:VRCFaceTracking.Strings"
     xmlns:vm="using:VRCFaceTracking.ViewModels"
-    xmlns:svc="using:VRCFaceTracking.Services"
     xmlns:models="clr-namespace:VRCFaceTracking.Models"
     x:DataType="vm:OutputViewModel"
     x:Class="VRCFaceTracking.Views.OutputPage">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,*" Margin="{StaticResource PageRootMargin}">
 
-        <Border Grid.Row="0" CornerRadius="6" BorderThickness="1" Padding="8,6" Margin="0,0,0,10">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button ToolTip.Tip="Copy all to clipboard" Click="CopyToClipboard_Click" Padding="8">
-                    <ui:SymbolIcon Symbol="Copy" FontSize="16" />
-                </Button>
-                <Button ToolTip.Tip="Save to file" Click="SaveToFile_Click" Padding="8">
-                    <ui:SymbolIcon Symbol="Save" FontSize="16" />
-                </Button>
-                <Separator />
-                <TextBlock x:Name="StatusText" VerticalAlignment="Center" Opacity="0.6" FontSize="12" Margin="8,0" />
-            </StackPanel>
+        <Border Grid.Row="0" Classes="card" Padding="8,6" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                    <Button ToolTip.Tip="{x:Static s:Resources.CopyLogButtonTooltip}" Click="CopyToClipboard_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ui:SymbolIcon Symbol="Copy" FontSize="16" />
+                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputCopyButtonContent}" />
+                        </StackPanel>
+                    </Button>
+                    <Button ToolTip.Tip="{x:Static s:Resources.SaveLogButtonTooltip}" Click="SaveToFile_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ui:SymbolIcon Symbol="Save" FontSize="16" />
+                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputSaveButtonContent}" />
+                        </StackPanel>
+                    </Button>
+                    <Button ToolTip.Tip="{x:Static s:Resources.OpenLogsFolderButtonTooltip}" Click="OpenLogsFolder_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ui:SymbolIcon Symbol="OpenFolder" FontSize="16" />
+                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputOpenFolderButtonContent}" />
+                        </StackPanel>
+                    </Button>
+                    <Button ToolTip.Tip="{x:Static s:Resources.OutputClearButtonTooltip}" Click="ClearLogs_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ui:SymbolIcon Symbol="Delete" FontSize="16" />
+                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputClearButtonContent}" />
+                        </StackPanel>
+                    </Button>
+                    <ToggleButton x:Name="AutoScrollToggle" IsChecked="True" IsCheckedChanged="AutoScrollToggle_IsCheckedChanged">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ui:SymbolIcon Symbol="ChevronDown" FontSize="16" />
+                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputAutoScrollToggleContent}" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+                <TextBlock Grid.Column="2" x:Name="StatusText" Classes="caption" VerticalAlignment="Center" Margin="8,0" />
+            </Grid>
         </Border>
 
-        <Border Grid.Row="1" CornerRadius="6" BorderThickness="1" Padding="4"
-                Background="{DynamicResource ControlFillColorDefaultBrush}">
+        <Border Grid.Row="1" Classes="card" Padding="4">
             <ListBox x:Name="LogItems"
                      ItemsSource="{Binding Logs}"
                      Background="Transparent"
                      BorderThickness="0"
                      SelectionMode="Single"
+                     FontFamily="Cascadia Mono, Consolas, Courier New, monospace"
+                     FontSize="12"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.AllowAutoHide="False">
@@ -52,8 +78,6 @@
                         <TextBlock
                             x:Name="LogText"
                             Text="{Binding Message}"
-                            FontFamily="Cascadia Mono, Consolas, Courier New, monospace"
-                            FontSize="12"
                             Padding="6,1"
                             TextWrapping="NoWrap"
                             Foreground="{Binding Level, Converter={StaticResource LogLevelBrushConverter}}" />

@@ -18,32 +18,28 @@ public partial class SettingsPage : UserControl
         InitializeComponent();
         DataContext = Ioc.Default.GetRequiredService<SettingsViewModel>();
 
-        // Show current version
-        var version = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionText.Text = $"Version {version?.ToString(3) ?? "Unknown"}";
+        VersionText.Text = SettingsViewModel.VersionText;
 
-        var faTheme = Application.Current?.Styles.OfType<FluentAvaloniaTheme>().FirstOrDefault();
-        if (faTheme != null)
+        ThemeCombo.SelectedIndex = Application.Current?.RequestedThemeVariant?.Key?.ToString() switch
         {
-            ThemeCombo.SelectedIndex = Application.Current?.RequestedThemeVariant?.Key?.ToString() switch
-            {
-                "Light" => 0,
-                "Dark" => 1,
-                _ => 2
-            };
-        }
+            "Light" => 0,
+            "Dark" => 1,
+            _ => 2
+        };
     }
 
     private void ThemeCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (ThemeCombo.SelectedItem is not ComboBoxItem item) return;
 
-        Application.Current!.RequestedThemeVariant = item.Tag?.ToString() switch
+        var tag = item.Tag?.ToString() ?? "Default";
+        Application.Current!.RequestedThemeVariant = tag switch
         {
             "Light" => ThemeVariant.Light,
             "Dark" => ThemeVariant.Dark,
             _ => ThemeVariant.Default
         };
+        _ = ViewModel.SaveThemeAsync(tag);
     }
 
     private void ForceReInit_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
