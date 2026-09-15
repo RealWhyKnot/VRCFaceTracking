@@ -53,6 +53,8 @@ public class UnifiedLibManager : ILibManager
     private readonly List<ModuleRuntimeInfo> _moduleThreads = new();
     private readonly IModuleDataService _moduleDataService;
     private readonly object _modulesLock = new();
+    private readonly ModuleRestartPolicy _restartPolicy = new();
+    private int _initGeneration;
 
     private string _sandboxProcessPath
     {
@@ -356,6 +358,9 @@ public class UnifiedLibManager : ILibManager
             return;
         }
 
+        Interlocked.Increment(ref _initGeneration);
+        _restartPolicy.ResetAll();
+
         // Start Initialization
         _initializeWorker = new Thread(() =>
         {
@@ -411,43 +416,50 @@ public class UnifiedLibManager : ILibManager
     {
         foreach (var dll in paths)
         {
-            try
-            {
-                var verboseFlag = _logGate.Verbose ? " --verbose" : string.Empty;
-                var sandboxProcess = Process.Start(new ProcessStartInfo(
-                    _sandboxProcessPath, $"--port {_sandboxServer.Port} --module-path \"{dll}\" --parent-pid {Environment.ProcessId}{verboseFlag}"
-                )
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardError = true,
-                })!;
+            StartModuleProcess(dll, new ModuleMetadataInternal());
+        }
+    }
 
-                var pid = sandboxProcess.Id;
-
-                // Add the module info into the loaded list
-                ModuleRuntimeInfo runtimeInfo = new ModuleRuntimeInfo()
-                {
-                    SandboxProcessPID = pid,
-                    SandboxProcessPort = -1,
-                    SandboxModulePath = dll,
-                    IsActive = true,
-                    Process = sandboxProcess,
-                    ModuleClassName = Path.GetFileNameWithoutExtension(dll),
-                    ModuleInformation = new(),
-                    EventBus = new()
-                };
-                lock (_modulesLock)
-                {
-                    _logger.LogInformation("Started module process {pid} for {dllPath}", pid, dll);
-                    AvailableSandboxModules.Add(runtimeInfo);
-                }
-                runtimeInfo.Watcher = new ModuleProcessWatcher(sandboxProcess, runtimeInfo.ModuleClassName, _moduleLogger, code => OnModuleProcessExited(runtimeInfo, code));
-            }
-            catch (Exception e)
+    private bool StartModuleProcess(string dll, ModuleMetadataInternal metadata)
+    {
+        try
+        {
+            var verboseFlag = _logGate.Verbose ? " --verbose" : string.Empty;
+            var sandboxProcess = Process.Start(new ProcessStartInfo(
+                _sandboxProcessPath, $"--port {_sandboxServer.Port} --module-path \"{dll}\" --parent-pid {Environment.ProcessId}{verboseFlag}"
+            )
             {
-                _logger.LogWarning("{error} Failed to start sandbox process for {path}. Skipping...", e.Message, dll);
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true,
+            })!;
+
+            var pid = sandboxProcess.Id;
+
+            // Add the module info into the loaded list
+            ModuleRuntimeInfo runtimeInfo = new ModuleRuntimeInfo()
+            {
+                SandboxProcessPID = pid,
+                SandboxProcessPort = -1,
+                SandboxModulePath = dll,
+                IsActive = true,
+                Process = sandboxProcess,
+                ModuleClassName = Path.GetFileNameWithoutExtension(dll),
+                ModuleInformation = metadata,
+                EventBus = new()
+            };
+            lock (_modulesLock)
+            {
+                _logger.LogInformation("Started module process {pid} for {dllPath}", pid, dll);
+                AvailableSandboxModules.Add(runtimeInfo);
             }
+            runtimeInfo.Watcher = new ModuleProcessWatcher(sandboxProcess, runtimeInfo.ModuleClassName, _moduleLogger, code => OnModuleProcessExited(runtimeInfo, code));
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning("{error} Failed to start sandbox process for {path}. Skipping...", e.Message, dll);
+            return false;
         }
     }
 
@@ -467,6 +479,27 @@ public class UnifiedLibManager : ILibManager
         _logger.LogError("Module process for {module} stopped unexpectedly: {description}. Last stderr lines:{newline}{tail}",
             module.ModuleClassName, description, Environment.NewLine, stderrTail);
 
+        if (ModuleRestartPolicy.IsRestartableExitCode(exitCode) && !string.IsNullOrEmpty(module.SandboxModulePath))
+        {
+            var delay = _restartPolicy.NextRestartDelay(module.SandboxModulePath, DateTime.UtcNow);
+            if (delay.HasValue)
+            {
+                var attempt = _restartPolicy.AttemptNumber(module.SandboxModulePath);
+                _logger.LogWarning("Restarting {module} after {description} (attempt {attempt}/{max})",
+                    module.ModuleClassName, description, attempt, ModuleRestartPolicy.MaxAttempts);
+                _ = RestartModuleAsync(module, delay.Value, Volatile.Read(ref _initGeneration));
+                return;
+            }
+
+            _logger.LogError("{module} crashed {max} times within {window}s; leaving it stopped",
+                module.ModuleClassName, ModuleRestartPolicy.MaxAttempts, (int)ModuleRestartPolicy.Window.TotalSeconds);
+        }
+
+        MarkModuleCrashed(module, description);
+    }
+
+    private void MarkModuleCrashed(ModuleRuntimeInfo module, string description)
+    {
         _dispatcherService.Run(() =>
         {
             var info = module.ModuleInformation;
@@ -491,6 +524,57 @@ public class UnifiedLibManager : ILibManager
             info.CrashDescription = description;
             info.Crashed = true;
         });
+    }
+
+    private async Task RestartModuleAsync(ModuleRuntimeInfo deadModule, TimeSpan delay, int generation)
+    {
+        try
+        {
+            lock (_modulesLock)
+            {
+                _moduleThreads.Remove(deadModule);
+                AvailableSandboxModules.Remove(deadModule);
+            }
+
+            if (delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay);
+            }
+
+            if (IsTearingDown || deadModule.TeardownRequested || generation != Volatile.Read(ref _initGeneration))
+            {
+                return;
+            }
+
+            var info = deadModule.ModuleInformation;
+            if (info.UsingEye)
+            {
+                EyeStatus = ModuleState.Uninitialized;
+            }
+            if (info.UsingExpression)
+            {
+                ExpressionStatus = ModuleState.Uninitialized;
+            }
+            info.UsingEye = false;
+            info.UsingExpression = false;
+            info.Crashed = false;
+            info.CrashDescription = string.Empty;
+
+            deadModule.Process?.Dispose();
+
+            if (StartModuleProcess(deadModule.SandboxModulePath, info))
+            {
+                _logger.LogInformation("Restarted module process for {module}", deadModule.ModuleClassName);
+            }
+            else
+            {
+                MarkModuleCrashed(deadModule, "failed to restart the module process");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restart {module}", deadModule.ModuleClassName);
+        }
     }
 
     private void BroadcastVerbose(bool verbose)
