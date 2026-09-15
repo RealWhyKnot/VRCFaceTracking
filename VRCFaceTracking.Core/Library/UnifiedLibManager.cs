@@ -116,6 +116,11 @@ public class UnifiedLibManager : ILibManager
                         {
                             // Look for the PID in the added modules list
                             var pkt = (HandshakePacket)packet;
+                            if (!pkt.IsValid)
+                            {
+                                _logger.LogWarning("Ignoring invalid handshake from port {port}", port);
+                                break;
+                            }
                             lock (AvailableSandboxModules)
                             {
                                 var pidRegistered = false;
@@ -138,7 +143,16 @@ public class UnifiedLibManager : ILibManager
 
                                 if (pidRegistered == false)
                                 {
-                                    Process sandboxProcess = Process.GetProcessById(pkt.PID);
+                                    Process sandboxProcess;
+                                    try
+                                    {
+                                        sandboxProcess = Process.GetProcessById(pkt.PID);
+                                    }
+                                    catch (ArgumentException)
+                                    {
+                                        _logger.LogWarning("Ignoring handshake from port {port}: no process with PID {pid}", port, pkt.PID);
+                                        break;
+                                    }
 
                                     ModuleRuntimeInfo runtimeInfo = new ModuleRuntimeInfo()
                                     {
@@ -170,11 +184,18 @@ public class UnifiedLibManager : ILibManager
 
                     case IpcPacket.PacketType.ReplyGetSupported:
                         {
+                            if (moduleIndex == -1)
+                            {
+                                _logger.LogWarning("Ignoring {type} packet from unregistered port {port}", packet.GetPacketType(), port);
+                                break;
+                            }
+
                             // We now know whether or not the module supports face or eye tracking
                             ReplySupportedPacket replySupportedPacket = (ReplySupportedPacket)packet;
+                            var module = AvailableSandboxModules[moduleIndex];
 
-                            AvailableSandboxModules[moduleIndex].SupportsEyeTracking = AvailableSandboxModules[moduleIndex].SupportsEyeTracking && replySupportedPacket.eyeAvailable;
-                            AvailableSandboxModules[moduleIndex].SupportsExpressionTracking = AvailableSandboxModules[moduleIndex].SupportsExpressionTracking && replySupportedPacket.expressionAvailable;
+                            module.SupportsEyeTracking = module.SupportsEyeTracking && replySupportedPacket.eyeAvailable;
+                            module.SupportsExpressionTracking = module.SupportsExpressionTracking && replySupportedPacket.expressionAvailable;
 
                             // Now tell it to initialise
                             EventInitPacket eventInitPacket = new EventInitPacket()
@@ -183,7 +204,7 @@ public class UnifiedLibManager : ILibManager
                                 eyeAvailable = EyeStatus == ModuleState.Uninitialized,
                             };
                             _logger.LogInformation("Got supported for module {module}. Expr: {} Eye: {}...",
-                                AvailableSandboxModules[moduleIndex].ModuleClassName,
+                                module.ModuleClassName,
                                 eventInitPacket.expressionAvailable,
                                 eventInitPacket.eyeAvailable);
                             _sandboxServer.SendData(eventInitPacket, port);
@@ -192,17 +213,24 @@ public class UnifiedLibManager : ILibManager
 
                     case IpcPacket.PacketType.ReplyInit:
                         {
+                            if (moduleIndex == -1)
+                            {
+                                _logger.LogWarning("Ignoring {type} packet from unregistered port {port}", packet.GetPacketType(), port);
+                                break;
+                            }
+
                             ReplyInitPacket replyInitPacket = (ReplyInitPacket)packet;
-                            AvailableSandboxModules[moduleIndex].ModuleInformation.Name = replyInitPacket.ModuleInformationName;
+                            var module = AvailableSandboxModules[moduleIndex];
+                            module.ModuleInformation.Name = replyInitPacket.ModuleInformationName;
 
                             // Update support variables
-                            AvailableSandboxModules[moduleIndex].SupportsEyeTracking = AvailableSandboxModules[moduleIndex].SupportsEyeTracking && replyInitPacket.eyeSuccess;
-                            AvailableSandboxModules[moduleIndex].SupportsExpressionTracking = AvailableSandboxModules[moduleIndex].SupportsExpressionTracking && replyInitPacket.expressionSuccess;
+                            module.SupportsEyeTracking = module.SupportsEyeTracking && replyInitPacket.eyeSuccess;
+                            module.SupportsExpressionTracking = module.SupportsExpressionTracking && replyInitPacket.expressionSuccess;
 
                             _logger.LogInformation("Got init for module {module}. Eye: {eye} Expr: {expr}...",
-                                AvailableSandboxModules[moduleIndex].ModuleClassName,
+                                module.ModuleClassName,
                                 replyInitPacket.eyeSuccess,
-                                replyInitPacket.eyeSuccess);
+                                replyInitPacket.expressionSuccess);
 
                             // Skip any modules that don't succeed, otherwise set UnifiedLib to have these states active and add module to module list.
                             if (!replyInitPacket.eyeSuccess && !replyInitPacket.expressionSuccess)
@@ -211,23 +239,23 @@ public class UnifiedLibManager : ILibManager
                             }
 
                             var portCopy = port; // So that we can use it in the lambda method
-                            AvailableSandboxModules[moduleIndex].ModuleInformation.OnActiveChange = (state) =>
+                            module.ModuleInformation.OnActiveChange = (state) =>
                             {
-                                AvailableSandboxModules[moduleIndex].Status = state ? ModuleState.Active : ModuleState.Idle;
+                                module.Status = state ? ModuleState.Active : ModuleState.Idle;
 
                                 EventStatusUpdatePacket statusUpdatePkt = new EventStatusUpdatePacket();
-                                statusUpdatePkt.ModuleState = AvailableSandboxModules[moduleIndex].Status;
+                                statusUpdatePkt.ModuleState = module.Status;
                                 _sandboxServer.SendData(statusUpdatePkt, portCopy);
                             };
 
                             EyeStatus = replyInitPacket.eyeSuccess ? ModuleState.Active : ModuleState.Uninitialized;
                             ExpressionStatus = replyInitPacket.expressionSuccess ? ModuleState.Active : ModuleState.Uninitialized;
 
-                            AvailableSandboxModules[moduleIndex].ModuleInformation.Active = true;
-                            AvailableSandboxModules[moduleIndex].ModuleInformation.UsingEye = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingEye) && replyInitPacket.eyeSuccess;
-                            AvailableSandboxModules[moduleIndex].ModuleInformation.UsingExpression = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingExpression) && replyInitPacket.expressionSuccess;
-                            AvailableSandboxModules[moduleIndex].ModuleInformation.StaticImages = replyInitPacket.IconDataStreams;
-                            EnsureModuleThreadStartedSandboxed(AvailableSandboxModules[moduleIndex]);
+                            module.ModuleInformation.Active = true;
+                            module.ModuleInformation.UsingEye = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingEye) && replyInitPacket.eyeSuccess;
+                            module.ModuleInformation.UsingExpression = !AvailableSandboxModules.Any(m => m.ModuleInformation.UsingExpression) && replyInitPacket.expressionSuccess;
+                            module.ModuleInformation.StaticImages = replyInitPacket.IconDataStreams;
+                            EnsureModuleThreadStartedSandboxed(module);
 
                             _dispatcherService.Run(() =>
                             {
@@ -237,10 +265,10 @@ public class UnifiedLibManager : ILibManager
                                 for (var i = 0; i < LoadedModulesMetadata.Count; i++)
                                 {
                                     // Look for modules with the same name
-                                    if (LoadedModulesMetadata[i].Name == AvailableSandboxModules[moduleIndex].ModuleInformation.Name)
+                                    if (LoadedModulesMetadata[i].Name == module.ModuleInformation.Name)
                                     {
                                         // Update module info
-                                        LoadedModulesMetadata[i] = AvailableSandboxModules[moduleIndex].ModuleInformation;
+                                        LoadedModulesMetadata[i] = module.ModuleInformation;
                                         isModuleLoaded = true;
                                         break;
                                     }
@@ -249,7 +277,7 @@ public class UnifiedLibManager : ILibManager
                                 // Add it to list if it was never loaded
                                 if (isModuleLoaded == false)
                                 {
-                                    LoadedModulesMetadata.Add(AvailableSandboxModules[moduleIndex].ModuleInformation);
+                                    LoadedModulesMetadata.Add(module.ModuleInformation);
                                 }
 
                                 if (AvailableSandboxModules.Count == 0)
@@ -273,12 +301,9 @@ public class UnifiedLibManager : ILibManager
                                         LoadedModulesMetadata.RemoveAt(0);
                                     }
 
-                                    // foreach ( var pair in _moduleThreads )
+                                    if (module.ModuleInformation.Active)
                                     {
-                                        if (AvailableSandboxModules[moduleIndex].ModuleInformation.Active)
-                                        {
-                                            _logger.LogInformation("Tracking initialized via {module}", AvailableSandboxModules[moduleIndex].ModuleClassName.ToString());
-                                        }
+                                        _logger.LogInformation("Tracking initialized via {module}", module.ModuleClassName);
                                     }
                                 }
                             });
@@ -287,15 +312,21 @@ public class UnifiedLibManager : ILibManager
                         }
                     case IpcPacket.PacketType.ReplyUpdate:
                         {
-                            ReplyUpdatePacket replyUpdatePacket = (ReplyUpdatePacket)packet;
-
-                            if (AvailableSandboxModules[moduleIndex].Status == ModuleState.Active && AvailableSandboxModules[moduleIndex].ModuleInformation.Active)
+                            if (moduleIndex == -1)
                             {
-                                if (AvailableSandboxModules[moduleIndex].ModuleInformation.UsingEye)
+                                break;
+                            }
+
+                            ReplyUpdatePacket replyUpdatePacket = (ReplyUpdatePacket)packet;
+                            var module = AvailableSandboxModules[moduleIndex];
+
+                            if (module.Status == ModuleState.Active && module.ModuleInformation.Active)
+                            {
+                                if (module.ModuleInformation.UsingEye)
                                 {
                                     replyUpdatePacket.UpdateGlobalEyeState();
                                 }
-                                if (AvailableSandboxModules[moduleIndex].ModuleInformation.UsingExpression)
+                                if (module.ModuleInformation.UsingExpression)
                                 {
                                     replyUpdatePacket.UpdateGlobalExpressionState();
                                 }

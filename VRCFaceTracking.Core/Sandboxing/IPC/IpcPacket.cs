@@ -48,7 +48,7 @@ public class IpcPacket
         // Prepare buffer
         var data = new byte[packetSize];
         Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, data, 0, SIZE_PACKET_MAGIC);
-        Buffer.BlockCopy(packetTypeBytes, 4, data, 0, SIZE_PACKET_TYPE);
+        Buffer.BlockCopy(packetTypeBytes, 0, data, 4, SIZE_PACKET_TYPE);
 
         return data;
     }

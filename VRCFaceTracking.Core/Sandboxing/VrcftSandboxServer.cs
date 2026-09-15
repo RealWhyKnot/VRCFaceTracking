@@ -35,6 +35,11 @@ public class VrcftSandboxServer : UdpFullDuplex
         _isConnected = true;
     }
 
+    protected override void OnReceiveError(Exception ex)
+    {
+        _logger.LogError(ex, "Failed to handle a sandbox packet");
+    }
+
     public override void OnBytesReceived(in byte[] data, in IPEndPoint endpoint)
     {
         var decodeResult = VrcftPacketDecoder.TryDecodePacket(data, out IpcPacket packet);

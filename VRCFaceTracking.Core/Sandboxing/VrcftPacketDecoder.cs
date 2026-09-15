@@ -14,6 +14,11 @@ public class VrcftPacketDecoder
     {
         packet = new IpcPacket();
 
+        if (data == null || data.Length < IpcPacket.SIZE_PACKET_MAGIC + IpcPacket.SIZE_PACKET_TYPE)
+        {
+            return false;
+        }
+
         // Verify magic numbers
         for (var i = 0; i < IpcPacket.SIZE_PACKET_TYPE; i++)
         {
@@ -27,6 +32,8 @@ public class VrcftPacketDecoder
         IpcPacket.PacketType packetType = (IpcPacket.PacketType)(BitConverter.ToUInt32(data, 4));
 
         // Based on packet type, switch to specific packet decoder
+        try
+        {
         switch (packetType)
         {
             // Handshake
@@ -112,11 +119,12 @@ public class VrcftPacketDecoder
             // Invalid packet
             case IpcPacket.PacketType.Unknown:
             default:
-#if DEBUG
-                throw new NotImplementedException($"No decoder for packet type {packetType} implemented in VrcftPacketDecoder! Packets of this type will be ignored.");
-#else
                 return false;
-#endif
+        }
+        }
+        catch (Exception)
+        {
+            return false;
         }
 
         return true;

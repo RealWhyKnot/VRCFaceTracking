@@ -22,7 +22,6 @@ public class VrcftSandboxClient : UdpFullDuplex
     private readonly IPEndPoint _serverEndpoint;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<VrcftSandboxClient> _logger;
-    private bool _isConnected;
     private int _maxPacketSizeBytes;
 
     public OnPacketReceivedCallback OnPacketReceivedCallback = null;
@@ -30,7 +29,6 @@ public class VrcftSandboxClient : UdpFullDuplex
         ILoggerFactory factory
         ) : base(0, null, new IPEndPoint(IPAddress.Loopback, portNumber)) // 0 is reserved for the OS to pick for us
     {
-        _isConnected = false;
         // Init loggers
         _loggerFactory = factory;
         _logger = factory.CreateLogger<VrcftSandboxClient>();
@@ -56,6 +54,11 @@ public class VrcftSandboxClient : UdpFullDuplex
         SendData(handshakePkt, _serverEndpoint);
         // Take the lower bound of packet rate we can fit through the network
         _maxPacketSizeBytes = Math.Min(_receivingUdpClient.Client.ReceiveBufferSize, _receivingUdpClient.Client.SendBufferSize);
+    }
+
+    protected override void OnReceiveError(Exception ex)
+    {
+        _logger.LogError(ex, "Failed to handle a sandbox packet");
     }
 
     public override void OnBytesReceived(in byte[] data, in IPEndPoint endpoint)

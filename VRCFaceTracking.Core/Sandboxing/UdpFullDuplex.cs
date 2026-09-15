@@ -59,16 +59,24 @@ public class UdpFullDuplex : IDisposable
                 _receivingUdpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
                 // Blacklist any reserved ports
+                var isReservedPort = false;
                 if (reservedPorts != null)
                 {
+                    var boundPort = ((IPEndPoint)_receivingUdpClient.Client.LocalEndPoint).Port;
                     for (var j = 0; j < reservedPorts.Length; j++)
                     {
-                        if (((IPEndPoint)_receivingUdpClient.Client.LocalEndPoint).Port == reservedPorts[j])
+                        if (boundPort == reservedPorts[j])
                         {
-                            _receivingUdpClient.Close();
-                            continue;
+                            isReservedPort = true;
+                            break;
                         }
                     }
+                }
+                if (isReservedPort)
+                {
+                    _receivingUdpClient.Close();
+                    _receivingUdpClient = null;
+                    continue;
                 }
 
                 break;
@@ -83,6 +91,11 @@ public class UdpFullDuplex : IDisposable
 
                 Thread.Sleep(5);
             }
+        }
+
+        if (_receivingUdpClient == null)
+        {
+            throw new InvalidOperationException("Failed to bind a UDP port outside the reserved set after 10 attempts.");
         }
 
         // Receive from any IP on any port
@@ -116,7 +129,14 @@ public class UdpFullDuplex : IDisposable
 
                 if (result.Buffer != null && result.Buffer.Length > 0)
                 {
-                    OnBytesReceived(result.Buffer, result.RemoteEndPoint);
+                    try
+                    {
+                        OnBytesReceived(result.Buffer, result.RemoteEndPoint);
+                    }
+                    catch (Exception ex)
+                    {
+                        OnReceiveError(ex);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -320,5 +340,9 @@ public class UdpFullDuplex : IDisposable
     public virtual void OnBytesReceived(in byte[] data, in IPEndPoint endpoint)
     {
         // @NOTE: Here for a class to extend and read data and handle it as needed
+    }
+
+    protected virtual void OnReceiveError(Exception ex)
+    {
     }
 }

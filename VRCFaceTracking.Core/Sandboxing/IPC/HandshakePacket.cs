@@ -65,7 +65,14 @@ public class HandshakePacket : IpcPacket
 
     public override void Decode(in byte[] data)
     {
+        if (data.Length < 21)
+        {
+            _isValid = false;
+            return;
+        }
+
         // Verify handshake challenge
+        _isValid = true;
         for (var i = 0; i < HANDSHAKE_CHALLENGE.Length; i++)
         {
             if (data[i + 8] != HANDSHAKE_CHALLENGE[i])
@@ -77,8 +84,12 @@ public class HandshakePacket : IpcPacket
         _pid = BitConverter.ToInt32(data, 13);
 
         var modulePathLength = BitConverter.ToInt32(data, 17);
+        if (modulePathLength < 0 || modulePathLength > data.Length - 21)
+        {
+            _isValid = false;
+            ModulePath = string.Empty;
+            return;
+        }
         ModulePath = Encoding.UTF8.GetString(data, 21, modulePathLength);
-
-        _isValid = true;
     }
 }

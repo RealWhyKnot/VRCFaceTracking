@@ -118,7 +118,16 @@ public class ReplyUpdatePacket : IpcPacket
 
     public override void Decode(in byte[] data)
     {
+        if (data.Length < 12)
+        {
+            return;
+        }
+
         var structSize = BitConverter.ToInt32(data, 8);
+        if (structSize != Marshal.SizeOf<UpdateDataContiguous>() || data.Length < 12 + structSize)
+        {
+            return;
+        }
 
         var ptr = IntPtr.Zero;
         try

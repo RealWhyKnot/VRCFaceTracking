@@ -29,6 +29,29 @@ public class PartialPacket : IpcPacket
     {
         public List<PartialPacketChunk> Chunks = new();
         public uint PacketCount = PACKET_COUNT_INVALID;
+        public DateTime LastChunkUtc = DateTime.UtcNow;
+    }
+
+    private static readonly TimeSpan STALE_BUFFER_LIFETIME = TimeSpan.FromSeconds(30);
+
+    private static void PruneStaleBuffers()
+    {
+        var cutoff = DateTime.UtcNow - STALE_BUFFER_LIFETIME;
+        List<uint> stale = null;
+        foreach (var pair in _packetBuffers)
+        {
+            if (pair.Value.LastChunkUtc < cutoff)
+            {
+                (stale ??= new List<uint>()).Add(pair.Key);
+            }
+        }
+        if (stale != null)
+        {
+            foreach (var key in stale)
+            {
+                _packetBuffers.Remove(key);
+            }
+        }
     }
 
     // Unused for partial packet
@@ -44,10 +67,16 @@ public class PartialPacket : IpcPacket
     {
         packetData = new byte[0];
 
+        if (data.Length < PACKET_NON_DATA_SIZE_BYTES)
+        {
+            return;
+        }
+
+        PruneStaleBuffers();
+
         // Get packetID and packet part out of data
         var packetId = BitConverter.ToUInt32(data, 12);
         var packetPart = BitConverter.ToUInt32(data, 8);
-        Debug.WriteLine($"Received frame of {data.Length} bytes with ID {packetId} and part {packetPart}!");
 
         var packetChunk = new PartialPacketChunk()
         {
@@ -60,6 +89,7 @@ public class PartialPacket : IpcPacket
         if (_packetBuffers.ContainsKey(packetId))
         {
             _packetBuffers[packetId].Chunks.Add(packetChunk);
+            _packetBuffers[packetId].LastChunkUtc = DateTime.UtcNow;
         }
         else
         {
@@ -125,7 +155,7 @@ public class PartialPacket : IpcPacket
             }
         }
 
-        Console.WriteLine($"Decoded packet of size {computedPacketSize}!");
+        _packetBuffers.Remove(packetId);
 
         return;
     }
@@ -137,7 +167,6 @@ public class PartialPacket : IpcPacket
         {
             mtu -= 128;
         }
-        Console.WriteLine($"[INFO]: Splitting packet of size {packetData.Length} by MTU {mtu}...");
         List<byte[]> packetCollection = new List<byte[]>();
 
         // Determine the amount of packets we need to create.
@@ -163,7 +192,6 @@ public class PartialPacket : IpcPacket
         var bytesLeftToPack = packetData.Length;
         var bytesSent = 0;
 
-        Console.WriteLine($"[INFO]: Packet count {partialPacketCount}");
         for (uint i = 0; i < partialPacketCount; i++)
         {
             // The size of a packet has a maximum size of MTU
@@ -179,9 +207,6 @@ public class PartialPacket : IpcPacket
             }
             var packetPartBytes = BitConverter.GetBytes(packetPart);
 
-            Console.WriteLine($"packetSize[{i}] => {packetSize}");
-            Console.WriteLine($"packetSizeNoOverhead[{i}] => {packetSizeNoOverhead}");
-
             // Prepare buffer
             var finalDataStream = new byte[packetSize];
             Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, finalDataStream, 0, SIZE_PACKET_MAGIC);       // Magic
@@ -195,18 +220,8 @@ public class PartialPacket : IpcPacket
             bytesSent += packetSizeNoOverhead;
             bytesLeftToPack -= packetSizeNoOverhead;
 
-            Console.WriteLine($"bytesSent[{i}] => {bytesSent}");
-            Console.WriteLine($"bytesLeftToPack[{i}] => {bytesLeftToPack}");
-
             packetCollection.Add(finalDataStream);
         }
-
-        long packedDataBytes = 0;
-        foreach (var elem in packetCollection)
-        {
-            packedDataBytes += elem.Length - PACKET_NON_DATA_SIZE_BYTES;
-        }
-        Console.WriteLine($"[INFO]: Split {packetData.Length} bytes into {packetCollection.Count} partial packets (combined size: {packedDataBytes})!");
 
         return packetCollection.ToArray();
     }
