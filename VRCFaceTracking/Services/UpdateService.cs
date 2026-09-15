@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Formats.Tar;
 using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -77,6 +78,17 @@ public class UpdateService
                 return;
             }
 
+            if (!release.Assets.Any(a => a.Name == UpdateAssets.ArchiveName(release.TagName)))
+            {
+                _logger.LogInformation("Release {tag} has no asset {archive}; treating as no update", release.TagName, UpdateAssets.ArchiveName(release.TagName));
+                if (manual)
+                {
+                    await ShowMessageAsync(Resources.UpdateUpToDateTitle, string.Format(Resources.UpdateUpToDateContent, BuildInfo.ChannelName));
+                }
+
+                return;
+            }
+
             if (!manual && string.Equals(release.TagName, _settings.SkippedTag, StringComparison.Ordinal))
             {
                 _logger.LogInformation("Release {tag} available but skipped by user", release.TagName);
@@ -134,10 +146,10 @@ public class UpdateService
 
     private async Task InstallAsync(GithubRelease release)
     {
-        var zipName = UpdateAssets.ZipName(release.TagName);
+        var archiveName = UpdateAssets.ArchiveName(release.TagName);
         var integrityName = UpdateAssets.IntegrityName(release.TagName);
-        var zipAsset = release.Assets.FirstOrDefault(a => a.Name == zipName)
-            ?? throw new InvalidDataException($"Release {release.TagName} has no asset {zipName}");
+        var archiveAsset = release.Assets.FirstOrDefault(a => a.Name == archiveName)
+            ?? throw new InvalidDataException($"Release {release.TagName} has no asset {archiveName}");
         var integrityAsset = release.Assets.FirstOrDefault(a => a.Name == integrityName)
             ?? throw new InvalidDataException($"Release {release.TagName} has no asset {integrityName}");
 
@@ -149,7 +161,7 @@ public class UpdateService
             progress = new ContentDialog
             {
                 Title = Resources.UpdateDownloadingTitle,
-                Content = new StackPanel { Spacing = 8, Children = { new TextBlock { Text = zipName }, bar } },
+                Content = new StackPanel { Spacing = 8, Children = { new TextBlock { Text = archiveName }, bar } },
             };
             _ = progress.ShowAsync();
         });
@@ -163,55 +175,79 @@ public class UpdateService
 
             Directory.CreateDirectory(StagingDir);
             using var client = CreateClient();
-            var (sha256, size) = UpdateAssets.ParseZipEntry(await client.GetStringAsync(integrityAsset.BrowserDownloadUrl), zipName);
-            var zipPath = Path.Combine(StagingDir, zipName);
-            _logger.LogInformation("Downloading {zip} ({size} bytes)", zipName, size);
-            await DownloadAsync(client, zipAsset.BrowserDownloadUrl, zipPath, size, fraction => OnUi(() =>
+            var (sha256, size) = UpdateAssets.ParseArchiveEntry(await client.GetStringAsync(integrityAsset.BrowserDownloadUrl), archiveName);
+            var archivePath = Path.Combine(StagingDir, archiveName);
+            _logger.LogInformation("Downloading {archive} ({size} bytes)", archiveName, size);
+            await DownloadAsync(client, archiveAsset.BrowserDownloadUrl, archivePath, size, fraction => OnUi(() =>
             {
                 bar!.IsIndeterminate = false;
                 bar.Value = fraction;
             }));
 
-            var actualSize = new FileInfo(zipPath).Length;
+            var actualSize = new FileInfo(archivePath).Length;
             if (actualSize != size)
             {
-                throw new InvalidDataException($"{zipName} is {actualSize} bytes, expected {size}");
+                throw new InvalidDataException($"{archiveName} is {actualSize} bytes, expected {size}");
             }
 
             string actualHash;
-            await using (var stream = File.OpenRead(zipPath))
+            await using (var stream = File.OpenRead(archivePath))
             {
                 actualHash = Convert.ToHexString(await SHA256.HashDataAsync(stream)).ToLowerInvariant();
             }
 
             if (actualHash != sha256)
             {
-                throw new InvalidDataException($"{zipName} sha256 {actualHash} does not match {sha256}");
+                throw new InvalidDataException($"{archiveName} sha256 {actualHash} does not match {sha256}");
             }
 
             OnUi(() => bar!.IsIndeterminate = true);
             var extracted = Path.Combine(StagingDir, "extracted");
-            await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extracted, true));
+            await Task.Run(() =>
+            {
+                if (archiveName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    ZipFile.ExtractToDirectory(archivePath, extracted, true);
+                }
+                else
+                {
+                    Directory.CreateDirectory(extracted);
+                    using var file = File.OpenRead(archivePath);
+                    using var gzStream = new GZipStream(file, CompressionMode.Decompress);
+                    TarFile.ExtractToDirectory(gzStream, extracted, overwriteFiles: true);
+                }
+            });
             var payloadRoot = UpdateAssets.ResolvePayloadRoot(extracted);
             var installDir = AppContext.BaseDirectory.TrimEnd('\\', '/');
-            var scriptPath = Path.Combine(StagingDir, "apply.ps1");
-            File.WriteAllText(scriptPath, UpdateHelperScript.Build(
-                Environment.ProcessId,
-                payloadRoot,
-                StagingDir,
-                installDir,
-                Path.Combine(installDir, UpdateAssets.ExeName),
-                Path.Combine(Core.Utils.LogDirectory, "update.log")));
+            var logPath = Path.Combine(Core.Utils.LogDirectory, "update.log");
+            var exePath = Path.Combine(installDir, UpdateAssets.ExeName);
 
-            var psi = new ProcessStartInfo("powershell.exe")
+            ProcessStartInfo psi;
+            if (OperatingSystem.IsWindows())
             {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = installDir,
-            };
-            foreach (var arg in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptPath })
+                var scriptPath = Path.Combine(StagingDir, "apply.ps1");
+                File.WriteAllText(scriptPath, UpdateHelperScript.Build(Environment.ProcessId, payloadRoot, StagingDir, installDir, exePath, logPath));
+                psi = new ProcessStartInfo("powershell.exe")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = installDir,
+                };
+                foreach (var arg in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptPath })
+                {
+                    psi.ArgumentList.Add(arg);
+                }
+            }
+            else
             {
-                psi.ArgumentList.Add(arg);
+                var scriptPath = Path.Combine(StagingDir, "apply.sh");
+                File.WriteAllText(scriptPath, UpdateHelperScript.BuildSh(Environment.ProcessId, payloadRoot, StagingDir, installDir, exePath, logPath));
+                psi = new ProcessStartInfo("/bin/sh")
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = installDir,
+                };
+                psi.ArgumentList.Add(scriptPath);
             }
 
             Process.Start(psi);

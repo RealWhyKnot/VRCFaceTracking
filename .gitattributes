@@ -5,6 +5,7 @@
 .github/workflows/*.yml text eol=lf
 
 *.ps1 text eol=crlf
+*.sh text eol=lf
 
 *.cs text eol=crlf
 *.xaml text eol=crlf

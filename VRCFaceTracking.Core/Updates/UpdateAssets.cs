@@ -1,20 +1,26 @@
+using System.Runtime.InteropServices;
+
 namespace VRCFaceTracking.Core.Updates;
 
 public static class UpdateAssets
 {
-    public const string ExeName = "VRCFaceTracking.exe";
+    public static readonly string RidSuffix =
+        (OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux")
+        + "-" + (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64");
+
+    public static readonly string ExeName = OperatingSystem.IsWindows() ? "VRCFaceTracking.exe" : "VRCFaceTracking";
 
     public static string BaseName(string tag)
     {
         var version = tag.StartsWith('v') || tag.StartsWith('V') ? tag[1..] : tag;
-        return $"VRCFaceTracking-{version}-win-x64";
+        return $"VRCFaceTracking-{version}-{RidSuffix}";
     }
 
-    public static string ZipName(string tag) => BaseName(tag) + ".zip";
+    public static string ArchiveName(string tag) => BaseName(tag) + (OperatingSystem.IsWindows() ? ".zip" : ".tar.gz");
 
     public static string IntegrityName(string tag) => BaseName(tag) + ".integrity.tsv";
 
-    public static (string Sha256, long Size) ParseZipEntry(string integrityTsv, string zipName)
+    public static (string Sha256, long Size) ParseArchiveEntry(string integrityTsv, string archiveName)
     {
         var line = integrityTsv.Split('\n').Select(l => l.TrimEnd('\r')).FirstOrDefault(l => l.Length > 0)
             ?? throw new InvalidDataException("Integrity file is empty.");
@@ -24,9 +30,9 @@ public static class UpdateAssets
             throw new InvalidDataException($"Integrity row has {fields.Length} fields, expected 3.");
         }
 
-        if (!string.Equals(fields[2], zipName, StringComparison.Ordinal))
+        if (!string.Equals(fields[2], archiveName, StringComparison.Ordinal))
         {
-            throw new InvalidDataException($"Integrity row names '{fields[2]}', expected '{zipName}'.");
+            throw new InvalidDataException($"Integrity row names '{fields[2]}', expected '{archiveName}'.");
         }
 
         var hash = fields[0].Trim().ToLowerInvariant();

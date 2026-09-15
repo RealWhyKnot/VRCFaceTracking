@@ -24,13 +24,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Publish ${{ inputs.tag || github.ref_name }}
-    runs-on: windows-latest
-    timeout-minutes: 45
-    env:
-      GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  validate:
+    name: Validate ${{ inputs.tag || github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      channel: ${{ steps.tag.outputs.channel }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -42,7 +44,7 @@ jobs:
         id: tag
         uses: RealWhyKnot/workflows/resolve-tag@v1
         with:
-          tag: ${{ env.RELEASE_TAG }}
+          tag: ${{ inputs.tag || github.ref_name }}
           tag-pattern: '^v\d{4}\.\d+\.\d+\.\d+(-beta)?$'
 
       - name: Validate release version sequence
@@ -57,14 +59,64 @@ jobs:
           ./.github/scripts/Test-GenerateReleaseNotes.ps1
           ./.github/scripts/Test-GenerateContributors.ps1
 
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: validate
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+    steps:
+      - name: Ensure release exists
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          gh release view $tag --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $global:LASTEXITCODE = 0
+            $extra = @()
+            if ('${{ needs.validate.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
+            gh release create $tag --repo '${{ github.repository }}' --title $tag --verify-tag --notes 'Build in progress.' @extra
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
+          }
+
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.image }}
+    timeout-minutes: 60
+    needs: [validate, prepare]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows
+            image: windows-latest
+            rids: 'win-x64'
+            ext: zip
+          - os: linux
+            image: ubuntu-latest
+            rids: 'linux-x64 linux-arm64'
+            ext: tar.gz
+          - os: macos
+            image: macos-latest
+            rids: 'osx-arm64 osx-x64'
+            ext: tar.gz
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+      RELEASE_CHANNEL: ${{ needs.validate.outputs.channel }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-
-      - name: Refresh contributors
-        shell: pwsh
-        run: ./.github/scripts/Generate-Contributors.ps1
 
       - name: Cache NuGet
         uses: actions/cache@v6
@@ -73,36 +125,141 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      - name: Refresh contributors
+        shell: pwsh
+        run: ./.github/scripts/Generate-Contributors.ps1
+
       - name: Build and test
         shell: pwsh
         run: |
-          dotnet restore VRCFaceTracking.sln -p:Platform=x64
+          $plat = @()
+          if ('${{ matrix.os }}' -eq 'windows') { $plat = @('-p:Platform=x64') }
+          dotnet restore VRCFaceTracking.sln @plat
           if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
-          dotnet build VRCFaceTracking.sln -c Release -p:Platform=x64 "-p:VftBuildChannel=${{ steps.tag.outputs.channel }}" "-p:VftVersion=${{ steps.tag.outputs.version }}" --no-restore
+          dotnet build VRCFaceTracking.sln -c Release @plat "-p:VftBuildChannel=$env:RELEASE_CHANNEL" "-p:VftVersion=$env:RELEASE_VERSION" --no-restore
           if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
-          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release -p:Platform=x64 --no-build
+          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
 
-      - name: Package
-        id: package
+      - name: Package and upload
         shell: pwsh
         run: |
-          $name = "VRCFaceTracking-${{ steps.tag.outputs.version }}-win-x64"
-          ./.github/scripts/Publish-App.ps1 -Channel '${{ steps.tag.outputs.channel }}' -Version '${{ steps.tag.outputs.version }}' -OutDir "build/$name"
-          $zip = "build/$name.zip"
-          Compress-Archive -Path "build/$name/*" -DestinationPath $zip -Force
-          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          $integrity = "build/$name.integrity.tsv"
-          $rows = @("$hash`t$((Get-Item $zip).Length)`t$name.zip")
-          Get-ChildItem "build/$name" -Recurse -File | Sort-Object FullName | ForEach-Object {
-            $rel = $_.FullName.Substring((Resolve-Path "build/$name").Path.Length + 1).Replace('\', '/')
-            $rows += "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())`t$($_.Length)`t$rel"
+          $tag = $env:RELEASE_TAG
+          $version = $env:RELEASE_VERSION
+          $uploaded = @()
+          foreach ($rid in '${{ matrix.rids }}'.Split(' ')) {
+            $name = "VRCFaceTracking-$version-$rid"
+            $dir = "build/$name"
+            ./.github/scripts/Publish-App.ps1 -Channel $env:RELEASE_CHANNEL -Version $version -Rid $rid -OutDir $dir
+            if ('${{ matrix.os }}' -eq 'macos') {
+              foreach ($bin in @('VRCFaceTracking', 'VRCFaceTracking.ModuleProcess')) {
+                codesign --force --sign - (Join-Path $dir $bin)
+                if ($LASTEXITCODE -ne 0) { throw "codesign $bin failed ($LASTEXITCODE)" }
+              }
+            }
+            if ('${{ matrix.ext }}' -eq 'zip') {
+              $archive = "build/$name.zip"
+              Compress-Archive -Path "$dir/*" -DestinationPath $archive -Force
+            } else {
+              $archive = "build/$name.tar.gz"
+              tar -czf $archive -C $dir .
+              if ($LASTEXITCODE -ne 0) { throw "tar failed ($LASTEXITCODE)" }
+            }
+            $archiveLeaf = Split-Path -Leaf $archive
+            $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+            $integrity = "build/$name.integrity.tsv"
+            $rows = @("$hash`t$((Get-Item $archive).Length)`t$archiveLeaf")
+            $dirFull = (Resolve-Path $dir).Path
+            Get-ChildItem $dir -Recurse -File | Sort-Object FullName | ForEach-Object {
+              $rel = $_.FullName.Substring($dirFull.Length + 1).Replace('\', '/')
+              $rows += "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())`t$($_.Length)`t$rel"
+            }
+            [System.IO.File]::WriteAllLines($integrity, [string[]]$rows, (New-Object System.Text.UTF8Encoding($false)))
+            foreach ($assetName in @($archiveLeaf, "$name.integrity.tsv")) {
+              gh release delete-asset $tag $assetName --repo '${{ github.repository }}' --yes 2>$null
+              $global:LASTEXITCODE = 0
+            }
+            gh release upload $tag $archive $integrity --repo '${{ github.repository }}'
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed ($LASTEXITCODE)" }
+            $uploaded += [pscustomobject]@{ name = $archiveLeaf; sha256 = $hash }
           }
-          [System.IO.File]::WriteAllLines($integrity, [string[]]$rows, (New-Object System.Text.UTF8Encoding($false)))
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "zip=$zip"
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "integrity=$integrity"
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "sha256=$hash"
-          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "name=$name"
+          ConvertTo-Json -InputObject @($uploaded) | Set-Content -LiteralPath build/uploaded.json
+
+      - name: Verify uploaded assets
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $uploaded = @(Get-Content -LiteralPath build/uploaded.json -Raw | ConvertFrom-Json)
+          foreach ($asset in $uploaded) {
+            $expected = "sha256:$($asset.sha256)"
+            $ok = $false
+            for ($i = 0; $i -lt 6 -and -not $ok; $i++) {
+              Start-Sleep -Seconds 2
+              $json = gh api "repos/${{ github.repository }}/releases/tags/$tag" 2>$null
+              $fetched = $LASTEXITCODE -eq 0
+              $global:LASTEXITCODE = 0
+              if (-not $fetched) { continue }
+              $release = $json | ConvertFrom-Json
+              $found = $release.assets | Where-Object { $_.name -eq $asset.name }
+              if ($found -and $found.digest -eq $expected) { $ok = $true }
+            }
+            if (-not $ok) { throw "Uploaded $($asset.name) digest does not match $expected." }
+            Write-Host "Verified $($asset.name) digest $expected"
+          }
+
+  smoke:
+    name: Smoke linux-x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [validate, build]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+    steps:
+      - name: Install display dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libice6 libsm6
+
+      - name: Launch check
+        shell: bash
+        run: |
+          gh release download "$RELEASE_TAG" --repo "${{ github.repository }}" --pattern "*-linux-x64.tar.gz" --dir smoke
+          mkdir -p smoke/app
+          tar -xzf smoke/*-linux-x64.tar.gz -C smoke/app
+          chmod +x smoke/app/VRCFaceTracking
+          (cd smoke/app && xvfb-run -a timeout 60 ./VRCFaceTracking) &
+          found=
+          for i in $(seq 1 60); do
+            sleep 1
+            if grep -rlq "Initializing OSC" "$HOME/.local/share/VRCFaceTracking/logs" 2>/dev/null; then
+              found=1
+              break
+            fi
+          done
+          pkill -f VRCFaceTracking || true
+          if [ -z "$found" ]; then
+            echo "No log under ~/.local/share/VRCFaceTracking/logs contained 'Initializing OSC' within 60s"
+            ls -la "$HOME/.local/share/VRCFaceTracking/logs" 2>/dev/null || true
+            exit 1
+          fi
+          echo "App reached OSC initialization"
+
+  notes:
+    name: Release notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [validate, build, smoke]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.validate.outputs.tag }}
 
       - name: Build the changelog
         id: changelog
@@ -111,44 +268,23 @@ jobs:
           tag: ${{ env.RELEASE_TAG }}
           title: VRCFaceTracking ${{ env.RELEASE_TAG }}
 
+      - name: Download release assets
+        shell: pwsh
+        run: |
+          gh release download $env:RELEASE_TAG --repo '${{ github.repository }}' --dir assets
+          if ($LASTEXITCODE -ne 0) { throw "gh release download failed ($LASTEXITCODE)" }
+
       - name: Compose the release body
         shell: pwsh
         run: |
-          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag $env:RELEASE_TAG -Repo '${{ github.repository }}' -ChangelogPath '${{ steps.changelog.outputs.file }}' -ZipPath '${{ steps.package.outputs.zip }}' -IntegrityName '${{ steps.package.outputs.name }}.integrity.tsv' -OutFile build/notes.md | Out-Null
+          New-Item -ItemType Directory -Force build | Out-Null
+          ./.github/scripts/Generate-ReleaseNotes.ps1 -Tag $env:RELEASE_TAG -Repo '${{ github.repository }}' -ChangelogPath '${{ steps.changelog.outputs.file }}' -AssetsDir assets -OutFile build/notes.md | Out-Null
           Get-Content build/notes.md
 
-      - name: Publish release
+      - name: Publish notes
         shell: pwsh
         run: |
-          $tag = $env:RELEASE_TAG
           $extra = @()
-          if ('${{ steps.tag.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
-          gh release create $tag '${{ steps.package.outputs.zip }}' '${{ steps.package.outputs.integrity }}' --repo '${{ github.repository }}' --target '${{ steps.tag.outputs.sha }}' --title $tag --notes-file build/notes.md @extra
-          if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
-
-      - name: Verify uploaded asset
-        shell: pwsh
-        run: |
-          $tag = $env:RELEASE_TAG
-          $expected = 'sha256:${{ steps.package.outputs.sha256 }}'
-          $zipName = Split-Path -Leaf '${{ steps.package.outputs.zip }}'
-          $ok = $false
-          for ($i = 0; $i -lt 6 -and -not $ok; $i++) {
-            Start-Sleep -Seconds 2
-            $json = gh api "repos/${{ github.repository }}/releases/tags/$tag" 2>$null
-            $fetched = $LASTEXITCODE -eq 0
-            $global:LASTEXITCODE = 0
-            if (-not $fetched) { continue }
-            $release = $json | ConvertFrom-Json
-            $asset = $release.assets | Where-Object { $_.name -eq $zipName }
-            if ($asset -and $asset.digest -eq $expected) { $ok = $true }
-          }
-          if (-not $ok) { throw "Uploaded $zipName digest does not match $expected." }
-          Write-Host "Verified $zipName digest $expected"
-
-      - name: Remove partial release on failure
-        if: failure()
-        shell: pwsh
-        run: |
-          gh release delete $env:RELEASE_TAG --repo '${{ github.repository }}' --yes 2>$null
-          $global:LASTEXITCODE = 0
+          if ('${{ needs.validate.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
+          gh release edit $env:RELEASE_TAG --repo '${{ github.repository }}' --notes-file build/notes.md --verify-tag @extra
+          if ($LASTEXITCODE -ne 0) { throw "gh release edit failed ($LASTEXITCODE)" }

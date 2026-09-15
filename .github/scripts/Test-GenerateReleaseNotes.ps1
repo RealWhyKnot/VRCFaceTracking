@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 [CmdletBinding()]
 param()
 
@@ -52,23 +52,43 @@ try {
   Add-Commit -RepoRoot $root -Subject "loose subject without a type"
   Invoke-TestGit -RepoRoot $root -Arguments @("tag", "v2026.9.2.0-beta") | Out-Null
 
-  $zip = Join-Path $root "VRCFaceTracking-2026.9.2.0-beta-win-x64.zip"
+  $assetsDir = Join-Path $root "assets"
+  New-Item -ItemType Directory -Path $assetsDir | Out-Null
+  $zip = Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-win-x64.zip"
   [System.IO.File]::WriteAllBytes($zip, [byte[]](1..64))
+  $tarGz = Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz"
+  [System.IO.File]::WriteAllBytes($tarGz, [byte[]](65..192))
+  [System.IO.File]::WriteAllText((Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-win-x64.integrity.tsv"), "ignored`n")
+
+  $templateDir = Join-Path $root ".github/release-template"
+  New-Item -ItemType Directory -Path $templateDir -Force | Out-Null
+  [System.IO.File]::WriteAllText((Join-Path $templateDir "install-windows.md"), "## Install on Windows`n`nDownload {zip-name} from this release.`n")
+  [System.IO.File]::WriteAllText((Join-Path $templateDir "install-linux.md"), "## Install on Linux`n`nDownload {zip-name} from this release.`n")
+  [System.IO.File]::WriteAllText((Join-Path $templateDir "install-macos.md"), "## Install on macOS`n`nDownload {zip-name} from this release.`n")
   $out = Join-Path $root "notes.md"
 
   $changelog = Join-Path $root "changelog.md"
   $changelogText = "# VRCFaceTracking v2026.9.2.0-beta`n`n## What's Changed`n`n### Features`n- feat(filter): eye gaze linearisation by @RealWhyKnot in abc1234`n`n**Full Changelog**: https://github.com/RealWhyKnot/VRCFaceTracking/compare/v2026.9.1.0...v2026.9.2.0-beta`n"
   [System.IO.File]::WriteAllText($changelog, $changelogText, (New-Object System.Text.UTF8Encoding($false)))
 
-  $text = (& $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ChangelogPath $changelog -ZipPath $zip -OutFile $out) -join "`n"
+  $text = (& $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ChangelogPath $changelog -AssetsDir $assetsDir -OutFile $out) -join "`n"
   if ($LASTEXITCODE -ne 0) { throw "generator failed" }
 
   Assert-Contains -Text $text -Expected "# VRCFaceTracking v2026.9.2.0-beta" -Message "The changelog heading must survive."
   Assert-Contains -Text $text -Expected "- feat(filter): eye gaze linearisation by @RealWhyKnot in abc1234" -Message "The changelog body must survive."
   Assert-Contains -Text $text -Expected "compare/v2026.9.1.0...v2026.9.2.0-beta" -Message "Full changelog link missing."
   if ($text.IndexOf("# VRCFaceTracking v2026.9.2.0-beta") -ne 0) { throw "The changelog must lead the body." }
-  $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-  Assert-Contains -Text $text -Expected "SHA256 ``$hash``" -Message "Zip hash missing."
+  Assert-Contains -Text $text -Expected "| Asset | Size (MiB) | SHA-256 |" -Message "Integrity table header missing."
+  $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+  $tarHash = (Get-FileHash -LiteralPath $tarGz -Algorithm SHA256).Hash.ToLowerInvariant()
+  Assert-Contains -Text $text -Expected "| ``VRCFaceTracking-2026.9.2.0-beta-win-x64.zip`` | 0.00 | ``$zipHash`` |" -Message "Zip table row missing."
+  Assert-Contains -Text $text -Expected "| ``VRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz`` | 0.00 | ``$tarHash`` |" -Message "Tar table row missing."
+  Assert-NotContains -Text $text -Expected "VRCFaceTracking-2026.9.2.0-beta-win-x64.integrity.tsv`` |" -Message "The integrity tsv must not get a table row."
+  Assert-Contains -Text $text -Expected ".integrity.tsv" -Message "Integrity companion note missing."
+  Assert-Contains -Text $text -Expected "## Install on Windows" -Message "Windows install section missing."
+  Assert-Contains -Text $text -Expected "Download ``VRCFaceTracking-2026.9.2.0-beta-win-x64.zip`` from this release." -Message "Windows zip name not substituted."
+  Assert-Contains -Text $text -Expected "Download ``VRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz`` from this release." -Message "Linux archive name not substituted."
+  Assert-NotContains -Text $text -Expected "## Install on macOS" -Message "macOS section must be skipped when no osx asset exists."
   if (-not (Test-Path -LiteralPath $out)) { throw "OutFile not written." }
 
   $missing = Join-Path $root "nope.md"

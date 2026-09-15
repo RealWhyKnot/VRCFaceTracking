@@ -5,8 +5,7 @@ param(
   [Parameter(Mandatory = $true)][string] $ChangelogPath,
   [string] $Repo = $(if ($env:GITHUB_REPOSITORY) { $env:GITHUB_REPOSITORY } else { 'RealWhyKnot/VRCFaceTracking' }),
   [string] $RepoRoot = (Get-Location).Path,
-  [string] $ZipPath = "",
-  [string] $IntegrityName = "",
+  [string] $AssetsDir = "",
   [string] $OutFile = "",
   [switch] $SkipScrub
 )
@@ -31,6 +30,8 @@ function Get-PreviousTag {
   return ""
 }
 
+if ($AssetsDir) { $AssetsDir = (Resolve-Path -LiteralPath $AssetsDir).Path }
+
 Push-Location (Resolve-Path -LiteralPath $RepoRoot).Path
 try {
   $previous = Get-PreviousTag -Tag $Tag
@@ -41,41 +42,57 @@ try {
   $changelog = (Get-Content -LiteralPath $ChangelogPath -Raw -Encoding UTF8).Trim()
   if (-not $changelog) { throw "Changelog at $ChangelogPath is empty." }
 
-  $repoShort = ($Repo -split '/')[-1]
   $tagSha = ([string](@(Invoke-Git -Arguments @("rev-list", "-n", "1", $Tag)) | Select-Object -First 1)).Trim()
-  $zipName = if ($ZipPath) { Split-Path -Leaf $ZipPath } else { "VRCFaceTracking-$($Tag.Substring(1))-win-x64.zip" }
-  if (-not $IntegrityName) { $IntegrityName = $zipName -replace '\.zip$', '.integrity.tsv' }
   $tokens = @{
     '{tag}' = $Tag
     '{version}' = $Tag.Substring(1)
     '{full-repo}' = $Repo
     '{commit-sha-short}' = $tagSha.Substring(0, 12)
     '{prior-tag}' = $previous
-    '{zip-name}' = $zipName
-    '{integrity-name}' = $IntegrityName
+  }
+
+  $archives = @()
+  if ($AssetsDir) {
+    $archives = @(Get-ChildItem -LiteralPath $AssetsDir -File | Where-Object { $_.Name -like '*.zip' -or $_.Name -like '*.tar.gz' } | Sort-Object Name)
   }
 
   $lines = [System.Collections.Generic.List[string]]::new()
   $lines.Add($changelog) | Out-Null
 
-  if ($ZipPath) {
-    $zip = Get-Item -LiteralPath $ZipPath
-    $hash = (Get-FileHash -LiteralPath $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    $sizeMiB = [math]::Round($zip.Length / 1MB, 2)
+  if ($archives.Count -gt 0) {
     $lines.Add("") | Out-Null
     $lines.Add("## File integrity") | Out-Null
     $lines.Add("") | Out-Null
-    $lines.Add("- ``$($zip.Name)`` ($sizeMiB MiB), SHA256 ``$hash``") | Out-Null
-    $lines.Add("- Hashes for every file in the zip are attached as ``$IntegrityName``.") | Out-Null
+    $lines.Add("| Asset | Size (MiB) | SHA-256 |") | Out-Null
+    $lines.Add("| --- | --- | --- |") | Out-Null
+    foreach ($archive in $archives) {
+      $hash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+      $sizeMiB = ($archive.Length / 1MB).ToString('0.00', [System.Globalization.CultureInfo]::InvariantCulture)
+      $lines.Add("| ``$($archive.Name)`` | $sizeMiB | ``$hash`` |") | Out-Null
+    }
+    $lines.Add("") | Out-Null
+    $lines.Add("Per-file hashes ship beside each archive as a matching ``.integrity.tsv`` asset.") | Out-Null
   }
 
+  $installSections = [ordered]@{
+    'install-windows' = '*-win-*.zip'
+    'install-linux' = '*-linux-*.tar.gz'
+    'install-macos' = '*-osx-*.tar.gz'
+  }
   $templateDir = Join-Path (Get-Location).Path ".github/release-template"
-  foreach ($name in @('links', 'install', 'uninstall', 'what-you-need-to-do')) {
+  $names = @('links') + @($installSections.Keys) + @('uninstall', 'what-you-need-to-do')
+  foreach ($name in $names) {
     $path = Join-Path $templateDir "$name.md"
     if (-not (Test-Path -LiteralPath $path)) { continue }
+    $sectionTokens = @{} + $tokens
+    if ($installSections.Contains($name)) {
+      $matching = @($archives | Where-Object { $_.Name -like $installSections[$name] })
+      if ($matching.Count -eq 0) { continue }
+      $sectionTokens['{zip-name}'] = (($matching | ForEach-Object { '`' + $_.Name + '`' }) -join ' or ')
+    }
     $text = (Get-Content -LiteralPath $path -Raw -Encoding UTF8).Trim()
     if (-not $text) { continue }
-    foreach ($key in $tokens.Keys) { $text = $text.Replace($key, [string]$tokens[$key]) }
+    foreach ($key in $sectionTokens.Keys) { $text = $text.Replace($key, [string]$sectionTokens[$key]) }
     $lines.Add("") | Out-Null
     $lines.Add($text) | Out-Null
   }

@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Updates;
+using VRCFaceTracking.Core.Updates;
 
 namespace VRCFaceTracking.Core.Tests;
 
@@ -99,8 +99,15 @@ public class UpdateAssetsTests
     [Fact]
     public void NamesFollowReleaseLayout()
     {
-        Assert.Equal("VRCFaceTracking-2026.9.1.0-beta-win-x64.zip", UpdateAssets.ZipName("v2026.9.1.0-beta"));
-        Assert.Equal("VRCFaceTracking-2026.9.1.0-win-x64.integrity.tsv", UpdateAssets.IntegrityName("v2026.9.1.0"));
+        var os = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
+        var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "arm64" : "x64";
+        var suffix = $"{os}-{arch}";
+        var ext = OperatingSystem.IsWindows() ? ".zip" : ".tar.gz";
+        Assert.Equal(suffix, UpdateAssets.RidSuffix);
+        Assert.Equal($"VRCFaceTracking-2026.9.1.0-beta-{suffix}", UpdateAssets.BaseName("v2026.9.1.0-beta"));
+        Assert.Equal($"VRCFaceTracking-2026.9.1.0-beta-{suffix}{ext}", UpdateAssets.ArchiveName("v2026.9.1.0-beta"));
+        Assert.Equal($"VRCFaceTracking-2026.9.1.0-{suffix}.integrity.tsv", UpdateAssets.IntegrityName("v2026.9.1.0"));
+        Assert.Equal(OperatingSystem.IsWindows() ? "VRCFaceTracking.exe" : "VRCFaceTracking", UpdateAssets.ExeName);
     }
 
     private const string Hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -109,7 +116,7 @@ public class UpdateAssetsTests
     public void ParsesFirstRow()
     {
         var tsv = $"{Hash.ToUpperInvariant()}\t96910285\tapp.zip\r\nffff\t1\taf-ZA/x.mui\r\n";
-        var (sha, size) = UpdateAssets.ParseZipEntry(tsv, "app.zip");
+        var (sha, size) = UpdateAssets.ParseArchiveEntry(tsv, "app.zip");
         Assert.Equal(Hash, sha);
         Assert.Equal(96910285, size);
     }
@@ -122,7 +129,7 @@ public class UpdateAssetsTests
     [InlineData("")]
     public void RejectsBadRows(string tsv)
     {
-        Assert.Throws<InvalidDataException>(() => UpdateAssets.ParseZipEntry(tsv, "app.zip"));
+        Assert.Throws<InvalidDataException>(() => UpdateAssets.ParseArchiveEntry(tsv, "app.zip"));
     }
 
     [Fact]
@@ -160,5 +167,19 @@ public class UpdateHelperScriptTests
         Assert.All(script, c => Assert.True(c < 128));
         Assert.DoesNotContain("??", script);
         Assert.DoesNotContain("&&", script);
+    }
+
+    [Fact]
+    public void ShScriptIsLfOnlyAndRelaunches()
+    {
+        var script = UpdateHelperScript.BuildSh(4242, "/tmp/stage/extracted", "/tmp/stage", "/opt/Tom's Apps/VRCFT", "/opt/Tom's Apps/VRCFT/VRCFaceTracking", "/home/tom/.local/share/VRCFaceTracking/logs/update.log");
+        Assert.DoesNotContain('\r', script);
+        Assert.Contains("kill -0 \"$pid\"", script);
+        Assert.Contains("chmod +x", script);
+        Assert.Contains("'/opt/Tom'\\''s Apps/VRCFT/VRCFaceTracking'", script);
+        Assert.Contains("nohup \"$exe\"", script);
+        Assert.Contains("rm -rf \"$staging\"", script);
+        Assert.True(script.IndexOf("nohup", StringComparison.Ordinal) < script.IndexOf("rm -rf", StringComparison.Ordinal));
+        Assert.All(script, c => Assert.True(c < 128));
     }
 }

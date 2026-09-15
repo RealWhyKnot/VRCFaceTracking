@@ -54,13 +54,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "formatting drift; run 'dotnet format VRCFaceTracking.sln' and commit ($LASTEXITCODE)" }
 
   build:
-    name: Build ${{ matrix.channel }}
-    runs-on: windows-latest
+    name: Build ${{ matrix.channel }} ${{ matrix.rid }}
+    runs-on: ${{ matrix.image }}
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        channel: [dev, release]
+        include:
+          - image: windows-latest
+            channel: dev
+            rid: win-x64
+            plat: '-p:Platform=x64'
+          - image: windows-latest
+            channel: release
+            rid: win-x64
+            plat: '-p:Platform=x64'
+          - image: ubuntu-latest
+            channel: dev
+            rid: linux-x64
+            plat: ''
+          - image: macos-latest
+            channel: dev
+            rid: osx-arm64
+            plat: ''
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -80,31 +96,31 @@ jobs:
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore VRCFaceTracking.sln -p:Platform=x64
+          dotnet restore VRCFaceTracking.sln ${{ matrix.plat }}
           if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
 
       - name: Build
         shell: pwsh
         run: |
-          dotnet build VRCFaceTracking.sln -c Release -p:Platform=x64 -p:VftBuildChannel=${{ matrix.channel }} -p:VftVersion=0.0.0.0-CI --no-restore
+          dotnet build VRCFaceTracking.sln -c Release ${{ matrix.plat }} -p:VftBuildChannel=${{ matrix.channel }} -p:VftVersion=0.0.0.0-CI --no-restore
           if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
 
       - name: Test
         shell: pwsh
         run: |
-          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release -p:Platform=x64 --no-build --logger "trx;LogFileName=core.trx"
+          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=core.trx"
           if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
 
       - name: Publish
         shell: pwsh
         run: |
-          ./.github/scripts/Publish-App.ps1 -Channel ${{ matrix.channel }} -Version 0.0.0.0-CI -OutDir build/publish
+          ./.github/scripts/Publish-App.ps1 -Channel ${{ matrix.channel }} -Version 0.0.0.0-CI -Rid ${{ matrix.rid }} -OutDir build/publish
           if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
 
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
-          name: vrcfacetracking-${{ matrix.channel }}-${{ github.sha }}
+          name: vrcfacetracking-${{ matrix.channel }}-${{ matrix.rid }}-${{ github.sha }}
           path: build/publish
           retention-days: 14
 
@@ -112,5 +128,5 @@ jobs:
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: test-results-${{ matrix.channel }}
+          name: test-results-${{ matrix.channel }}-${{ matrix.rid }}
           path: '**/TestResults/*.trx'
