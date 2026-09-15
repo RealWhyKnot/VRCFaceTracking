@@ -37,6 +37,8 @@ public abstract partial class TrackingMutation
         get;
     }
     [JsonIgnore]
+    public virtual int Order => 0;
+    [JsonIgnore]
     public ObservableCollection<IMutationComponent> Components
     {
         get; set;
@@ -78,7 +80,7 @@ public abstract partial class TrackingMutation
 
         if (ordered)
         {
-            mutations.Sort((a, b) => a.Step.CompareTo(b.Step));
+            mutations = mutations.OrderBy(m => m.Step).ThenBy(m => m.Order).ThenBy(m => m.Name).ToList();
         }
 
         return mutations.ToArray();

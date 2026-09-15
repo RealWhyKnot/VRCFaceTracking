@@ -12,6 +12,8 @@ namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
 public class Filter : TrackingMutation
 {
+    public override int Order => 100;
+
     [MutationProperty("Minimum Cutoff", true, 0f, 2f)]
     public static float minCutoff = 1f;
     [MutationProperty("Beta", true)]
