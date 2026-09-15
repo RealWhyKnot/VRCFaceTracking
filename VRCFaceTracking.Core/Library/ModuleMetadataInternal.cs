@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking;
 
@@ -41,6 +42,10 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
         get => _usingEye;
         set
         {
+            if (_usingEye == value)
+            {
+                return;
+            }
             _usingEye = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsingEye)));
         }
@@ -51,8 +56,28 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
         get => _usingExpression;
         set
         {
+            if (_usingExpression == value)
+            {
+                return;
+            }
             _usingExpression = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsingExpression)));
+        }
+    }
+
+    private TrackingCapability _effectiveCapabilities;
+
+    public TrackingCapability EffectiveCapabilities
+    {
+        get => _effectiveCapabilities;
+        set
+        {
+            if (_effectiveCapabilities == value)
+            {
+                return;
+            }
+            _effectiveCapabilities = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EffectiveCapabilities)));
         }
     }
 

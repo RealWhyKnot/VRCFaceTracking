@@ -352,18 +352,20 @@ public class UnifiedLibManager : ILibManager
 
                             if (module.Status == ModuleState.Active && module.ModuleInformation.Active)
                             {
+                                var allowed = TrackingCapability.None;
                                 if (module.ModuleInformation.UsingEye)
                                 {
-                                    replyUpdatePacket.UpdateGlobalEyeState();
+                                    allowed |= TrackingCapabilities.EyeHalf;
                                 }
                                 if (module.ModuleInformation.UsingExpression)
                                 {
-                                    replyUpdatePacket.UpdateGlobalExpressionState();
+                                    allowed |= TrackingCapabilities.ExpressionHalf;
                                 }
-                                if (module.ModuleInformation.UsingEye || module.ModuleInformation.UsingExpression)
+                                if (allowed != TrackingCapability.None)
                                 {
-                                    replyUpdatePacket.UpdateHeadState();
+                                    allowed |= TrackingCapability.Head;
                                 }
+                                replyUpdatePacket.UpdateGlobalState(allowed);
                             }
 
                             break;
