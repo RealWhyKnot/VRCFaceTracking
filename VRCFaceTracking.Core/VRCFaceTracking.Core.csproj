@@ -16,9 +16,4 @@
   <ItemGroup>
     <InternalsVisibleTo Include="VRCFaceTracking.Core.Tests" />
   </ItemGroup>
-  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
-    <Content Include="C:\Windows\System32\vcruntime140.dll" Link="vcruntime140.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
 </Project>
