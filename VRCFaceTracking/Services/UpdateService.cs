@@ -18,7 +18,7 @@ namespace VRCFaceTracking.Services;
 public class UpdateService
 {
     private const string ReleasesUrl = "https://api.github.com/repos/RealWhyKnot/VRCFaceTracking/releases?per_page=20";
-    private static readonly string StagingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCFaceTracking", "update");
+    private static readonly string StagingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "VRCFaceTracking", "update");
 
     private readonly ILogger<UpdateService> _logger;
     private readonly UpdateSettings _settings;

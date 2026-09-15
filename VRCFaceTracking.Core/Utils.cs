@@ -39,11 +39,11 @@ public static class Utils
 
     public static readonly bool HasAdmin = !OperatingSystem.IsWindows() || new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
 
-    public static readonly string UserAccessibleDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VRCFaceTracking");
-    public static readonly string PersistentDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VRCFaceTracking");
+    public static readonly string UserAccessibleDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments, Environment.SpecialFolderOption.DoNotVerify), "VRCFaceTracking");
+    public static readonly string PersistentDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify), "VRCFaceTracking");
     public static readonly string CustomLibsDirectory = Path.Combine(PersistentDataDirectory, "CustomLibs");
     public const string LogDirectorySettingKey = "LogDirectory";
-    public static readonly string DefaultLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCFaceTracking", "logs");
+    public static readonly string DefaultLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "VRCFaceTracking", "logs");
     public static readonly string LogDirectory = ResolveLogDirectory();
 
     private static string ResolveLogDirectory()
