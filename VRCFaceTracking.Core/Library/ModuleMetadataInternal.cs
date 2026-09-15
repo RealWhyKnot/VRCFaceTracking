@@ -15,6 +15,10 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
     {
         get; set;
     }
+    public string ModulePath
+    {
+        get; set;
+    }
     private bool _active;
 
     public bool Active

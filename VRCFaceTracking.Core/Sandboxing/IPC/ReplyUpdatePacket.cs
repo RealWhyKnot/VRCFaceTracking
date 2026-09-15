@@ -206,7 +206,7 @@ public class ReplyUpdatePacket : IpcPacket
     public void UpdateGlobalExpressionState()
     {
         // Copy face tracking
-        for (var i = (int)UnifiedExpressions.BrowOuterUpLeft; i < _contiguousUnifiedData.Expression_Shapes.Length; i++)
+        for (var i = (int)UnifiedExpressions.BrowOuterUpLeft + 1; i < _contiguousUnifiedData.Expression_Shapes.Length; i++)
         {
             if (_contiguousUnifiedData.Expression_Shapes[i] != INVALID_FLOAT)
                 UnifiedTracking.Data.Shapes[i].Weight = _contiguousUnifiedData.Expression_Shapes[i];

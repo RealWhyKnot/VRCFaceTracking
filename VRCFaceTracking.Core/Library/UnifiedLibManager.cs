@@ -204,8 +204,8 @@ public class UnifiedLibManager : ILibManager
                             ReplySupportedPacket replySupportedPacket = (ReplySupportedPacket)packet;
                             var module = knownModule;
 
-                            module.SupportsEyeTracking = module.SupportsEyeTracking && replySupportedPacket.eyeAvailable;
-                            module.SupportsExpressionTracking = module.SupportsExpressionTracking && replySupportedPacket.expressionAvailable;
+                            module.SupportsEyeTracking = replySupportedPacket.eyeAvailable;
+                            module.SupportsExpressionTracking = replySupportedPacket.expressionAvailable;
 
                             // Now tell it to initialise
                             EventInitPacket eventInitPacket = new EventInitPacket()
@@ -269,8 +269,14 @@ public class UnifiedLibManager : ILibManager
                                 _sandboxServer.SendData(statusUpdatePkt, portCopy);
                             };
 
-                            EyeStatus = replyInitPacket.eyeSuccess ? ModuleState.Active : ModuleState.Uninitialized;
-                            ExpressionStatus = replyInitPacket.expressionSuccess ? ModuleState.Active : ModuleState.Uninitialized;
+                            if (replyInitPacket.eyeSuccess)
+                            {
+                                EyeStatus = ModuleState.Active;
+                            }
+                            if (replyInitPacket.expressionSuccess)
+                            {
+                                ExpressionStatus = ModuleState.Active;
+                            }
 
                             module.ModuleInformation.Active = true;
                             lock (_modulesLock)
@@ -288,8 +294,8 @@ public class UnifiedLibManager : ILibManager
                                 var isModuleLoaded = false;
                                 for (var i = 0; i < LoadedModulesMetadata.Count; i++)
                                 {
-                                    // Look for modules with the same name
-                                    if (LoadedModulesMetadata[i].Name == module.ModuleInformation.Name)
+                                    if (LoadedModulesMetadata[i].ModulePath != null &&
+                                        LoadedModulesMetadata[i].ModulePath == module.ModuleInformation.ModulePath)
                                     {
                                         // Update module info
                                         LoadedModulesMetadata[i] = module.ModuleInformation;
@@ -354,7 +360,10 @@ public class UnifiedLibManager : ILibManager
                                 {
                                     replyUpdatePacket.UpdateGlobalExpressionState();
                                 }
-                                replyUpdatePacket.UpdateHeadState();
+                                if (module.ModuleInformation.UsingEye || module.ModuleInformation.UsingExpression)
+                                {
+                                    replyUpdatePacket.UpdateHeadState();
+                                }
                             }
 
                             break;
@@ -435,6 +444,7 @@ public class UnifiedLibManager : ILibManager
     {
         try
         {
+            metadata.ModulePath = dll;
             var verboseFlag = _logGate.Verbose ? " --verbose" : string.Empty;
             var sandboxProcess = Process.Start(new ProcessStartInfo(
                 _sandboxProcessPath, $"--port {_sandboxServer.Port} --module-path \"{dll}\" --parent-pid {Environment.ProcessId}{verboseFlag}"
