@@ -26,7 +26,17 @@ public class FileService : IFileService
         }
 
         var fileContent = JsonConvert.SerializeObject(content);
-        await File.WriteAllTextAsync(Path.Combine(folderPath, fileName), fileContent, Encoding.UTF8);
+        var path = Path.Combine(folderPath, fileName);
+        var tempPath = path + ".tmp";
+        await File.WriteAllTextAsync(tempPath, fileContent, Encoding.UTF8);
+        if (File.Exists(path))
+        {
+            File.Replace(tempPath, path, null);
+        }
+        else
+        {
+            File.Move(tempPath, path);
+        }
     }
 
     public void Delete(string folderPath, string fileName)

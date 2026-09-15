@@ -131,7 +131,14 @@ public partial class SettingsViewModel : ObservableRecipient
 
     private async void LoadContributors()
     {
-        Contributors = await GithubService.GetContributors("benaclejames/VRCFaceTracking");
+        try
+        {
+            Contributors = await GithubService.GetContributors("benaclejames/VRCFaceTracking");
+        }
+        catch (Exception)
+        {
+            Contributors = new List<GithubContributor>();
+        }
     }
 
     public SettingsViewModel(IThemeSelectorService themeSelectorService, GithubService githubService, OpenVRService openVRService,

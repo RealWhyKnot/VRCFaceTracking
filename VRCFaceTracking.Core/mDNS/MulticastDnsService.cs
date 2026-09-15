@@ -46,28 +46,41 @@ public partial class MulticastDnsService : ObservableObject
 
         // Create listeners for all interfaces
         var cts = new CancellationTokenSource();
-        var receiver = new UdpClient(AddressFamily.InterNetwork);
-        receiver.Client.ExclusiveAddressUse = false;
-        receiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        receiver.Client.Bind(new IPEndPoint(IPAddress.Any, MulticastPost));
-        Receivers.Add(receiver, cts.Token);
-
-
-        // For every ipv4 address discovered in the network interfaces, create a sender udp client set up grouping
-        foreach (var ipAddress in _localIpAddresses)
+        try
         {
-            // Add the local ip address to our multicast group
-            receiver.JoinMulticastGroup(MulticastIp, ipAddress);
+            var receiver = new UdpClient(AddressFamily.InterNetwork);
+            receiver.Client.ExclusiveAddressUse = false;
+            receiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            receiver.Client.Bind(new IPEndPoint(IPAddress.Any, MulticastPost));
+            Receivers.Add(receiver, cts.Token);
 
-            var sender = new UdpClient(ipAddress.AddressFamily);
-            sender.Client.ExclusiveAddressUse = false;
-            sender.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            sender.Client.Bind(new IPEndPoint(ipAddress, MulticastPost));    // Bind to the local ip address
-            sender.JoinMulticastGroup(MulticastIp, ipAddress);                           // Join the multicast group
-            sender.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, true);
+            // For every ipv4 address discovered in the network interfaces, create a sender udp client set up grouping
+            foreach (var ipAddress in _localIpAddresses)
+            {
+                try
+                {
+                    // Add the local ip address to our multicast group
+                    receiver.JoinMulticastGroup(MulticastIp, ipAddress);
 
-            Receivers.Add(sender, cts.Token);
-            Senders.Add(ipAddress, sender);
+                    var sender = new UdpClient(ipAddress.AddressFamily);
+                    sender.Client.ExclusiveAddressUse = false;
+                    sender.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    sender.Client.Bind(new IPEndPoint(ipAddress, MulticastPost));    // Bind to the local ip address
+                    sender.JoinMulticastGroup(MulticastIp, ipAddress);                           // Join the multicast group
+                    sender.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, true);
+
+                    Receivers.Add(sender, cts.Token);
+                    Senders.Add(ipAddress, sender);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogWarning("Skipping mDNS on {Address}: {Message}", ipAddress, e.Message);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "mDNS could not start; OSCQuery discovery will be unavailable");
         }
 
         foreach (var sender in Receivers)
@@ -76,7 +89,7 @@ public partial class MulticastDnsService : ObservableObject
         }
     }
 
-    private async void ResolveDnsQueries(DnsPacket packet, IPEndPoint remoteEndpoint)
+    private async Task ResolveDnsQueries(DnsPacket packet, IPEndPoint remoteEndpoint)
     {
         // Me when having to wait for vrchat to resolve itself
         // https://www.youtube.com/watch?v=wLg04uu2j2o
@@ -180,7 +193,14 @@ public partial class MulticastDnsService : ObservableObject
         var bytes = dnsPacket.Serialize();
         foreach (var sender in Senders)
         {
-            await sender.Value.SendAsync(bytes, bytes.Length, MdnsEndpointIp4);
+            try
+            {
+                await sender.Value.SendAsync(bytes, bytes.Length, MdnsEndpointIp4);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning("mDNS query send failed on {Address}: {Message}", sender.Key, e.Message);
+            }
         }
 
         //var unicastClientIp4 = new UdpClient(AddressFamily.InterNetwork);
@@ -239,9 +259,33 @@ public partial class MulticastDnsService : ObservableObject
 
     private async void Listen(UdpClient client, CancellationToken ct)
     {
+        var consecutiveFailures = 0;
         while (!ct.IsCancellationRequested)
         {
-            var result = await client.ReceiveAsync(ct);
+            UdpReceiveResult result;
+            try
+            {
+                result = await client.ReceiveAsync(ct);
+                consecutiveFailures = 0;
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+            catch (SocketException e)
+            {
+                if (++consecutiveFailures >= 10)
+                {
+                    _logger.LogWarning("mDNS listener stopped after repeated socket errors: {Message}", e.Message);
+                    return;
+                }
+                await Task.Delay(1000);
+                continue;
+            }
 
             if (!_localIpAddresses.Any(i => i.Equals(result.RemoteEndPoint.Address)))
             {
@@ -257,7 +301,7 @@ public partial class MulticastDnsService : ObservableObject
 
                 // I'm aware this is cringe, but we do this first as it's a lot more likely vrchat beats us to the punch responding to the query
                 ResolveVrChatClient(packet, result.RemoteEndPoint);
-                ResolveDnsQueries(packet, result.RemoteEndPoint);
+                await ResolveDnsQueries(packet, result.RemoteEndPoint);
             }
             catch (Exception e)
             {

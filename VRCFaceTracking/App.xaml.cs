@@ -95,10 +95,26 @@ public partial class App : Application
         var resetFile = Path.Combine(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "reset");
         if (File.Exists(resetFile))
         {
-            // Delete everything including files and folders in Utils.PersistentDataDirectory
-            foreach (var file in Directory.EnumerateFiles(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "*", SearchOption.AllDirectories))
+            try
             {
-                File.Delete(file);
+                File.Delete(resetFile);
+
+                // Delete everything including files and folders in Utils.PersistentDataDirectory
+                foreach (var file in Directory.EnumerateFiles(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "*", SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception e)
+                    {
+                        bootLogger.LogWarning("Reset could not delete {File}: {Message}", file, e.Message);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                bootLogger.LogWarning(e, "Reset cleanup failed");
             }
         }
 

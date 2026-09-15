@@ -18,15 +18,17 @@ public partial class UnifiedTrackingMutator : ObservableObject
 
     private readonly ILogger<UnifiedTrackingMutator> _logger;
     private readonly ILocalSettingsService _localSettingsService;
+    private readonly IDispatcherService _dispatcherService;
     private readonly object _mutationsLock = new();
     private UnifiedTrackingData _inputBuffer;
     public ObservableCollection<TrackingMutation> _mutations = new();
 
-    public UnifiedTrackingMutator(ILogger<UnifiedTrackingMutator> logger, ILocalSettingsService localSettingsService)
+    public UnifiedTrackingMutator(ILogger<UnifiedTrackingMutator> logger, ILocalSettingsService localSettingsService, IDispatcherService dispatcherService)
     {
         UnifiedTracking.Mutator = this;
         _logger = logger;
         _localSettingsService = localSettingsService;
+        _dispatcherService = dispatcherService;
 
         Enabled = false;
         _inputBuffer = new UnifiedTrackingData();
@@ -93,7 +95,7 @@ public partial class UnifiedTrackingMutator : ObservableObject
         _logger.LogDebug("Mutations initialized successfully.");
     }
 
-    private async void CreateMutation(TrackingMutation mutation)
+    private async Task CreateMutation(TrackingMutation mutation)
     {
         try
         {
@@ -116,10 +118,13 @@ public partial class UnifiedTrackingMutator : ObservableObject
             mutation.Logger = _logger;
             mutation.LocalSettingsService = _localSettingsService;
             mutation.CreateProperties();
-            lock (_mutationsLock)
+            _dispatcherService.Run(() =>
             {
-                _mutations.Add(mutation);
-            }
+                lock (_mutationsLock)
+                {
+                    _mutations.Add(mutation);
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -130,19 +135,25 @@ public partial class UnifiedTrackingMutator : ObservableObject
         }
     }
 
-    public async void Load()
+    public async Task Load()
     {
         // Try to load config and propogate data into Unified if they exist.
         _logger.LogDebug("Loading mutation data...");
-        var mutations = TrackingMutation.GetImplementingMutations(true);
+        IEnumerable<TrackingMutation> mutations;
+        try
+        {
+            mutations = TrackingMutation.GetImplementingMutations(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to discover mutations");
+            mutations = Array.Empty<TrackingMutation>();
+        }
         await _localSettingsService.Load(this);
 
-        lock (_mutationsLock)
+        foreach (var mutation in mutations)
         {
-            foreach (var mutation in mutations)
-            {
-                CreateMutation(mutation);
-            }
+            await CreateMutation(mutation);
         }
 
         _logger.LogDebug("Mutation data loaded.");

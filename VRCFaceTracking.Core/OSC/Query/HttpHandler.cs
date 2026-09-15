@@ -16,11 +16,13 @@ public class HttpHandler(IOscTarget oscTarget, ILogger<HttpHandler> logger) : ID
     public void BindTo(string uri, int oscPort)
     {
         _oscPort = oscPort;
-        if (_contextListenerResult != null)
+        try
         {
-            _listener.EndGetContext(_contextListenerResult);
+            _listener.Stop();
         }
-        _listener.Stop();
+        catch (ObjectDisposedException)
+        {
+        }
         _listener.Prefixes.Clear();
         _listener.Prefixes.Add(uri);
         _listener.Start();
@@ -34,42 +36,66 @@ public class HttpHandler(IOscTarget oscTarget, ILogger<HttpHandler> logger) : ID
 
     private async void HttpListenerLoop(IAsyncResult result)
     {
-        var context = _listener.EndGetContext(result);
-        _listener.BeginGetContext(HttpListenerLoop, _listener);
-        string respStr;
-        if (context.Request.RawUrl.Contains("HOST_INFO"))
+        HttpListenerContext context;
+        try
         {
-            var hostInfo = new OscQueryHostInfo
-            {
-                name = _appName,
-                oscIP = oscTarget.DestinationAddress,
-                oscPort = _oscPort
-            };
-            respStr = hostInfo.ToString();
-            OnHostInfoQueried();
-            logger.LogDebug($"Responding to oscquery host info request with {respStr}");
+            context = _listener.EndGetContext(result);
+            _contextListenerResult = _listener.BeginGetContext(HttpListenerLoop, _listener);
         }
-        else
+        catch (Exception)
         {
-            if (context.Request.Url != null && context.Request.Url.LocalPath != "/")
+            return;
+        }
+
+        try
+        {
+            string respStr;
+            if ((context.Request.RawUrl ?? string.Empty).Contains("HOST_INFO"))
             {
-                return; // Not properly implementing oscquery protocol because I'm unemployed and not being paid to
+                var hostInfo = new OscQueryHostInfo
+                {
+                    name = _appName,
+                    oscIP = oscTarget.DestinationAddress,
+                    oscPort = _oscPort
+                };
+                respStr = hostInfo.ToString();
+                OnHostInfoQueried();
+                logger.LogDebug($"Responding to oscquery host info request with {respStr}");
+            }
+            else
+            {
+                if (context.Request.Url != null && context.Request.Url.LocalPath != "/")
+                {
+                    context.Response.Close();
+                    return; // Not properly implementing oscquery protocol because I'm unemployed and not being paid to
+                }
+
+                var rootNode = new OscQueryRoot();
+                rootNode.AddNode(new OscQueryNode("/avatar/change", AccessValues.WriteOnly, "s"));
+
+                respStr = rootNode.ToString();
             }
 
-            var rootNode = new OscQueryRoot();
-            rootNode.AddNode(new OscQueryNode("/avatar/change", AccessValues.WriteOnly, "s"));
+            // Send Response
+            context.Response.Headers.Add("pragma:no-cache");
 
-            respStr = rootNode.ToString();
+            context.Response.ContentType = "application/json";
+            var respBytes = System.Text.Encoding.UTF8.GetBytes(respStr);
+            context.Response.ContentLength64 = respBytes.Length;
+            await context.Response.OutputStream.WriteAsync(respBytes);
+            context.Response.Close();
         }
-
-        // Send Response
-        context.Response.Headers.Add("pragma:no-cache");
-
-        context.Response.ContentType = "application/json";
-        context.Response.ContentLength64 = respStr.Length;
-        using var sw = new StreamWriter(context.Response.OutputStream);
-        await sw.WriteAsync(respStr);
-        await sw.FlushAsync();
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Failed to answer an OSCQuery request");
+            try
+            {
+                context.Response.Abort();
+            }
+            catch (Exception)
+            {
+            }
+        }
     }
 
     public void Dispose()

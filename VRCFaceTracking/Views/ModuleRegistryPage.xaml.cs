@@ -55,6 +55,10 @@ public sealed partial class ModuleRegistryPage
         {
             path = await ModuleInstaller.InstallLocalModule(file.Path);
         }
+        catch (Exception)
+        {
+            path = null;
+        }
         finally
         {
             if (path != null)

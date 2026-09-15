@@ -58,26 +58,34 @@ public sealed partial class ModuleRegistryDetailControl
                 control.InstallButton.IsEnabled = false;
                 break;
             default:
-                throw new ArgumentOutOfRangeException();
+                control.InstallButton.Content = "ModuleActionInstall".GetLocalized();
+                break;
         }
 
-        // Attempt to get our rating from the API.
-        var rating = await control._moduleDataService.GetMyRatingAsync(control.ListDetailsMenuItem!);
-        if (rating.HasValue) // If we already rated this module, set the rating control to that value.
+        try
         {
-            control.RatingControl.PlaceholderValue = rating.Value;
-            control.RatingControl.Value = rating.Value;
-            control.RatingControl.Caption = "Your Rating";
+            // Attempt to get our rating from the API.
+            var rating = await control._moduleDataService.GetMyRatingAsync(control.ListDetailsMenuItem!);
+            if (rating.HasValue) // If we already rated this module, set the rating control to that value.
+            {
+                control.RatingControl.PlaceholderValue = rating.Value;
+                control.RatingControl.Value = rating.Value;
+                control.RatingControl.Caption = "Your Rating";
+            }
+            else // Otherwise, set the rating control to the average rating.
+            {
+                control.RatingControl.ClearValue(RatingControl.ValueProperty);
+                control.RatingControl.ClearValue(RatingControl.PlaceholderValueProperty);
+
+                if (control.ListDetailsMenuItem!.Rating > 0)
+                    control.RatingControl.PlaceholderValue = control.ListDetailsMenuItem!.Rating;
+
+                control.RatingControl.Caption = $"{control.ListDetailsMenuItem!.Ratings} ratings";
+            }
         }
-        else // Otherwise, set the rating control to the average rating.
+        catch (Exception)
         {
-            control.RatingControl.ClearValue(RatingControl.ValueProperty);
-            control.RatingControl.ClearValue(RatingControl.PlaceholderValueProperty);
-
-            if (control.ListDetailsMenuItem!.Rating > 0)
-                control.RatingControl.PlaceholderValue = control.ListDetailsMenuItem!.Rating;
-
-            control.RatingControl.Caption = $"{control.ListDetailsMenuItem!.Ratings} ratings";
+            control.RatingControl.Caption = string.Empty;
         }
     }
 
@@ -88,12 +96,26 @@ public sealed partial class ModuleRegistryDetailControl
             case InstallState.NotInstalled or InstallState.Outdated:
                 {
                     _libManager.TeardownAllAndResetAsync();
-                    var path = await _moduleInstaller.InstallRemoteModule(ListDetailsMenuItem!);
+                    string? path = null;
+                    try
+                    {
+                        path = await _moduleInstaller.InstallRemoteModule(ListDetailsMenuItem!);
+                    }
+                    catch (Exception)
+                    {
+                        InstallButton.IsEnabled = true;
+                    }
                     if (path != null)
                     {
                         ListDetailsMenuItem!.InstallationState = InstallState.Installed;
-                        await _moduleDataService.IncrementDownloadsAsync(ListDetailsMenuItem!);
-                        ListDetailsMenuItem!.Downloads++;
+                        try
+                        {
+                            await _moduleDataService.IncrementDownloadsAsync(ListDetailsMenuItem!);
+                            ListDetailsMenuItem!.Downloads++;
+                        }
+                        catch (Exception)
+                        {
+                        }
                         _libManager.Initialize();
                         InstallButton.Content = "ModuleActionUninstall".GetLocalized();
                         InstallButton.IsEnabled = true;
@@ -118,6 +140,12 @@ public sealed partial class ModuleRegistryDetailControl
     {
         RatingControl.Caption = "Your Rating";
 
-        await _moduleDataService.SetMyRatingAsync(ListDetailsMenuItem!, (int)RatingControl.Value);
+        try
+        {
+            await _moduleDataService.SetMyRatingAsync(ListDetailsMenuItem!, (int)RatingControl.Value);
+        }
+        catch (Exception)
+        {
+        }
     }
 }

@@ -23,10 +23,13 @@ public class LocalSettingsService : ILocalSettingsService
 
     private IDictionary<string, object> _settings;
 
-    private bool _isInitialized;
+    private volatile bool _isInitialized;
+    private readonly SemaphoreSlim _initSemaphore = new(1, 1);
+    private readonly object _settingsLock = new();
 
     // Save debouncing
     private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly object _ctsLock = new();
     private CancellationTokenSource? _cts = new();
     private static readonly TimeSpan Debounce = TimeSpan.FromMilliseconds(300);
 
@@ -49,6 +52,24 @@ public class LocalSettingsService : ILocalSettingsService
             return;
         }
 
+        await _initSemaphore.WaitAsync();
+        try
+        {
+            if (_isInitialized)
+            {
+                return;
+            }
+            await InitializeCoreAsync();
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initSemaphore.Release();
+        }
+    }
+
+    private async Task InitializeCoreAsync()
+    {
         var backupFile = _localSettingsFile + ".bak";
         var mainPath = Path.Combine(_applicationDataFolder, _localSettingsFile);
         var backupPath = Path.Combine(_applicationDataFolder, backupFile);
@@ -83,8 +104,6 @@ public class LocalSettingsService : ILocalSettingsService
             Directory.CreateDirectory(_applicationDataFolder);
             File.Copy(mainPath, backupPath, overwrite: true);
         }
-
-        _isInitialized = true;
     }
 
     private IDictionary<string, object>? TestSettingsFileRead(string fileName)
@@ -105,20 +124,45 @@ public class LocalSettingsService : ILocalSettingsService
         {
             if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out var obj))
             {
-                return await Json.ToObjectAsync<T>((string)obj);
+                return await ParseSettingAsync(key, obj, defaultValue);
             }
         }
         else
         {
             await InitializeAsync();
 
-            if (_settings != null && _settings.TryGetValue(key, out var obj))
+            object? obj;
+            bool found;
+            lock (_settingsLock)
             {
-                return await Json.ToObjectAsync<T>((string)obj);
+                found = _settings != null && _settings.TryGetValue(key, out obj);
+                obj = found ? _settings![key] : null;
+            }
+            if (found)
+            {
+                return await ParseSettingAsync(key, obj, defaultValue);
             }
         }
 
         return defaultValue;
+    }
+
+    private async Task<T?> ParseSettingAsync<T>(string key, object? raw, T? defaultValue)
+    {
+        try
+        {
+            if (raw is not string json)
+            {
+                _logger.LogWarning("Setting {Key} holds a {Type} instead of a string; using its default", key, raw?.GetType().Name ?? "null");
+                return defaultValue;
+            }
+            return await Json.ToObjectAsync<T>(json);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning("Setting {Key} could not be parsed; using its default: {Message}", key, e.Message);
+            return defaultValue;
+        }
     }
 
     public async Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false)
@@ -131,10 +175,13 @@ public class LocalSettingsService : ILocalSettingsService
         {
             await InitializeAsync();
 
-            _settings[key] = await Json.StringifyAsync(value);
+            var json = await Json.StringifyAsync(value);
+            lock (_settingsLock)
+            {
+                _settings[key] = json;
+            }
 
-            await FlushSaveSettings();
-            //await _fileService.Save(_applicationDataFolder, _localSettingsFile, _settings);
+            _ = FlushSaveSettings();
         }
     }
 
@@ -190,15 +237,51 @@ public class LocalSettingsService : ILocalSettingsService
 
             await SaveSettingAsync(settingName, property.GetValue(instance), savedSettingAttribute.ForceLocal());
         }
+
+        await FlushNowAsync();
+    }
+
+    private async Task FlushNowAsync()
+    {
+        if (!_isInitialized)
+        {
+            return;
+        }
+
+        lock (_ctsLock)
+        {
+            _cts?.Cancel();
+        }
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            Dictionary<string, object> snapshot;
+            lock (_settingsLock)
+            {
+                snapshot = new Dictionary<string, object>(_settings);
+            }
+            await _fileService.Save(_applicationDataFolder, _localSettingsFile, snapshot);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to save settings");
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     private async Task FlushSaveSettings()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-
         var cts = new CancellationTokenSource();
-        _cts = cts;
+        lock (_ctsLock)
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = cts;
+        }
 
         try
         {
@@ -209,11 +292,24 @@ public class LocalSettingsService : ILocalSettingsService
             // Newer save req came in. Skip this one and let the new one do the write.
             return;
         }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
 
         await _semaphore.WaitAsync();
         try
         {
-            await _fileService.Save(_applicationDataFolder, _localSettingsFile, _settings);
+            Dictionary<string, object> snapshot;
+            lock (_settingsLock)
+            {
+                snapshot = new Dictionary<string, object>(_settings);
+            }
+            await _fileService.Save(_applicationDataFolder, _localSettingsFile, snapshot);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to save settings");
         }
         finally
         {

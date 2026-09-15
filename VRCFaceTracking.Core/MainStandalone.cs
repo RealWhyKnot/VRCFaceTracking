@@ -49,7 +49,7 @@ public class MainStandalone : IMainService
         _logger.LogDebug("Teardown complete. Awaiting exit...");
     }
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         VRChat.EnsureVRCOSCDirectory();
 
@@ -66,7 +66,7 @@ public class MainStandalone : IMainService
                     "If parameters do not update, please restart VRChat or manually enable OSC yourself in your avatar's expressions menu.");
         }
 
-        _mutator.Load();
+        await _mutator.Load();
 
         // Begin main OSC update loop
         _logger.LogDebug("Starting OSC update loop...");
@@ -75,7 +75,5 @@ public class MainStandalone : IMainService
         {
             Utils.TimeBeginPeriod(1);
         }
-
-        return Task.CompletedTask;
     }
 }

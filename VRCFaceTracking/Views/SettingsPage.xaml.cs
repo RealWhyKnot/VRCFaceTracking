@@ -84,13 +84,20 @@ public sealed partial class SettingsPage : Page
         var upperData = UnifiedTracking.EyeImageData.ImageData;
         if (upperData != null)
         {
+            // Handle device changing resolution
+            if (_upperStream != null && _upperStream.Length != upperData.Length)
+            {
+                await _upperStream.DisposeAsync();
+                _upperImageStream = null;
+                _upperStream = null;
+            }
             // Handle device connected
             if (_upperStream == null)
             {
                 InitializeHardwareDebugStream(UnifiedTracking.EyeImageData, ref _upperImageStream, ref _upperStream);
             }
             // Handle device is valid and is providing data
-            if (_upperStream.CanWrite)
+            if (_upperStream is { CanWrite: true } && upperData.Length <= _upperStream.Length)
             {
                 _upperStream.Position = 0;
                 await _upperStream.WriteAsync(upperData, 0, upperData.Length);
@@ -101,13 +108,12 @@ public sealed partial class SettingsPage : Page
         else
         {
             // Handle device getting unplugged / destroyed / disabled
-            // Device is connected
-            if (_upperStream != null || _upperImageStream != null)
+            if (_upperStream != null)
             {
                 await _upperStream.DisposeAsync();
-                _upperImageStream = null;
-                _upperStream = null;
             }
+            _upperImageStream = null;
+            _upperStream = null;
         }
 
         // Handle lip tracking
@@ -115,13 +121,20 @@ public sealed partial class SettingsPage : Page
         var lowerData = UnifiedTracking.LipImageData.ImageData;
         if (lowerData != null)
         {
+            // Handle device changing resolution
+            if (_lowerStream != null && _lowerStream.Length != lowerData.Length)
+            {
+                await _lowerStream.DisposeAsync();
+                _lowerImageStream = null;
+                _lowerStream = null;
+            }
             // Handle device connected
             if (_lowerStream == null)
             {
                 InitializeHardwareDebugStream(UnifiedTracking.LipImageData, ref _lowerImageStream, ref _lowerStream);
             }
             // Handle device is valid and is providing data
-            if (_lowerStream.CanWrite)
+            if (_lowerStream is { CanWrite: true } && lowerData.Length <= _lowerStream.Length)
             {
                 _lowerStream.Position = 0;
                 await _lowerStream.WriteAsync(lowerData, 0, lowerData.Length);
@@ -132,13 +145,12 @@ public sealed partial class SettingsPage : Page
         else
         {
             // Handle device getting unplugged / destroyed / disabled
-            // Device is connected
-            if (_lowerStream != null || _lowerImageStream != null)
+            if (_lowerStream != null)
             {
                 await _lowerStream.DisposeAsync();
-                _lowerImageStream = null;
-                _lowerStream = null;
             }
+            _lowerImageStream = null;
+            _lowerStream = null;
         }
 
         if (_lowerStream == null || _upperStream == null)

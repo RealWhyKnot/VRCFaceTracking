@@ -54,22 +54,29 @@ public sealed partial class OutputPage : Page
         StorageFile file = await savePicker.PickSaveFileAsync();
         if (file != null)
         {
-            CachedFileManager.DeferUpdates(file);
-
-            // write to file
-            var logString = string.Join("\n", AllLog.Select(log => log.Message));
-            await FileIO.AppendTextAsync(file, logString);
-
-            FileUpdateStatus status = await CachedFileManager.CompleteUpdatesAsync(file);
-            if (status == FileUpdateStatus.Complete)
+            try
             {
-                SaveStatus.Text = string.Format("LogSaved".GetLocalized(), file.Name);
+                CachedFileManager.DeferUpdates(file);
+
+                // write to file
+                var logString = string.Join("\n", AllLog.Select(log => log.Message));
+                await FileIO.AppendTextAsync(file, logString);
+
+                FileUpdateStatus status = await CachedFileManager.CompleteUpdatesAsync(file);
+                if (status == FileUpdateStatus.Complete)
+                {
+                    SaveStatus.Text = string.Format("LogSaved".GetLocalized(), file.Name);
+                }
+                else if (status == FileUpdateStatus.CompleteAndRenamed)
+                {
+                    SaveStatus.Text = string.Format("LogSavedRenamed".GetLocalized(), file.Name);
+                }
+                else
+                {
+                    SaveStatus.Text = string.Format("LogSaveFailed".GetLocalized(), file.Name);
+                }
             }
-            else if (status == FileUpdateStatus.CompleteAndRenamed)
-            {
-                SaveStatus.Text = string.Format("LogSavedRenamed".GetLocalized(), file.Name);
-            }
-            else
+            catch (Exception)
             {
                 SaveStatus.Text = string.Format("LogSaveFailed".GetLocalized(), file.Name);
             }

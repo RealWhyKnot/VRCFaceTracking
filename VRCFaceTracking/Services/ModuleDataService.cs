@@ -191,9 +191,9 @@ public class ModuleDataService : IModuleDataService
                 continue;
             }
 
-            var moduleJson = File.ReadAllText(moduleJsonPath);
             try
             {
+                var moduleJson = File.ReadAllText(moduleJsonPath);
                 var module = JsonConvert.DeserializeObject<InstallableTrackingModule>(moduleJson);
                 module.AssemblyLoadPath = Path.Combine(moduleFolder, module.DllFileName);
                 installedModules.Add(module);
