@@ -51,7 +51,19 @@ public class MainStandalone : IMainService
 
     public async Task InitializeAsync()
     {
-        VRChat.EnsureVRCOSCDirectory();
+        try
+        {
+            VRChat.EnsureVRCOSCDirectory();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Could not locate the VRChat OSC directory: {message}", ex.Message);
+        }
+
+        if (string.IsNullOrEmpty(VRChat.VRCOSCDirectory))
+        {
+            _logger.LogInformation("No local VRChat install found; avatar configs will come from OSCQuery only.");
+        }
 
         // Ensure OSC is enabled
         var isWindows = OperatingSystem.IsWindows();

@@ -14,6 +14,10 @@ public static class VRChat
                 $"{Environment.GetEnvironmentVariable("localappdata")}Low", "VRChat", "VRChat", "OSC"
             );
         }
+        else if (OperatingSystem.IsMacOS())
+        {
+            VRCOSCDirectory = string.Empty;
+        }
         else
         {
             /* On macOS/Linux, things are a little different. The above points to a non-existent folder
@@ -38,12 +42,18 @@ public static class VRChat
 
             if (string.IsNullOrEmpty(steamPath))
             {
-                throw new InvalidProgramException("Steam was not detected!");
+                VRCOSCDirectory = string.Empty;
+                return;
             }
 
             // 3) Inside the steam install directory, find the file steamPath/steamapps/libraryfolders.vdf
             // This is a special file that tells us where on a users computer their steam libraries are
             var steamLibrariesPath = Path.Combine(steamPath!, "steamapps", "libraryfolders.vdf");
+            if (!File.Exists(steamLibrariesPath))
+            {
+                VRCOSCDirectory = string.Empty;
+                return;
+            }
 
             // Parse the VDF file without using Gameloop.Vdf
             var libraryFolders = ParseVdfFile(File.ReadAllText(steamLibrariesPath));
@@ -77,8 +87,8 @@ public static class VRChat
 
             if (!vrchatPaths.Any())
             {
-                throw new InvalidProgramException(
-                    "Steam was detected, but VRChat was not detected on this system! Is it installed?");
+                VRCOSCDirectory = string.Empty;
+                return;
             }
 
             // 4) Finally, construct the path to the user's VRChat install, check it exists and try the next path if not
