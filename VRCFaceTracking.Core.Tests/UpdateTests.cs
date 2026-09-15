@@ -100,7 +100,7 @@ public class UpdateAssetsTests
     public void NamesFollowReleaseLayout()
     {
         var os = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
-        var arch = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "arm64" : "x64";
+        var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ? "arm64" : "x64";
         var suffix = $"{os}-{arch}";
         var ext = OperatingSystem.IsWindows() ? ".zip" : ".tar.gz";
         Assert.Equal(suffix, UpdateAssets.RidSuffix);

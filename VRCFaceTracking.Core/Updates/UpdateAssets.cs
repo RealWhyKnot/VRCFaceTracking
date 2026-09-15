@@ -6,7 +6,7 @@ public static class UpdateAssets
 {
     public static readonly string RidSuffix =
         (OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux")
-        + "-" + (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64");
+        + "-" + (RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64");
 
     public static readonly string ExeName = OperatingSystem.IsWindows() ? "VRCFaceTracking.exe" : "VRCFaceTracking";
 

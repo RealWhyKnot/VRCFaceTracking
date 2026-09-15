@@ -68,18 +68,45 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.validate.outputs.tag }}
     steps:
-      - name: Ensure release exists
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Ensure draft release exists
         shell: pwsh
         run: |
           $tag = $env:RELEASE_TAG
-          gh release view $tag --repo '${{ github.repository }}' *> $null
-          if ($LASTEXITCODE -ne 0) {
-            $global:LASTEXITCODE = 0
-            $extra = @()
-            if ('${{ needs.validate.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
-            gh release create $tag --repo '${{ github.repository }}' --title $tag --verify-tag --notes 'Build in progress.' @extra
-            if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
+          $response = gh api "repos/${{ github.repository }}/releases/tags/$tag" --include --silent 2>$null
+          $global:LASTEXITCODE = 0
+          $status = ([string]@($response)[0] -split ' ')[1]
+          if ($status -eq '200') {
+            Write-Host "Reusing published release $tag"
+          } elseif ($status -ne '404') {
+            throw "repos/${{ github.repository }}/releases/tags/$tag returned HTTP '$status'"
+          } else {
+            $drafts = @(gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate --jq ".[] | select(.tag_name==`"$tag`") | .id")
+            if ($LASTEXITCODE -ne 0) { throw "gh api releases failed ($LASTEXITCODE)" }
+            if ($drafts.Count -gt 0) {
+              Write-Host "Reusing draft release $tag"
+            } else {
+              $extra = @()
+              if ('${{ needs.validate.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease') }
+              gh release create $tag --repo '${{ github.repository }}' --title $tag --verify-tag --draft --notes 'Build in progress.' @extra
+              if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
+            }
           }
+
+      - name: Refresh contributors
+        shell: pwsh
+        run: ./.github/scripts/Generate-Contributors.ps1
+
+      - name: Upload contributors
+        uses: actions/upload-artifact@v7
+        with:
+          name: contributors
+          path: VRCFaceTracking/Assets/contributors.json
+          retention-days: 1
 
   build:
     name: Build ${{ matrix.os }}
@@ -92,7 +119,7 @@ jobs:
         include:
           - os: windows
             image: windows-latest
-            rids: 'win-x64'
+            rids: 'win-x64 win-arm64'
             ext: zip
           - os: linux
             image: ubuntu-latest
@@ -125,9 +152,11 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Refresh contributors
-        shell: pwsh
-        run: ./.github/scripts/Generate-Contributors.ps1
+      - name: Download contributors
+        uses: actions/download-artifact@v7
+        with:
+          name: contributors
+          path: VRCFaceTracking/Assets
 
       - name: Build and test
         shell: pwsh
@@ -140,6 +169,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
           dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
+          dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release @plat --no-build
+          if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
 
       - name: Package and upload
         shell: pwsh
@@ -175,11 +206,7 @@ jobs:
               $rows += "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())`t$($_.Length)`t$rel"
             }
             [System.IO.File]::WriteAllLines($integrity, [string[]]$rows, (New-Object System.Text.UTF8Encoding($false)))
-            foreach ($assetName in @($archiveLeaf, "$name.integrity.tsv")) {
-              gh release delete-asset $tag $assetName --repo '${{ github.repository }}' --yes 2>$null
-              $global:LASTEXITCODE = 0
-            }
-            gh release upload $tag $archive $integrity --repo '${{ github.repository }}'
+            gh release upload $tag $archive $integrity --repo '${{ github.repository }}' --clobber
             if ($LASTEXITCODE -ne 0) { throw "gh release upload failed ($LASTEXITCODE)" }
             $uploaded += [pscustomobject]@{ name = $archiveLeaf; sha256 = $hash }
           }
@@ -193,14 +220,13 @@ jobs:
           foreach ($asset in $uploaded) {
             $expected = "sha256:$($asset.sha256)"
             $ok = $false
-            for ($i = 0; $i -lt 6 -and -not $ok; $i++) {
-              Start-Sleep -Seconds 2
-              $json = gh api "repos/${{ github.repository }}/releases/tags/$tag" 2>$null
+            for ($i = 0; $i -lt 20 -and -not $ok; $i++) {
+              Start-Sleep -Seconds 5
+              $json = gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate --jq ".[] | select(.tag_name==`"$tag`") | .assets" 2>$null
               $fetched = $LASTEXITCODE -eq 0
               $global:LASTEXITCODE = 0
               if (-not $fetched) { continue }
-              $release = $json | ConvertFrom-Json
-              $found = $release.assets | Where-Object { $_.name -eq $asset.name }
+              $found = @(($json -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -eq $asset.name }
               if ($found -and $found.digest -eq $expected) { $ok = $true }
             }
             if (-not $ok) { throw "Uploaded $($asset.name) digest does not match $expected." }
@@ -208,26 +234,41 @@ jobs:
           }
 
   smoke:
-    name: Smoke linux-x64
-    runs-on: ubuntu-latest
+    name: Smoke ${{ matrix.os }}
+    runs-on: ${{ matrix.image }}
     timeout-minutes: 15
     needs: [validate, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            image: ubuntu-latest
+          - os: windows
+            image: windows-latest
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.validate.outputs.tag }}
     steps:
       - name: Install display dependencies
+        if: matrix.os == 'linux'
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libice6 libsm6
 
-      - name: Launch check
+      - name: Launch check linux-x64
+        if: matrix.os == 'linux'
         shell: bash
         run: |
-          gh release download "$RELEASE_TAG" --repo "${{ github.repository }}" --pattern "*-linux-x64.tar.gz" --dir smoke
+          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate --jq ".[] | select(.tag_name==\"$RELEASE_TAG\") | .assets[] | select(.name | endswith(\"-linux-x64.tar.gz\")) | .id")
+          if [ -z "$id" ]; then
+            echo "No linux-x64 archive on $RELEASE_TAG"
+            exit 1
+          fi
           mkdir -p smoke/app
-          tar -xzf smoke/*-linux-x64.tar.gz -C smoke/app
+          gh api "repos/${{ github.repository }}/releases/assets/$id" -H "Accept: application/octet-stream" > smoke/app.tar.gz
+          tar -xzf smoke/app.tar.gz -C smoke/app
           chmod +x smoke/app/VRCFaceTracking
           (cd smoke/app && xvfb-run -a timeout 60 ./VRCFaceTracking) &
           found=
@@ -245,6 +286,37 @@ jobs:
             exit 1
           fi
           echo "App reached OSC initialization"
+
+      - name: Launch check win-x64
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $json = gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate --jq ".[] | select(.tag_name==`"$tag`") | .assets"
+          if ($LASTEXITCODE -ne 0) { throw "gh api releases failed ($LASTEXITCODE)" }
+          $asset = @(($json -join "`n") | ConvertFrom-Json) | Where-Object { $_.name -like '*-win-x64.zip' } | Select-Object -First 1
+          if (-not $asset) { throw "No win-x64 archive on $tag" }
+          New-Item -ItemType Directory -Force smoke | Out-Null
+          $zip = Join-Path 'smoke' $asset.name
+          $download = Start-Process -FilePath gh -ArgumentList @('api', "repos/${{ github.repository }}/releases/assets/$($asset.id)", '-H', '"Accept: application/octet-stream"') -RedirectStandardOutput $zip -NoNewWindow -Wait -PassThru
+          if ($download.ExitCode -ne 0) { throw "gh api asset download failed ($($download.ExitCode))" }
+          Expand-Archive -LiteralPath $zip -DestinationPath smoke/app -Force
+          $app = (Resolve-Path smoke/app).Path
+          $logs = Join-Path $env:LOCALAPPDATA 'VRCFaceTracking/logs'
+          Start-Process -FilePath (Join-Path $app 'VRCFaceTracking.exe') -WorkingDirectory $app | Out-Null
+          $found = $false
+          for ($i = 0; $i -lt 60 -and -not $found; $i++) {
+            Start-Sleep -Seconds 1
+            if (Test-Path -LiteralPath $logs) {
+              $found = @(Get-ChildItem -LiteralPath $logs -File -Recurse | Where-Object { (Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue) -match 'Initializing OSC' }).Count -gt 0
+            }
+          }
+          Get-Process -Name VRCFaceTracking, VRCFaceTracking.ModuleProcess -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $found) {
+            if (Test-Path -LiteralPath $logs) { Get-ChildItem -LiteralPath $logs -Recurse | Out-String | Write-Host }
+            throw "No log under $logs contained 'Initializing OSC' within 60s"
+          }
+          Write-Host "App reached OSC initialization"
 
   notes:
     name: Release notes
@@ -271,8 +343,17 @@ jobs:
       - name: Download release assets
         shell: pwsh
         run: |
-          gh release download $env:RELEASE_TAG --repo '${{ github.repository }}' --dir assets
-          if ($LASTEXITCODE -ne 0) { throw "gh release download failed ($LASTEXITCODE)" }
+          $tag = $env:RELEASE_TAG
+          $json = gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate --jq ".[] | select(.tag_name==`"$tag`") | .assets"
+          if ($LASTEXITCODE -ne 0) { throw "gh api releases failed ($LASTEXITCODE)" }
+          $assets = @(($json -join "`n") | ConvertFrom-Json)
+          if ($assets.Count -eq 0) { throw "Release $tag has no assets." }
+          New-Item -ItemType Directory -Force assets | Out-Null
+          foreach ($asset in $assets) {
+            $dest = Join-Path 'assets' $asset.name
+            $download = Start-Process -FilePath gh -ArgumentList @('api', "repos/${{ github.repository }}/releases/assets/$($asset.id)", '-H', '"Accept: application/octet-stream"') -RedirectStandardOutput $dest -NoNewWindow -Wait -PassThru
+            if ($download.ExitCode -ne 0) { throw "gh api asset download failed for $($asset.name) ($($download.ExitCode))" }
+          }
 
       - name: Compose the release body
         shell: pwsh
@@ -286,5 +367,5 @@ jobs:
         run: |
           $extra = @()
           if ('${{ needs.validate.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
-          gh release edit $env:RELEASE_TAG --repo '${{ github.repository }}' --notes-file build/notes.md --verify-tag @extra
+          gh release edit $env:RELEASE_TAG --repo '${{ github.repository }}' --notes-file build/notes.md --verify-tag --draft=false @extra
           if ($LASTEXITCODE -ne 0) { throw "gh release edit failed ($LASTEXITCODE)" }

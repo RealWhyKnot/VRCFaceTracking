@@ -73,10 +73,12 @@ jobs:
             channel: dev
             rid: linux-x64
             plat: ''
+            extra_rid: linux-arm64
           - image: macos-latest
             channel: dev
             rid: osx-arm64
             plat: ''
+            extra_rid: osx-x64
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -110,11 +112,20 @@ jobs:
         run: |
           dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=core.trx"
           if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
+          dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=ui.trx"
+          if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
 
       - name: Publish
         shell: pwsh
         run: |
           ./.github/scripts/Publish-App.ps1 -Channel ${{ matrix.channel }} -Version 0.0.0.0-CI -Rid ${{ matrix.rid }} -OutDir build/publish
+          if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
+
+      - name: Publish second RID
+        if: matrix.extra_rid != ''
+        shell: pwsh
+        run: |
+          ./.github/scripts/Publish-App.ps1 -Channel ${{ matrix.channel }} -Version 0.0.0.0-CI -Rid ${{ matrix.extra_rid }} -OutDir build/publish-extra
           if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
 
       - name: Upload package
