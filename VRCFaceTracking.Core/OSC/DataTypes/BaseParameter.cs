@@ -6,7 +6,7 @@ using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.Core.OSC.DataTypes;
 
-public class BaseParam<T> : Parameter where T : struct
+public class BaseParam<T> : Parameter, IDisposable where T : struct
 {
     private const string DefaultPrefix = "/avatar/parameters/";
     protected const string CurrentVersionPrefix = "v2/";
@@ -117,4 +117,11 @@ public class BaseParam<T> : Parameter where T : struct
     public override bool Deprecated => !_paramName.StartsWith(CurrentVersionPrefix);
 
     protected virtual void Process(UnifiedTrackingData data) => ParamValue = _getValueFunc.Invoke(data);
+
+    public void Dispose()
+    {
+        UnifiedTracking.OnUnifiedDataUpdated -= Process;
+        OscMessage.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }

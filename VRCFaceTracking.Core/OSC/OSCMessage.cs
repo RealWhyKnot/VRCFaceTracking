@@ -4,7 +4,7 @@ using VRCFaceTracking.OSC;
 
 namespace VRCFaceTracking.Core.OSC;
 
-public class OscMessage
+public class OscMessage : IDisposable
 {
     private static readonly int AddressOffset = (int)Marshal.OffsetOf<OscMessageMeta>(nameof(OscMessageMeta.Address));
     private static readonly int ValueLengthOffset = (int)Marshal.OffsetOf<OscMessageMeta>(nameof(OscMessageMeta.ValueLength));
@@ -106,16 +106,33 @@ public class OscMessage
     /// <param name="buffer">Target byte buffer to serialize to, starting from index 0</param>
     /// <param name="ct">Cancellation Token</param>
     /// <returns>Length of serialized data</returns>
-    public int Encode(byte[] buffer) => fti_osc.create_osc_message(buffer, ref _meta);
+    public int Encode(byte[] buffer) =>
+        _meta.ValueLength > 0 && _meta.Value == IntPtr.Zero ? 0 : fti_osc.create_osc_message(buffer, ref _meta);
 
     public OscMessage(OscMessageMeta meta) => _meta = meta;
 
     ~OscMessage()
+    {
+        ReleaseUnmanagedResources();
+    }
+
+    private void ReleaseUnmanagedResources()
     {
         // If we don't own this memory, then we need to sent it back to rust to free it
         if (_metaPtr != IntPtr.Zero)
         {
             fti_osc.free_osc_message(_metaPtr);
         }
+        else if (_meta.Value != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_meta.Value);
+            _meta.Value = IntPtr.Zero;
+        }
+    }
+
+    public void Dispose()
+    {
+        ReleaseUnmanagedResources();
+        GC.SuppressFinalize(this);
     }
 }

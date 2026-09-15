@@ -53,6 +53,11 @@ public class BinaryBaseParameter : Parameter
      */
     public override Parameter[] ResetParam(IParameterDefinition[] newParams)
     {
+        foreach (var param in _params)
+        {
+            param.Dispose();
+        }
+
         _params.Clear();
         var negativeRelevancy = _negativeParam.ResetParam(newParams);
 
