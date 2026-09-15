@@ -328,6 +328,8 @@ public class ModuleProcessMain
                     {
                         var pkt = (EventStatusUpdatePacket)packet;
                         DefModuleAssembly.TrackingModule.Status = pkt.ModuleState;
+                        DefModuleAssembly.TrackingModule.ModuleInformation.UsingEye = pkt.UsingEye;
+                        DefModuleAssembly.TrackingModule.ModuleInformation.UsingExpression = pkt.UsingExpression;
 
                         break;
                     }

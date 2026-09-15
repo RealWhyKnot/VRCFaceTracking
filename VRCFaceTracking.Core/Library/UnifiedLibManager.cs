@@ -249,12 +249,23 @@ public class UnifiedLibManager : ILibManager
                             }
 
                             var portCopy = port; // So that we can use it in the lambda method
-                            module.ModuleInformation.OnActiveChange = (state) =>
+                            module.ModuleInformation.PropertyChanged += (_, args) =>
                             {
-                                module.Status = state ? ModuleState.Active : ModuleState.Idle;
+                                if (args.PropertyName is not (nameof(ModuleMetadataInternal.Active)
+                                    or nameof(ModuleMetadataInternal.UsingEye)
+                                    or nameof(ModuleMetadataInternal.UsingExpression)))
+                                {
+                                    return;
+                                }
 
-                                EventStatusUpdatePacket statusUpdatePkt = new EventStatusUpdatePacket();
-                                statusUpdatePkt.ModuleState = module.Status;
+                                module.Status = module.ModuleInformation.Active ? ModuleState.Active : ModuleState.Idle;
+
+                                var statusUpdatePkt = new EventStatusUpdatePacket
+                                {
+                                    ModuleState = module.Status,
+                                    UsingEye = module.ModuleInformation.UsingEye,
+                                    UsingExpression = module.ModuleInformation.UsingExpression,
+                                };
                                 _sandboxServer.SendData(statusUpdatePkt, portCopy);
                             };
 
