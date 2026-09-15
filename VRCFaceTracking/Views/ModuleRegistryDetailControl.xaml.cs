@@ -53,10 +53,6 @@ public sealed partial class ModuleRegistryDetailControl
             case InstallState.Outdated:
                 control.InstallButton.Content = "ModuleActionUpdate".GetLocalized();
                 break;
-            case InstallState.AwaitingRestart:
-                control.InstallButton.Content = "ModuleActionRestartRequired".GetLocalized();
-                control.InstallButton.IsEnabled = false;
-                break;
             default:
                 control.InstallButton.Content = "ModuleActionInstall".GetLocalized();
                 break;
@@ -125,11 +121,18 @@ public sealed partial class ModuleRegistryDetailControl
                 }
             case InstallState.Installed:
                 {
-                    InstallButton.Content = "ModuleActionRestartRequired".GetLocalized();
                     InstallButton.IsEnabled = false;
-                    _libManager.TeardownAllAndResetAsync();
-                    _moduleInstaller.MarkModuleForDeletion(ListDetailsMenuItem!);
+                    await Task.Run(() =>
+                    {
+                        _libManager.TeardownAllAndResetAsync();
+                        _moduleInstaller.UninstallModule(ListDetailsMenuItem!);
+                    });
+                    ListDetailsMenuItem!.InstallationState = InstallState.NotInstalled;
                     _libManager.Initialize();
+                    _mainViewModel.NoModulesInstalled =
+                        !_moduleDataService.GetInstalledModules().Any() && !_moduleDataService.GetLegacyModules().Any();
+                    InstallButton.Content = "ModuleActionInstall".GetLocalized();
+                    InstallButton.IsEnabled = true;
                     break;
                 }
         }
