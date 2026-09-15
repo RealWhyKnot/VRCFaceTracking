@@ -14,6 +14,25 @@ public class GithubService
         return client;
     });
 
+    public List<GithubContributor> GetBundledContributors()
+    {
+        try
+        {
+            var uri = new Uri("avares://VRCFaceTracking.Avalonia/Assets/contributors.json");
+            if (!Avalonia.Platform.AssetLoader.Exists(uri))
+            {
+                return [];
+            }
+            using var stream = Avalonia.Platform.AssetLoader.Open(uri);
+            using var reader = new StreamReader(stream);
+            return JsonSerializer.Deserialize<List<GithubContributor>>(reader.ReadToEnd()) ?? [];
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
     public async Task<List<GithubContributor>> GetContributors(string repo)
     {
         try

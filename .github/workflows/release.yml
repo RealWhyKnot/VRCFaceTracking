@@ -55,11 +55,16 @@ jobs:
         run: |
           ./.github/scripts/Test-WorkflowSyntax.ps1
           ./.github/scripts/Test-GenerateReleaseNotes.ps1
+          ./.github/scripts/Test-GenerateContributors.ps1
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
+
+      - name: Refresh contributors
+        shell: pwsh
+        run: ./.github/scripts/Generate-Contributors.ps1
 
       - name: Cache NuGet
         uses: actions/cache@v6

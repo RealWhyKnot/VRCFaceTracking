@@ -39,6 +39,7 @@ jobs:
         run: |
           ./.github/scripts/Test-WorkflowSyntax.ps1
           ./.github/scripts/Test-GenerateReleaseNotes.ps1
+          ./.github/scripts/Test-GenerateContributors.ps1
 
       - name: Restore
         shell: pwsh
