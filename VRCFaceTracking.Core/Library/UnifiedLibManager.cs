@@ -360,7 +360,10 @@ public class UnifiedLibManager : ILibManager
 
                             if (module.Status == ModuleState.Active && module.ModuleInformation.Active)
                             {
-                                replyUpdatePacket.UpdateGlobalState(module.ModuleInformation.EffectiveCapabilities);
+                                lock (UnifiedTracking.DataLock)
+                                {
+                                    replyUpdatePacket.UpdateGlobalState(module.ModuleInformation.EffectiveCapabilities);
+                                }
                             }
 
                             break;

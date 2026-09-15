@@ -28,6 +28,11 @@ public class UnifiedTracking
     public static UnifiedTrackingData Data = new();
 
     /// <summary>
+    /// Guards Data against concurrent module merges and sender snapshots.
+    /// </summary>
+    public static readonly object DataLock = new();
+
+    /// <summary>
     /// Container of all features and functions that mutates the incoming expression data into output data suitable for driving Unified Expressions.
     /// </summary>
     /// <remarks> Mutates data on update. </remarks>

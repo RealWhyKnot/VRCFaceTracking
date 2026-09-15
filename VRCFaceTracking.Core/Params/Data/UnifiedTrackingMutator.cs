@@ -40,12 +40,15 @@ public partial class UnifiedTrackingMutator : ObservableObject
     /// <returns> Mutated Expression Data. </returns>
     public UnifiedTrackingData MutateData(UnifiedTrackingData input)
     {
-        if (!Enabled)
+        lock (UnifiedTracking.DataLock)
         {
-            return input;
+            _inputBuffer.CopyPropertiesOf(input);
         }
 
-        _inputBuffer.CopyPropertiesOf(input);
+        if (!Enabled)
+        {
+            return _inputBuffer;
+        }
 
         lock (_mutationsLock)
         {
