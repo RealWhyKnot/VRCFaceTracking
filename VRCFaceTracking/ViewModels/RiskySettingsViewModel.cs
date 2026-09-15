@@ -24,19 +24,13 @@ public partial class RiskySettingsViewModel(
     /// If something goes very wrong some time during init, this can be used to force retry.
     /// Most modules likely will not like this.
     /// </summary>
-    public async void ForceReInit()
+    public void ForceReInit()
     {
         logger.LogInformation("Reinitializing VRCFT...");
 
-        try
-        {
-            await mainService.Teardown();
-            await mainService.InitializeAsync();
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Reinitialize failed");
-        }
+        mainService.Teardown();
+
+        mainService.InitializeAsync();
     }
 
     /// <summary>
@@ -48,7 +42,7 @@ public partial class RiskySettingsViewModel(
 
         // Create a file in the VRCFT folder called "reset"
         // This will cause the app to reset on the next launch
-        File.Create(Path.Combine(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "reset")).Dispose();
+        File.Create(Path.Combine(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "reset"));
     }
 
     /// <summary>
@@ -60,6 +54,9 @@ public partial class RiskySettingsViewModel(
         logger.LogInformation("Resetting VRChat avatar configuration...");
         try
         {
+            if (string.IsNullOrEmpty(VRChat.VRCOSCDirectory) || !Directory.Exists(VRChat.VRCOSCDirectory))
+                return;
+
             foreach (var userFolder in Directory.GetDirectories(VRChat.VRCOSCDirectory))
             {
                 if (Directory.Exists(userFolder + "\\Avatars"))

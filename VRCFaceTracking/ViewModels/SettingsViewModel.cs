@@ -1,17 +1,12 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows.Input;
-
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
-using Microsoft.UI.Xaml;
-
-using VRCFaceTracking.Contracts.Services;
 using VRCFaceTracking.Core;
+using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Updates;
-using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Models;
 using VRCFaceTracking.Services;
 
@@ -19,16 +14,26 @@ namespace VRCFaceTracking.ViewModels;
 
 public partial class SettingsViewModel : ObservableRecipient
 {
-    private readonly IThemeSelectorService _themeSelectorService;
+    public const string ThemeSettingKey = "AppTheme";
+
     private readonly LoggingSettings _loggingSettings;
     private readonly LogLevelGate _logGate;
     private readonly ILocalSettingsService _localSettingsService;
     private readonly UpdateSettings _updateSettings;
     private readonly UpdateService _updateService;
-    [ObservableProperty] private ElementTheme _elementTheme;
-    [ObservableProperty] private List<GithubContributor> _contributors;
+    private readonly OpenVRService _openVRService;
 
-    public ICommand SwitchThemeCommand
+    [ObservableProperty] private List<GithubContributor> _contributors = [];
+
+    public IOscTarget OscTarget
+    {
+        get;
+    }
+    public DeveloperSettings Developer
+    {
+        get;
+    }
+    public RiskySettingsViewModel RiskySettings
     {
         get;
     }
@@ -37,42 +42,55 @@ public partial class SettingsViewModel : ObservableRecipient
     {
         get;
     }
-
     public ICommand CheckUpdatesCommand
-    {
-        get;
-    }
-
-    private GithubService GithubService
-    {
-        get;
-        set;
-    }
-
-    private OpenVRService OpenVRService
     {
         get;
     }
 
     public bool AutoStart
     {
-        get => OpenVRService.AutoStart;
+        get => _openVRService.AutoStart;
         set
         {
-            OpenVRService.AutoStart = value;
+            _openVRService.AutoStart = value;
             OnPropertyChanged();
         }
     }
 
-    public bool IsOpenVREnabled => OpenVRService.IsInitialized;
+    public bool IsOpenVREnabled => _openVRService.IsInitialized;
+
+    public string AutoStartDescription => IsOpenVREnabled
+        ? Strings.Resources.AutoStartSettings_Description
+        : Strings.Resources.AutoStartSettingsUnavailableDescription;
+
+    public void RefreshOpenVrState()
+    {
+        _openVRService.InitIfNotAlready();
+        OnPropertyChanged(nameof(IsOpenVREnabled));
+        OnPropertyChanged(nameof(AutoStartDescription));
+        OnPropertyChanged(nameof(AutoStart));
+    }
+
+    public bool DeveloperMode
+    {
+        get => Developer.Enabled;
+        set
+        {
+            Developer.Enabled = value;
+            _ = _localSettingsService.SaveSettingAsync(DeveloperSettings.SettingKey, value);
+            OnPropertyChanged();
+        }
+    }
+
+    public static bool IsOpenVRSupported => OpenVRService.IsSupported;
 
     public bool ExitWithSteamVr
     {
-        get => OpenVRService.ExitWithSteamVr;
+        get => _openVRService.ExitWithSteamVr;
         set
         {
-            OpenVRService.ExitWithSteamVr = value;
-            _ = _localSettingsService.Save(OpenVRService);
+            _openVRService.ExitWithSteamVr = value;
+            _ = _localSettingsService.Save(_openVRService);
             OnPropertyChanged();
         }
     }
@@ -89,18 +107,18 @@ public partial class SettingsViewModel : ObservableRecipient
         }
     }
 
-    public bool IsVerboseToggleEnabled => !BuildInfo.VerboseForced;
+    public static bool IsVerboseToggleEnabled => !BuildInfo.VerboseForced;
 
-    public string VerboseDescription => BuildInfo.VerboseForced
-        ? "VerboseLoggingForcedDescription".GetLocalized()
-        : "VerboseLoggingDescription".GetLocalized();
+    public static string VerboseDescription => BuildInfo.VerboseForced
+        ? Strings.Resources.VerboseLoggingForcedDescription
+        : Strings.Resources.VerboseLoggingDescription;
 
-    public double LogFilesToKeep
+    public decimal LogFilesToKeep
     {
         get => _loggingSettings.LogFilesToKeep;
         set
         {
-            var clamped = double.IsNaN(value) ? LoggingSettings.DefaultLogFilesToKeep : (int)Math.Clamp(value, 1, 200);
+            var clamped = (int)Math.Clamp(value, 1, 200);
             if (clamped == _loggingSettings.LogFilesToKeep)
             {
                 return;
@@ -112,9 +130,30 @@ public partial class SettingsViewModel : ObservableRecipient
         }
     }
 
-    public string LogDirectory => Core.Utils.LogDirectory;
+    public static string LogDirectory => Core.Utils.LogDirectory;
 
-    public bool IsUpdateCheckAvailable => BuildInfo.Channel != BuildChannel.Dev;
+    [ObservableProperty] private string _pendingLogDirectory = Core.Utils.LogDirectory;
+
+    public string LogFolderDescription => PendingLogDirectory == Core.Utils.LogDirectory
+        ? Core.Utils.LogDirectory
+        : string.Format(Strings.Resources.LogFolderPendingDescription, PendingLogDirectory);
+
+    public bool HasCustomLogFolder => PendingLogDirectory != Core.Utils.DefaultLogDirectory;
+
+    public async Task SetLogDirectoryAsync(string path)
+    {
+        await _localSettingsService.SaveSettingAsync(Core.Utils.LogDirectorySettingKey, path);
+        PendingLogDirectory = path;
+        OnPropertyChanged(nameof(LogFolderDescription));
+        OnPropertyChanged(nameof(HasCustomLogFolder));
+    }
+
+    public ICommand ResetLogDirectoryCommand
+    {
+        get;
+    }
+
+    public static bool IsUpdateCheckAvailable => BuildInfo.Channel != BuildChannel.Dev;
 
     public bool CheckUpdatesOnStartup
     {
@@ -127,54 +166,60 @@ public partial class SettingsViewModel : ObservableRecipient
         }
     }
 
-    public string VersionText => $"{BuildInfo.VersionString} ({BuildInfo.ChannelName})";
+    public static string VersionText => $"{BuildInfo.VersionString} ({BuildInfo.ChannelName})";
 
-    private async void LoadContributors()
+    public SettingsViewModel(
+        GithubService githubService,
+        OpenVRService openVRService,
+        DeveloperSettings developerSettings,
+        IOscTarget oscTarget,
+        RiskySettingsViewModel riskySettingsViewModel,
+        LoggingSettings loggingSettings,
+        LogLevelGate logGate,
+        ILocalSettingsService localSettingsService,
+        UpdateSettings updateSettings,
+        UpdateService updateService)
     {
-        try
-        {
-            Contributors = await GithubService.GetContributors("benaclejames/VRCFaceTracking");
-        }
-        catch (Exception)
-        {
-            Contributors = new List<GithubContributor>();
-        }
-    }
-
-    public SettingsViewModel(IThemeSelectorService themeSelectorService, GithubService githubService, OpenVRService openVRService,
-        LoggingSettings loggingSettings, LogLevelGate logGate, ILocalSettingsService localSettingsService,
-        UpdateSettings updateSettings, UpdateService updateService)
-    {
-        _themeSelectorService = themeSelectorService;
+        _openVRService = openVRService;
+        Developer = developerSettings;
+        OscTarget = oscTarget;
+        RiskySettings = riskySettingsViewModel;
         _loggingSettings = loggingSettings;
         _logGate = logGate;
         _localSettingsService = localSettingsService;
         _updateSettings = updateSettings;
         _updateService = updateService;
-        GithubService = githubService;
-        OpenVRService = openVRService;
-
-        _elementTheme = _themeSelectorService.Theme;
-
-        SwitchThemeCommand = new RelayCommand<ElementTheme>(
-            async (param) =>
-            {
-                if (ElementTheme != param)
-                {
-                    ElementTheme = param;
-                    await _themeSelectorService.SetThemeAsync(param);
-                }
-            });
 
         OpenLogsCommand = new RelayCommand(() =>
         {
             Directory.CreateDirectory(Core.Utils.LogDirectory);
-            Process.Start(new ProcessStartInfo("explorer.exe", Core.Utils.LogDirectory) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(Core.Utils.LogDirectory) { UseShellExecute = true });
         });
 
         CheckUpdatesCommand = new AsyncRelayCommand(() => _updateService.CheckAsync(true));
+        ResetLogDirectoryCommand = new AsyncRelayCommand(() => SetLogDirectoryAsync(Core.Utils.DefaultLogDirectory));
 
-        OpenVRService.InitIfNotAlready();
-        LoadContributors();
+        LoadContributors(githubService);
+    }
+
+    public Task<string?> ReadThemeAsync() => _localSettingsService.ReadSettingAsync<string?>(ThemeSettingKey);
+
+    public Task SaveThemeAsync(string theme) => _localSettingsService.SaveSettingAsync(ThemeSettingKey, theme);
+
+    private async void LoadContributors(GithubService githubService)
+    {
+        try
+        {
+            var bundled = githubService.GetBundledContributors();
+            if (bundled.Count > 0)
+            {
+                Contributors = bundled;
+                return;
+            }
+            Contributors = await githubService.GetContributors("benaclejames/VRCFaceTracking");
+        }
+        catch
+        {
+        }
     }
 }

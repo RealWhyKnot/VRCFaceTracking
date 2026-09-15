@@ -18,6 +18,9 @@ public class OpenVRService
     private CVRSystem? _system;
     private CancellationTokenSource? _pollingCts;
     private Task? _reconnectLoop;
+    private bool _nativeMissing;
+
+    public static bool IsSupported => !OperatingSystem.IsMacOS();
 
     public event Action? QuitRequested;
 
@@ -41,8 +44,22 @@ public class OpenVRService
                 return true;
             }
 
+            if (!IsSupported || _nativeMissing)
+            {
+                return false;
+            }
+
             var error = EVRInitError.None;
-            _system = OpenVR.Init(ref error, EVRApplicationType.VRApplication_Background);
+            try
+            {
+                _system = OpenVR.Init(ref error, EVRApplicationType.VRApplication_Background);
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException or TypeInitializationException)
+            {
+                _nativeMissing = true;
+                _logger.LogWarning("OpenVR native library not available: {Message}", ex.Message);
+                return false;
+            }
 
             if (error != EVRInitError.None)
             {
@@ -77,6 +94,10 @@ public class OpenVRService
 
     public void StartReconnectLoop()
     {
+        if (!IsSupported || _nativeMissing)
+        {
+            return;
+        }
         _reconnectLoop ??= ReconnectAsync();
     }
 

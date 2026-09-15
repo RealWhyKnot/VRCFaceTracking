@@ -4,7 +4,6 @@ using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Helpers;
 using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Models;
-using Windows.Storage;
 
 namespace VRCFaceTracking.Services;
 
@@ -120,28 +119,18 @@ public class LocalSettingsService : ILocalSettingsService
 
     public async Task<T?> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false)
     {
-        if (RuntimeHelper.IsMSIX && !forceLocal)
-        {
-            if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out var obj))
-            {
-                return await ParseSettingAsync(key, obj, defaultValue);
-            }
-        }
-        else
-        {
-            await InitializeAsync();
+        await InitializeAsync();
 
-            object? obj;
-            bool found;
-            lock (_settingsLock)
-            {
-                found = _settings != null && _settings.TryGetValue(key, out obj);
-                obj = found ? _settings![key] : null;
-            }
-            if (found)
-            {
-                return await ParseSettingAsync(key, obj, defaultValue);
-            }
+        object? obj;
+        bool found;
+        lock (_settingsLock)
+        {
+            found = _settings != null && _settings.TryGetValue(key, out obj);
+            obj = found ? _settings![key] : null;
+        }
+        if (found)
+        {
+            return await ParseSettingAsync(key, obj, defaultValue);
         }
 
         return defaultValue;
@@ -167,22 +156,15 @@ public class LocalSettingsService : ILocalSettingsService
 
     public async Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false)
     {
-        if (RuntimeHelper.IsMSIX && !forceLocal)
-        {
-            ApplicationData.Current.LocalSettings.Values[key] = await Json.StringifyAsync(value);
-        }
-        else
-        {
-            await InitializeAsync();
+        await InitializeAsync();
 
-            var json = await Json.StringifyAsync(value);
-            lock (_settingsLock)
-            {
-                _settings[key] = json;
-            }
-
-            _ = FlushSaveSettings();
+        var json = await Json.StringifyAsync(value);
+        lock (_settingsLock)
+        {
+            _settings[key] = json;
         }
+
+        _ = FlushSaveSettings();
     }
 
     public async Task Load(object instance)

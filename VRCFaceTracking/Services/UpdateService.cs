@@ -1,15 +1,17 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.Threading;
+using FluentAvalonia.UI.Controls;
 using Microsoft.Extensions.Logging;
-using Microsoft.UI.Xaml.Controls;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Helpers;
 using VRCFaceTracking.Core.Updates;
-using VRCFaceTracking.Helpers;
+using VRCFaceTracking.Strings;
 
 namespace VRCFaceTracking.Services;
 
@@ -69,7 +71,7 @@ public class UpdateService
                 _logger.LogInformation("No release newer than {version} on the {channel} channel", current, BuildInfo.ChannelName);
                 if (manual)
                 {
-                    await ShowMessageAsync("UpdateUpToDateTitle".GetLocalized(), string.Format("UpdateUpToDateContent".GetLocalized(), BuildInfo.ChannelName));
+                    await ShowMessageAsync(Resources.UpdateUpToDateTitle, string.Format(Resources.UpdateUpToDateContent, BuildInfo.ChannelName));
                 }
 
                 return;
@@ -84,11 +86,11 @@ public class UpdateService
             _logger.LogInformation("Release {tag} is newer than {version}", release.TagName, current);
             var choice = await ShowDialogAsync(() => new ContentDialog
             {
-                Title = "UpdateDialogTitle".GetLocalized(),
-                Content = string.Format("UpdateDialogContent".GetLocalized(), release.TagName),
-                PrimaryButtonText = "UpdateDialogUpdate".GetLocalized(),
-                SecondaryButtonText = "UpdateDialogSkip".GetLocalized(),
-                CloseButtonText = "UpdateDialogLater".GetLocalized(),
+                Title = Resources.UpdateDialogTitle,
+                Content = string.Format(Resources.UpdateDialogContent, release.TagName),
+                PrimaryButtonText = Resources.UpdateDialogUpdate,
+                SecondaryButtonText = Resources.UpdateDialogSkip,
+                CloseButtonText = Resources.UpdateDialogLater,
                 DefaultButton = ContentDialogButton.Primary,
             });
 
@@ -112,7 +114,7 @@ public class UpdateService
             _logger.LogWarning(e, "Update check failed");
             if (manual)
             {
-                await ShowMessageAsync("UpdateFailedTitle".GetLocalized(), "UpdateFailedContent".GetLocalized());
+                await ShowMessageAsync(Resources.UpdateFailedTitle, Resources.UpdateFailedContent);
             }
         }
         finally
@@ -146,9 +148,8 @@ public class UpdateService
             bar = new ProgressBar { Minimum = 0, Maximum = 1, IsIndeterminate = true };
             progress = new ContentDialog
             {
-                Title = "UpdateDownloadingTitle".GetLocalized(),
+                Title = Resources.UpdateDownloadingTitle,
                 Content = new StackPanel { Spacing = 8, Children = { new TextBlock { Text = zipName }, bar } },
-                XamlRoot = App.MainWindow.Content.XamlRoot,
             };
             _ = progress.ShowAsync();
         });
@@ -215,13 +216,13 @@ public class UpdateService
 
             Process.Start(psi);
             _logger.LogInformation("Update helper started for {tag}; closing to apply", release.TagName);
-            OnUi(() => _ = ((MainWindow)App.MainWindow).CloseAfterTeardown());
+            OnUi(() => _ = App.MainWindow!.CloseAfterTeardown());
         }
         catch (Exception e)
         {
             _logger.LogWarning(e, "Update to {tag} failed", release.TagName);
             OnUi(() => progress?.Hide());
-            await ShowMessageAsync("UpdateFailedTitle".GetLocalized(), "UpdateFailedContent".GetLocalized());
+            await ShowMessageAsync(Resources.UpdateFailedTitle, Resources.UpdateFailedContent);
             return;
         }
 
@@ -264,55 +265,13 @@ public class UpdateService
     {
         Title = title,
         Content = content,
-        CloseButtonText = "UpdateUpToDateClose".GetLocalized(),
+        CloseButtonText = Resources.UpdateUpToDateClose,
     });
 
-    private static Task<ContentDialogResult> ShowDialogAsync(Func<ContentDialog> build)
-    {
-        var tcs = new TaskCompletionSource<ContentDialogResult>();
-        var queued = App.MainWindow.DispatcherQueue.TryEnqueue(async () =>
-        {
-            try
-            {
-                var dialog = build();
-                dialog.XamlRoot = App.MainWindow.Content.XamlRoot;
-                tcs.SetResult(await dialog.ShowAsync());
-            }
-            catch (Exception e)
-            {
-                tcs.SetException(e);
-            }
-        });
-        if (!queued)
-        {
-            tcs.SetException(new InvalidOperationException("UI dispatcher unavailable"));
-        }
+    private static Task<ContentDialogResult> ShowDialogAsync(Func<ContentDialog> build) =>
+        Dispatcher.UIThread.InvokeAsync(() => build().ShowAsync());
 
-        return tcs.Task;
-    }
+    private static async Task OnUiAsync(Action action) => await Dispatcher.UIThread.InvokeAsync(action);
 
-    private static Task OnUiAsync(Action action)
-    {
-        var tcs = new TaskCompletionSource();
-        var queued = App.MainWindow.DispatcherQueue.TryEnqueue(() =>
-        {
-            try
-            {
-                action();
-                tcs.SetResult();
-            }
-            catch (Exception e)
-            {
-                tcs.SetException(e);
-            }
-        });
-        if (!queued)
-        {
-            tcs.SetException(new InvalidOperationException("UI dispatcher unavailable"));
-        }
-
-        return tcs.Task;
-    }
-
-    private static void OnUi(Action action) => App.MainWindow.DispatcherQueue.TryEnqueue(() => action());
+    private static void OnUi(Action action) => Dispatcher.UIThread.Post(() => action());
 }

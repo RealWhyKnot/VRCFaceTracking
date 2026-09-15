@@ -1,5 +1,7 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Microsoft.UI.Xaml;
+﻿using System.Runtime.InteropServices.Swift;
+using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using VRCFaceTracking.Contracts;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.OSC;
@@ -29,6 +31,7 @@ public partial class MainViewModel : ObservableRecipient
     {
         get;
     }
+    private readonly IModuleDataService _moduleDataService;
 
     private int _messagesRecvd;
     [ObservableProperty] private int _messagesInPerSec;
@@ -40,7 +43,7 @@ public partial class MainViewModel : ObservableRecipient
 
     [ObservableProperty] private bool _oscWasDisabled;
 
-    private DispatcherTimer msgCounterTimer;
+    private readonly DispatcherTimer msgCounterTimer;
 
     public MainViewModel(
         ILibManager libManager,
@@ -57,11 +60,7 @@ public partial class MainViewModel : ObservableRecipient
         OscTarget = oscTarget;
         OscRecvService = oscRecvService;
         OscSendService = oscSendService;
-
-        // Modules
-        var installedNewModules = moduleDataService.GetInstalledModules();
-        var installedLegacyModules = moduleDataService.GetLegacyModules().Count();
-        NoModulesInstalled = !installedNewModules.Any() && installedLegacyModules == 0;
+        _moduleDataService = moduleDataService;
 
         // Message Timer
         OscRecvService.OnMessageReceived += MessageReceived;
@@ -79,12 +78,22 @@ public partial class MainViewModel : ObservableRecipient
             _messagesSent = 0;
         };
         msgCounterTimer.Start();
+
+        OnNavigatedTo();
+    }
+
+    public void OnNavigatedTo()
+    {
+        // Modules
+        var installedNewModules = _moduleDataService.GetInstalledModules();
+        var installedLegacyModules = _moduleDataService.GetLegacyModules().Count();
+        NoModulesInstalled = !installedNewModules.Any() && installedLegacyModules == 0;
     }
 
     private void MessageReceived(OscMessage msg) => _messagesRecvd++;
     private void MessageDispatched(int msgCount) => _messagesSent += msgCount;
 
-    public void Cleanup()
+    ~MainViewModel()
     {
         OscRecvService.OnMessageReceived -= MessageReceived;
         OscSendService.OnMessagesDispatched -= MessageDispatched;

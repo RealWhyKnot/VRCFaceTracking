@@ -13,7 +13,6 @@ try {
   if (Test-Path -LiteralPath $OutDir) { Remove-Item -LiteralPath $OutDir -Recurse -Force }
 
   & dotnet publish VRCFaceTracking/VRCFaceTracking.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained true `
-    -p:WindowsPackageType=None -p:GenerateAppInstallerFile=false -p:AppxPackageDir= `
     "-p:VftBuildChannel=$Channel" "-p:VftVersion=$Version" -o $OutDir
   if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
 

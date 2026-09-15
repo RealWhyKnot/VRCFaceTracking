@@ -11,17 +11,12 @@
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.11" />
     <PackageVersion Include="FluentAvaloniaUI" Version="2.4.1" />
     <PackageVersion Include="Microsoft.ICU.ICU4C.Runtime" Version="68.2.0.9" />
-    <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageVersion Include="CommunityToolkit.WinUI.Controls.RangeSelector" Version="8.2.251219" />
     <PackageVersion Include="Gameloop.Vdf" Version="0.6.2" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
-    <PackageVersion Include="Microsoft.Xaml.Behaviors.WinUI.Managed" Version="3.0.1" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageVersion Include="System.CommandLine" Version="2.0.11" />
-    <PackageVersion Include="WinUIEx" Version="2.9.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />

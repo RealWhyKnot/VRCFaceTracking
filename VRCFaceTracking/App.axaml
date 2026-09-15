@@ -25,6 +25,6 @@
 
     <Application.Styles>
         <sty:FluentAvaloniaTheme PreferSystemTheme="False" PreferUserAccentColor="True" />
-        <StyleInclude Source="avares://VRCFaceTracking.Avalonia/Styles/Shared.axaml" />
+        <StyleInclude Source="avares://VRCFaceTracking/Styles/Shared.axaml" />
     </Application.Styles>
 </Application>

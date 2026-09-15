@@ -56,6 +56,6 @@ if ($Publish) {
 	& (Join-Path $PSScriptRoot ".github/scripts/Publish-App.ps1") -Channel $Channel -Version $Version -OutDir "build/publish"
 	if ($LASTEXITCODE -ne 0) { throw "publish failed (exit $LASTEXITCODE)" }
 } else {
-	$exe = Join-Path $PSScriptRoot "VRCFaceTracking\bin\x64\$Configuration\net10.0-windows10.0.22621.0\win-x64\VRCFaceTracking.exe"
+	$exe = Join-Path $PSScriptRoot "VRCFaceTracking\bin\x64\$Configuration\net10.0\VRCFaceTracking.exe"
 	Write-Host "built $exe"
 }
