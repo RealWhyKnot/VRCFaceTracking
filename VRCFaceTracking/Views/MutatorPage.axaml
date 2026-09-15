@@ -40,7 +40,7 @@
                                             <Border.IsVisible>
                                                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                                                     <Binding Path="!IsDeveloper" />
-                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).DeveloperMode" />
+                                                    <Binding Path="$parent[UserControl].DataContext.DeveloperMode" />
                                                 </MultiBinding>
                                             </Border.IsVisible>
                                             <Grid ColumnDefinitions="5*,6*">
@@ -95,7 +95,7 @@
                                             <Border.IsVisible>
                                                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                                                     <Binding Path="!IsDeveloper" />
-                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).DeveloperMode" />
+                                                    <Binding Path="$parent[UserControl].DataContext.DeveloperMode" />
                                                 </MultiBinding>
                                             </Border.IsVisible>
                                             <Grid ColumnDefinitions="5*,6*">
