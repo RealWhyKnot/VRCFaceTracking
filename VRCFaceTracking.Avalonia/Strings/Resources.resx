@@ -662,16 +662,16 @@
   <data name="ForceRelevancyTooltip" xml:space="preserve">
     <value>Sends every parameter regardless of whether the avatar uses it. Increases network traffic.</value>
   </data>
-  <data name="MutationsSectionHeader" xml:space="preserve">
-    <value>Tracking mutations</value>
-  </data>
-  <data name="MutationsMasterDescription" xml:space="preserve">
-    <value>Master switch for all mutations below. When off, tracking data passes through untouched.</value>
-  </data>
   <data name="ShowDeveloperSettingsContent" xml:space="preserve">
     <value>Show developer settings</value>
   </data>
   <data name="MutationActiveToggleTooltip" xml:space="preserve">
-    <value>Enable this mutation. The master switch above must also be on.</value>
+    <value>Enable this mutation.</value>
+  </data>
+  <data name="MutationToggleOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="MutationToggleOff" xml:space="preserve">
+    <value>Off</value>
   </data>
 </root>

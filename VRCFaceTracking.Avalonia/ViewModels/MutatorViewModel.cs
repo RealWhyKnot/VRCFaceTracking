@@ -11,7 +11,6 @@ namespace VRCFaceTracking.ViewModels;
 
 public class MutatorViewModel : ObservableRecipient
 {
-    private readonly UnifiedTrackingMutator _trackingMutator;
     private readonly ILocalSettingsService _localSettingsService;
 
     public ObservableCollection<TrackingMutation> Mutations { get; } = new();
@@ -19,17 +18,6 @@ public class MutatorViewModel : ObservableRecipient
     public DeveloperSettings Developer
     {
         get;
-    }
-
-    public bool MutatorEnabled
-    {
-        get => _trackingMutator.Enabled;
-        set
-        {
-            _trackingMutator.Enabled = value;
-            _ = _trackingMutator.Save();
-            OnPropertyChanged();
-        }
     }
 
     public bool DeveloperMode
@@ -45,7 +33,6 @@ public class MutatorViewModel : ObservableRecipient
 
     public MutatorViewModel(UnifiedTrackingMutator trackingMutator, DeveloperSettings developer, ILocalSettingsService localSettingsService)
     {
-        _trackingMutator = trackingMutator;
         Developer = developer;
         _localSettingsService = localSettingsService;
 

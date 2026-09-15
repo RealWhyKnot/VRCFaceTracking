@@ -978,7 +978,7 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Enable this mutation. The master switch above must also be on..
+        ///   Looks up a localized string similar to Enable this mutation..
         /// </summary>
         public static string MutationActiveToggleTooltip {
             get {
@@ -987,20 +987,20 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Master switch for all mutations below. When off, tracking data passes through untouched..
+        ///   Looks up a localized string similar to Off.
         /// </summary>
-        public static string MutationsMasterDescription {
+        public static string MutationToggleOff {
             get {
-                return ResourceManager.GetString("MutationsMasterDescription", resourceCulture);
+                return ResourceManager.GetString("MutationToggleOff", resourceCulture);
             }
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Tracking mutations.
+        ///   Looks up a localized string similar to On.
         /// </summary>
-        public static string MutationsSectionHeader {
+        public static string MutationToggleOn {
             get {
-                return ResourceManager.GetString("MutationsSectionHeader", resourceCulture);
+                return ResourceManager.GetString("MutationToggleOn", resourceCulture);
             }
         }
         

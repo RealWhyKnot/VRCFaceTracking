@@ -8,18 +8,8 @@
     x:DataType="vm:MutatorViewModel"
     x:Class="VRCFaceTracking.Views.MutatorPage">
 
-    <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageRootMargin}">
-        <ui:SettingsExpander
-            Grid.Row="0"
-            Header="{x:Static s:Resources.MutationsSectionHeader}"
-            Description="{x:Static s:Resources.MutationsMasterDescription}"
-            Margin="0,0,0,8">
-            <ui:SettingsExpander.Footer>
-                <ToggleSwitch IsChecked="{Binding MutatorEnabled, Mode=TwoWay}" OffContent="" OnContent="" />
-            </ui:SettingsExpander.Footer>
-        </ui:SettingsExpander>
-
-        <ScrollViewer Grid.Row="1" IsEnabled="{Binding MutatorEnabled}">
+    <Grid RowDefinitions="*,Auto" Margin="{StaticResource PageRootMargin}">
+        <ScrollViewer Grid.Row="0">
         <ItemsControl ItemsSource="{Binding Mutations}" Margin="0,4">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="{x:Type mutation:TrackingMutation}">
@@ -29,10 +19,11 @@
                                 <ToggleSwitch
                                     Grid.Column="0"
                                     IsChecked="{Binding IsActive, Mode=TwoWay}"
-                                    OffContent=""
-                                    OnContent=""
+                                    OffContent="{x:Static s:Resources.MutationToggleOff}"
+                                    OnContent="{x:Static s:Resources.MutationToggleOn}"
                                     ToolTip.Tip="{x:Static s:Resources.MutationActiveToggleTooltip}"
                                     Margin="0,0,12,0"
+                                    MinWidth="86"
                                     VerticalAlignment="Center" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding Name}" />
@@ -122,7 +113,7 @@
         </ScrollViewer>
 
         <CheckBox
-            Grid.Row="2"
+            Grid.Row="1"
             Content="{x:Static s:Resources.ShowDeveloperSettingsContent}"
             IsChecked="{Binding DeveloperMode, Mode=TwoWay}"
             Margin="0,8,0,0" />
