@@ -1,0 +1,80 @@
+using System.Reflection;
+using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
+using VRCFaceTracking.Contracts.Services;
+using VRCFaceTracking.Core.Contracts.Services;
+using VRCFaceTracking.Core.Models;
+using VRCFaceTracking.Core.Services;
+
+namespace VRCFaceTracking.Services;
+
+public class ActivationService(
+    OscQueryService parameterOutputService,
+    IMainService mainService,
+    IModuleDataService moduleDataService,
+    ModuleInstaller moduleInstaller,
+    ILibManager libManager,
+    ILogger<ActivationService> logger,
+    OpenVRService openVrService,
+    UpdateService updateService)
+    : IActivationService
+{
+    public async Task ActivateAsync(object activationArgs)
+    {
+        logger.LogInformation("VRCFT Version {version} initializing...", Assembly.GetExecutingAssembly().GetName().Version);
+
+        logger.LogInformation("Initializing OSC...");
+        await parameterOutputService.InitializeAsync().ConfigureAwait(false);
+
+        logger.LogInformation("Initializing main service...");
+        await mainService.InitializeAsync().ConfigureAwait(false);
+
+        logger.LogInformation("Initializing OpenVR...");
+        if (!openVrService.Initialize())
+        {
+            logger.LogWarning("Failed to initialize OpenVR during ActivationService startup. Will keep retrying in the background.");
+        }
+        openVrService.StartReconnectLoop();
+
+        logger.LogDebug("Checking for deletion requests for installed modules...");
+        var needsDeleting = moduleDataService.GetInstalledModules().Concat(moduleDataService.GetLegacyModules())
+            .Where(m => m.InstallationState == InstallState.AwaitingRestart);
+        foreach (var deleteModule in needsDeleting)
+        {
+            moduleInstaller.UninstallModule(deleteModule);
+        }
+
+        logger.LogInformation("Checking for updates for installed modules...");
+        var localModules = moduleDataService.GetInstalledModules().Where(m => m.ModuleId != Guid.Empty);
+        var remoteModules = await moduleDataService.GetRemoteModules();
+        var outdatedModules = remoteModules.Where(rm => localModules.Any(lm =>
+        {
+            if (rm.ModuleId != lm.ModuleId || lm.IsLocal)
+            {
+                return false;
+            }
+
+            try
+            {
+                var remoteVersion = new Version(rm.Version);
+                var localVersion = new Version(lm.Version);
+
+                return remoteVersion.CompareTo(localVersion) > 0;
+            }
+            catch
+            {
+                return string.CompareOrdinal(rm.Version, lm.Version) > 0;
+            }
+        }));
+        foreach (var outdatedModule in outdatedModules)
+        {
+            logger.LogInformation($"Updating {outdatedModule.ModuleName} from {localModules.First(rm => rm.ModuleId == outdatedModule.ModuleId).Version} to {outdatedModule.Version}");
+            await moduleInstaller.InstallRemoteModule(outdatedModule);
+        }
+
+        logger.LogInformation("Initializing modules...");
+        Dispatcher.UIThread.Post(() => libManager.Initialize());
+
+        _ = updateService.CheckOnStartupAsync();
+    }
+}

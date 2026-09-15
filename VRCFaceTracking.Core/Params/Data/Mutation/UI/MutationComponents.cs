@@ -61,9 +61,36 @@ public class MutationProperty : IMutationComponent, INotifyPropertyChanged
             {
                 _value = value;
                 OnPropertyChanged(nameof(Value));
+                OnPropertyChanged(nameof(BoolValue));
+                OnPropertyChanged(nameof(FloatValue));
+                OnPropertyChanged(nameof(StringValue));
                 _updateField?.Invoke(_value);
             }
         }
+    }
+
+    public bool BoolValue
+    {
+        get => _value is true;
+        set => Value = value;
+    }
+
+    public float FloatValue
+    {
+        get => _value switch
+        {
+            float f => f,
+            double d => (float)d,
+            int i => i,
+            _ => 0f,
+        };
+        set => Value = value;
+    }
+
+    public string StringValue
+    {
+        get => _value?.ToString() ?? string.Empty;
+        set => Value = value;
     }
 
     public string Name
