@@ -50,6 +50,8 @@ if ($LASTEXITCODE -ne 0) { throw "build failed (exit $LASTEXITCODE)" }
 if (-not $SkipTests) {
 	& dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
 	if ($LASTEXITCODE -ne 0) { throw "tests failed (exit $LASTEXITCODE)" }
+	& dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
+	if ($LASTEXITCODE -ne 0) { throw "ui tests failed (exit $LASTEXITCODE)" }
 }
 
 if ($Publish) {
