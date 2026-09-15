@@ -47,7 +47,7 @@ public class OscQueryConfigParser(
 
             // God help me why is this something I need to do to get the avatar name
             // this impl is really disappointing vrc
-            var configFileInfo = await configParser.ParseAvatar(avatarInfo.Id);
+            var configFileInfo = await configParser.ParseAvatar(avatarInfo.Id, skipParams: true);
             parserLogger.LogInformation($"Attempting to resolve avatar config file for {avatarInfo.Id}");
             if (!string.IsNullOrEmpty(configFileInfo?.avatarInfo.Name))
             {

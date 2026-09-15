@@ -19,7 +19,7 @@ public class AvatarConfigParser
         _logger = parserLogger;
     }
 
-    public async Task<(IAvatarInfo avatarInfo, List<Parameter> relevantParameters)?> ParseAvatar(string newId)
+    public async Task<(IAvatarInfo avatarInfo, List<Parameter> relevantParameters)?> ParseAvatar(string newId, bool skipParams = false)
     {
         if (string.IsNullOrEmpty(newId))
         {
@@ -89,13 +89,16 @@ public class AvatarConfigParser
             return null;
         }
 
-        _logger.LogInformation("Parsing config file for avatar: {avatarName}", avatarConfig.name);
-        ParameterSenderService.Clear();
-        var parameters = avatarConfig.parameters.Where(param => param.input != null).ToArray<IParameterDefinition>();
-
-        foreach (var parameter in UnifiedTracking.AllParameters)
+        if (!skipParams)
         {
-            paramList.AddRange(parameter.ResetParam(parameters));
+            _logger.LogInformation("Parsing config file for avatar: {avatarName}", avatarConfig.name);
+            ParameterSenderService.Clear();
+            var parameters = avatarConfig.parameters.Where(param => param.input != null).ToArray<IParameterDefinition>();
+
+            foreach (var parameter in UnifiedTracking.AllParameters)
+            {
+                paramList.AddRange(parameter.ResetParam(parameters));
+            }
         }
 
         //_lastAvatarId = newId;
