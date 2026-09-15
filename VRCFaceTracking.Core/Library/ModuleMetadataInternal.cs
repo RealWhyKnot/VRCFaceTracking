@@ -81,6 +81,53 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
         }
     }
 
+    private TrackingCapability? _allowedCapabilities;
+
+    public TrackingCapability? AllowedCapabilities
+    {
+        get => _allowedCapabilities;
+        set
+        {
+            if (_allowedCapabilities == value)
+            {
+                return;
+            }
+            _allowedCapabilities = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowedCapabilities)));
+        }
+    }
+
+    private bool _supportedEye;
+    private bool _supportedExpression;
+
+    public bool SupportedEye
+    {
+        get => _supportedEye;
+        set
+        {
+            if (_supportedEye == value)
+            {
+                return;
+            }
+            _supportedEye = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SupportedEye)));
+        }
+    }
+
+    public bool SupportedExpression
+    {
+        get => _supportedExpression;
+        set
+        {
+            if (_supportedExpression == value)
+            {
+                return;
+            }
+            _supportedExpression = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SupportedExpression)));
+        }
+    }
+
     private bool _crashed;
     private string _crashDescription = string.Empty;
 

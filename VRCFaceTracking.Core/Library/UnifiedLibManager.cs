@@ -52,9 +52,14 @@ public class UnifiedLibManager : ILibManager
     }
     private readonly List<ModuleRuntimeInfo> _moduleThreads = new();
     private readonly IModuleDataService _moduleDataService;
+    private readonly ILocalSettingsService _localSettingsService;
     private readonly object _modulesLock = new();
     private readonly ModuleRestartPolicy _restartPolicy = new();
     private int _initGeneration;
+
+    private const string CapabilityOverridesSettingKey = "ModuleCapabilityOverrides";
+    private readonly object _overridesLock = new();
+    private Dictionary<string, TrackingCapability> _capabilityOverrides = new();
 
     private string _sandboxProcessPath
     {
@@ -68,7 +73,7 @@ public class UnifiedLibManager : ILibManager
     private static VrcftSandboxServer _sandboxServer;
     #endregion
 
-    public UnifiedLibManager(ILoggerFactory factory, IDispatcherService dispatcherService, IModuleDataService moduleDataService, LogLevelGate logGate)
+    public UnifiedLibManager(ILoggerFactory factory, IDispatcherService dispatcherService, IModuleDataService moduleDataService, ILocalSettingsService localSettingsService, LogLevelGate logGate)
     {
         _loggerFactory = factory;
         _logGate = logGate;
@@ -77,6 +82,7 @@ public class UnifiedLibManager : ILibManager
         _moduleLogger = factory.CreateLogger("\0VRCFT\0");
         _dispatcherService = dispatcherService;
         _moduleDataService = moduleDataService;
+        _localSettingsService = localSettingsService;
 
         LoadedModulesMetadata = new ObservableCollection<ModuleMetadataInternal>();
         _sandboxProcessPath = Path.Combine(AppContext.BaseDirectory, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "VRCFaceTracking.ModuleProcess.exe" : "VRCFaceTracking.ModuleProcess");
@@ -206,12 +212,16 @@ public class UnifiedLibManager : ILibManager
 
                             module.SupportsEyeTracking = replySupportedPacket.eyeAvailable;
                             module.SupportsExpressionTracking = replySupportedPacket.expressionAvailable;
+                            module.ModuleInformation.SupportedEye = replySupportedPacket.eyeAvailable;
+                            module.ModuleInformation.SupportedExpression = replySupportedPacket.expressionAvailable;
+
+                            var allowedMask = module.ModuleInformation.AllowedCapabilities ?? TrackingCapability.All;
 
                             // Now tell it to initialise
                             EventInitPacket eventInitPacket = new EventInitPacket()
                             {
-                                expressionAvailable = replySupportedPacket.expressionAvailable,
-                                eyeAvailable = replySupportedPacket.eyeAvailable,
+                                expressionAvailable = replySupportedPacket.expressionAvailable && (allowedMask & TrackingCapabilities.ExpressionHalf) != TrackingCapability.None,
+                                eyeAvailable = replySupportedPacket.eyeAvailable && (allowedMask & TrackingCapabilities.EyeHalf) != TrackingCapability.None,
                             };
                             _logger.LogInformation("Got supported for module {module}. Expr: {} Eye: {}...",
                                 module.ModuleClassName,
@@ -250,6 +260,12 @@ public class UnifiedLibManager : ILibManager
                             var portCopy = port; // So that we can use it in the lambda method
                             module.ModuleInformation.PropertyChanged += (_, args) =>
                             {
+                                if (args.PropertyName == nameof(ModuleMetadataInternal.AllowedCapabilities))
+                                {
+                                    OnAllowedCapabilitiesChanged(module);
+                                    return;
+                                }
+
                                 if (args.PropertyName is not (nameof(ModuleMetadataInternal.Active)
                                     or nameof(ModuleMetadataInternal.UsingEye)
                                     or nameof(ModuleMetadataInternal.UsingExpression)))
@@ -370,6 +386,8 @@ public class UnifiedLibManager : ILibManager
                 // Kill lingering threads
                 TeardownAllAndResetAsync();
 
+                LoadCapabilityOverrides();
+
                 // Find all modules
                 var modules = _moduleDataService.GetInstalledModules().Concat(_moduleDataService.GetLegacyModules());
                 var modulePaths = modules.Select(m => m.AssemblyLoadPath);
@@ -413,6 +431,66 @@ public class UnifiedLibManager : ILibManager
         _initializeWorker.Start();
     }
 
+    private void LoadCapabilityOverrides()
+    {
+        try
+        {
+            var stored = _localSettingsService
+                .ReadSettingAsync<Dictionary<string, TrackingCapability>>(CapabilityOverridesSettingKey, forceLocal: true)
+                .GetAwaiter().GetResult();
+            lock (_overridesLock)
+            {
+                _capabilityOverrides = stored ?? new Dictionary<string, TrackingCapability>();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Failed to load module capability overrides: {message}", ex.Message);
+        }
+    }
+
+    private void OnAllowedCapabilitiesChanged(ModuleRuntimeInfo module)
+    {
+        var info = module.ModuleInformation;
+        var path = module.SandboxModulePath;
+        Dictionary<string, TrackingCapability> snapshot;
+        lock (_overridesLock)
+        {
+            if (info.AllowedCapabilities is { } allowed)
+            {
+                _capabilityOverrides[path] = allowed;
+            }
+            else
+            {
+                _capabilityOverrides.Remove(path);
+            }
+            snapshot = new Dictionary<string, TrackingCapability>(_capabilityOverrides);
+        }
+
+        _ = SaveCapabilityOverridesAsync(snapshot);
+
+        var allowedMask = info.AllowedCapabilities ?? TrackingCapability.All;
+        if (((allowedMask & TrackingCapabilities.EyeHalf) != TrackingCapability.None && info.SupportedEye && !module.EyeInitialized) ||
+            ((allowedMask & TrackingCapabilities.ExpressionHalf) != TrackingCapability.None && info.SupportedExpression && !module.ExpressionInitialized))
+        {
+            _logger.LogInformation("{module} was initialized without one of the halves now allowed; restart modules to activate it", module.ModuleClassName);
+        }
+
+        RecomputeCapabilityAssignments();
+    }
+
+    private async Task SaveCapabilityOverridesAsync(Dictionary<string, TrackingCapability> snapshot)
+    {
+        try
+        {
+            await _localSettingsService.SaveSettingAsync(CapabilityOverridesSettingKey, snapshot, true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Failed to save module capability overrides: {message}", ex.Message);
+        }
+    }
+
     private void RecomputeCapabilityAssignments()
     {
         ModuleRuntimeInfo[] modules;
@@ -431,7 +509,7 @@ public class UnifiedLibManager : ILibManager
             if (participates)
             {
                 participants.Add(module);
-                candidates.Add(new CapabilityCandidate(module.EyeInitialized, module.ExpressionInitialized, null));
+                candidates.Add(new CapabilityCandidate(module.EyeInitialized, module.ExpressionInitialized, info.AllowedCapabilities));
             }
             else
             {
@@ -470,6 +548,10 @@ public class UnifiedLibManager : ILibManager
         try
         {
             metadata.ModulePath = dll;
+            lock (_overridesLock)
+            {
+                metadata.AllowedCapabilities = _capabilityOverrides.TryGetValue(dll, out var stored) ? stored : null;
+            }
             var verboseFlag = _logGate.Verbose ? " --verbose" : string.Empty;
             var sandboxProcess = Process.Start(new ProcessStartInfo(
                 _sandboxProcessPath, $"--port {_sandboxServer.Port} --module-path \"{dll}\" --parent-pid {Environment.ProcessId}{verboseFlag}"
