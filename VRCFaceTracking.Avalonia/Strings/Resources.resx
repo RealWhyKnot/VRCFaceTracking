@@ -581,4 +581,97 @@
   <data name="ModulesInitializingHeader" xml:space="preserve">
     <value>Starting modules</value>
   </data>
+  <data name="OscSectionHeader" xml:space="preserve">
+    <value>OSC</value>
+  </data>
+  <data name="OpenVrSectionHeader" xml:space="preserve">
+    <value>SteamVR</value>
+  </data>
+  <data name="AdvancedSectionHeader" xml:space="preserve">
+    <value>ADVANCED</value>
+  </data>
+  <data name="DeveloperSectionHeader" xml:space="preserve">
+    <value>DEVELOPER</value>
+  </data>
+  <data name="DeveloperModeHeader" xml:space="preserve">
+    <value>Developer mode</value>
+  </data>
+  <data name="DeveloperModeDescription" xml:space="preserve">
+    <value>Show logging and advanced settings. On by default for dev and beta builds.</value>
+  </data>
+  <data name="AutoStartSettingsUnavailableDescription" xml:space="preserve">
+    <value>SteamVR is not running. Start SteamVR to change this.</value>
+  </data>
+  <data name="LogFolderPendingDescription" xml:space="preserve">
+    <value>{0} - applies on next launch</value>
+  </data>
+  <data name="LogFolderPickerTitle" xml:space="preserve">
+    <value>Choose log folder</value>
+  </data>
+  <data name="LogFolderChangeContent" xml:space="preserve">
+    <value>Change...</value>
+  </data>
+  <data name="LogFolderResetContent" xml:space="preserve">
+    <value>Use default</value>
+  </data>
+  <data name="GremlinModeToggleContent" xml:space="preserve">
+    <value>Gremlin Mode</value>
+  </data>
+  <data name="CameraStreamsHeader" xml:space="preserve">
+    <value>Camera streams</value>
+  </data>
+  <data name="CameraStreamsEye" xml:space="preserve">
+    <value>Eye</value>
+  </data>
+  <data name="CameraStreamsLip" xml:space="preserve">
+    <value>Lip</value>
+  </data>
+  <data name="CameraStreamsWaiting" xml:space="preserve">
+    <value>Waiting for frames...</value>
+  </data>
+  <data name="CameraStreamsNone" xml:space="preserve">
+    <value>No camera image from this module.</value>
+  </data>
+  <data name="OscInPortTooltip" xml:space="preserve">
+    <value>Port VRChat sends to. Only used when OSCQuery is unavailable.</value>
+  </data>
+  <data name="OscAddressTooltip" xml:space="preserve">
+    <value>Where parameters are sent. Change only for a second PC.</value>
+  </data>
+  <data name="OscOutPortTooltip" xml:space="preserve">
+    <value>Port VRChat listens on. 9000 unless you changed it.</value>
+  </data>
+  <data name="AutoStartSettingsTooltip" xml:space="preserve">
+    <value>Launch VRCFaceTracking automatically with SteamVR.</value>
+  </data>
+  <data name="VerboseLoggingTooltip" xml:space="preserve">
+    <value>Much larger log files. Turn on before reproducing a bug.</value>
+  </data>
+  <data name="LogFilesToKeepTooltip" xml:space="preserve">
+    <value>Older files are deleted at startup.</value>
+  </data>
+  <data name="LogFolderTooltip" xml:space="preserve">
+    <value>Takes effect the next time VRCFaceTracking starts.</value>
+  </data>
+  <data name="CheckUpdatesTooltip" xml:space="preserve">
+    <value>Ask GitHub for a newer release right now.</value>
+  </data>
+  <data name="GremlinModeTooltip" xml:space="preserve">
+    <value>Unlocks actions that can break your setup.</value>
+  </data>
+  <data name="ForceRelevancyTooltip" xml:space="preserve">
+    <value>Sends every parameter regardless of whether the avatar uses it. Increases network traffic.</value>
+  </data>
+  <data name="MutationsSectionHeader" xml:space="preserve">
+    <value>Tracking mutations</value>
+  </data>
+  <data name="MutationsMasterDescription" xml:space="preserve">
+    <value>Master switch for all mutations below. When off, tracking data passes through untouched.</value>
+  </data>
+  <data name="ShowDeveloperSettingsContent" xml:space="preserve">
+    <value>Show developer settings</value>
+  </data>
+  <data name="MutationActiveToggleTooltip" xml:space="preserve">
+    <value>Enable this mutation. The master switch above must also be on.</value>
+  </data>
 </root>

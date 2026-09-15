@@ -42,7 +42,41 @@ public static class Utils
     public static readonly string UserAccessibleDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "VRCFaceTracking");
     public static readonly string PersistentDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VRCFaceTracking");
     public static readonly string CustomLibsDirectory = Path.Combine(PersistentDataDirectory, "CustomLibs");
-    public static readonly string LogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCFaceTracking", "logs");
+    public const string LogDirectorySettingKey = "LogDirectory";
+    public static readonly string DefaultLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VRCFaceTracking", "logs");
+    public static readonly string LogDirectory = ResolveLogDirectory();
+
+    private static string ResolveLogDirectory()
+    {
+        try
+        {
+            var settingsPath = Path.Combine(PersistentDataDirectory, "VRCFaceTracking", "ApplicationData", "LocalSettings.json");
+            if (!File.Exists(settingsPath))
+            {
+                return DefaultLogDirectory;
+            }
+
+            var obj = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(settingsPath));
+            var raw = (string?)obj[LogDirectorySettingKey];
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return DefaultLogDirectory;
+            }
+
+            var custom = Newtonsoft.Json.JsonConvert.DeserializeObject<string>(raw);
+            if (string.IsNullOrWhiteSpace(custom))
+            {
+                return DefaultLogDirectory;
+            }
+
+            Directory.CreateDirectory(custom);
+            return custom;
+        }
+        catch
+        {
+            return DefaultLogDirectory;
+        }
+    }
 
     public static int GetRandomFreePort()
     {

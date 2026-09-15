@@ -29,6 +29,10 @@ public partial class SettingsViewModel : ObservableRecipient
     {
         get;
     }
+    public DeveloperSettings Developer
+    {
+        get;
+    }
     public RiskySettingsViewModel RiskySettings
     {
         get;
@@ -54,6 +58,29 @@ public partial class SettingsViewModel : ObservableRecipient
     }
 
     public bool IsOpenVREnabled => _openVRService.IsInitialized;
+
+    public string AutoStartDescription => IsOpenVREnabled
+        ? Strings.Resources.AutoStartSettings_Description
+        : Strings.Resources.AutoStartSettingsUnavailableDescription;
+
+    public void RefreshOpenVrState()
+    {
+        _openVRService.InitIfNotAlready();
+        OnPropertyChanged(nameof(IsOpenVREnabled));
+        OnPropertyChanged(nameof(AutoStartDescription));
+        OnPropertyChanged(nameof(AutoStart));
+    }
+
+    public bool DeveloperMode
+    {
+        get => Developer.Enabled;
+        set
+        {
+            Developer.Enabled = value;
+            _ = _localSettingsService.SaveSettingAsync(DeveloperSettings.SettingKey, value);
+            OnPropertyChanged();
+        }
+    }
 
     public static bool IsOpenVRSupported => OpenVRService.IsSupported;
 
@@ -105,6 +132,27 @@ public partial class SettingsViewModel : ObservableRecipient
 
     public static string LogDirectory => Core.Utils.LogDirectory;
 
+    [ObservableProperty] private string _pendingLogDirectory = Core.Utils.LogDirectory;
+
+    public string LogFolderDescription => PendingLogDirectory == Core.Utils.LogDirectory
+        ? Core.Utils.LogDirectory
+        : string.Format(Strings.Resources.LogFolderPendingDescription, PendingLogDirectory);
+
+    public bool HasCustomLogFolder => PendingLogDirectory != Core.Utils.DefaultLogDirectory;
+
+    public async Task SetLogDirectoryAsync(string path)
+    {
+        await _localSettingsService.SaveSettingAsync(Core.Utils.LogDirectorySettingKey, path);
+        PendingLogDirectory = path;
+        OnPropertyChanged(nameof(LogFolderDescription));
+        OnPropertyChanged(nameof(HasCustomLogFolder));
+    }
+
+    public ICommand ResetLogDirectoryCommand
+    {
+        get;
+    }
+
     public static bool IsUpdateCheckAvailable => BuildInfo.Channel != BuildChannel.Dev;
 
     public bool CheckUpdatesOnStartup
@@ -123,6 +171,7 @@ public partial class SettingsViewModel : ObservableRecipient
     public SettingsViewModel(
         GithubService githubService,
         OpenVRService openVRService,
+        DeveloperSettings developerSettings,
         IOscTarget oscTarget,
         RiskySettingsViewModel riskySettingsViewModel,
         LoggingSettings loggingSettings,
@@ -132,6 +181,7 @@ public partial class SettingsViewModel : ObservableRecipient
         UpdateService updateService)
     {
         _openVRService = openVRService;
+        Developer = developerSettings;
         OscTarget = oscTarget;
         RiskySettings = riskySettingsViewModel;
         _loggingSettings = loggingSettings;
@@ -147,8 +197,8 @@ public partial class SettingsViewModel : ObservableRecipient
         });
 
         CheckUpdatesCommand = new AsyncRelayCommand(() => _updateService.CheckAsync(true));
+        ResetLogDirectoryCommand = new AsyncRelayCommand(() => SetLogDirectoryAsync(Core.Utils.DefaultLogDirectory));
 
-        _openVRService.InitIfNotAlready();
         LoadContributors(githubService);
     }
 

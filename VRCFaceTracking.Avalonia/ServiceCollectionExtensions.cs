@@ -51,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ParameterSenderService>();
         services.AddSingleton<UnifiedTrackingMutator>();
         services.AddTransient<GithubService>();
+        services.AddSingleton<DeveloperSettings>();
         services.AddSingleton<UpdateSettings>();
         services.AddSingleton<UpdateService>();
 
