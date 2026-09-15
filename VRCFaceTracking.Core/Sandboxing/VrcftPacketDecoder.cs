@@ -34,93 +34,93 @@ public class VrcftPacketDecoder
         // Based on packet type, switch to specific packet decoder
         try
         {
-        switch (packetType)
-        {
-            // Handshake
-            case IpcPacket.PacketType.Handshake:
-                packet = new HandshakePacket();
-                packet.Decode(data);
-                break;
+            switch (packetType)
+            {
+                // Handshake
+                case IpcPacket.PacketType.Handshake:
+                    packet = new HandshakePacket();
+                    packet.Decode(data);
+                    break;
 
-            // SplitPacketChunk
-            case IpcPacket.PacketType.SplitPacketChunk:
-                packet = new PartialPacket();
-                packet.Decode(data);
-                break;
-
-
-            // EventGetSupported
-            case IpcPacket.PacketType.EventGetSupported:
-                packet = new EventInitGetSupported();
-                packet.Decode(data);
-                break;
-
-            // EventInit
-            case IpcPacket.PacketType.EventInit:
-                packet = new EventInitPacket();
-                packet.Decode(data);
-                break;
-
-            // EventTeardown
-            case IpcPacket.PacketType.EventTeardown:
-                packet = new EventTeardownPacket();
-                packet.Decode(data);
-                break;
-
-            // EventUpdate
-            case IpcPacket.PacketType.EventUpdate:
-                packet = new EventUpdatePacket();
-                packet.Decode(data);
-                break;
-
-            // EventLog
-            case IpcPacket.PacketType.EventLog:
-                packet = new EventLogPacket();
-                packet.Decode(data);
-                break;
-
-            case IpcPacket.PacketType.EventSetVerbose:
-                packet = new EventSetVerbosePacket();
-                packet.Decode(data);
-                break;
+                // SplitPacketChunk
+                case IpcPacket.PacketType.SplitPacketChunk:
+                    packet = new PartialPacket();
+                    packet.Decode(data);
+                    break;
 
 
+                // EventGetSupported
+                case IpcPacket.PacketType.EventGetSupported:
+                    packet = new EventInitGetSupported();
+                    packet.Decode(data);
+                    break;
 
-            // EventGetSupported
-            case IpcPacket.PacketType.ReplyGetSupported:
-                packet = new ReplySupportedPacket();
-                packet.Decode(data);
-                break;
+                // EventInit
+                case IpcPacket.PacketType.EventInit:
+                    packet = new EventInitPacket();
+                    packet.Decode(data);
+                    break;
 
-            // ReplyInit
-            case IpcPacket.PacketType.ReplyInit:
-                packet = new ReplyInitPacket();
-                packet.Decode(data);
-                break;
+                // EventTeardown
+                case IpcPacket.PacketType.EventTeardown:
+                    packet = new EventTeardownPacket();
+                    packet.Decode(data);
+                    break;
 
-            // ReplyUpdate
-            case IpcPacket.PacketType.ReplyUpdate:
-                packet = new ReplyUpdatePacket();
-                packet.Decode(data);
-                break;
+                // EventUpdate
+                case IpcPacket.PacketType.EventUpdate:
+                    packet = new EventUpdatePacket();
+                    packet.Decode(data);
+                    break;
 
-            // ReplyTeardown
-            case IpcPacket.PacketType.ReplyTeardown:
-                packet = new ReplyTeardownPacket();
-                packet.Decode(data);
-                break;
+                // EventLog
+                case IpcPacket.PacketType.EventLog:
+                    packet = new EventLogPacket();
+                    packet.Decode(data);
+                    break;
 
-            // EventUpdateStatus
-            case IpcPacket.PacketType.EventUpdateStatus:
-                packet = new EventStatusUpdatePacket();
-                packet.Decode(data);
-                break;
+                case IpcPacket.PacketType.EventSetVerbose:
+                    packet = new EventSetVerbosePacket();
+                    packet.Decode(data);
+                    break;
 
-            // Invalid packet
-            case IpcPacket.PacketType.Unknown:
-            default:
-                return false;
-        }
+
+
+                // EventGetSupported
+                case IpcPacket.PacketType.ReplyGetSupported:
+                    packet = new ReplySupportedPacket();
+                    packet.Decode(data);
+                    break;
+
+                // ReplyInit
+                case IpcPacket.PacketType.ReplyInit:
+                    packet = new ReplyInitPacket();
+                    packet.Decode(data);
+                    break;
+
+                // ReplyUpdate
+                case IpcPacket.PacketType.ReplyUpdate:
+                    packet = new ReplyUpdatePacket();
+                    packet.Decode(data);
+                    break;
+
+                // ReplyTeardown
+                case IpcPacket.PacketType.ReplyTeardown:
+                    packet = new ReplyTeardownPacket();
+                    packet.Decode(data);
+                    break;
+
+                // EventUpdateStatus
+                case IpcPacket.PacketType.EventUpdateStatus:
+                    packet = new EventStatusUpdatePacket();
+                    packet.Decode(data);
+                    break;
+
+                // Invalid packet
+                case IpcPacket.PacketType.Unknown:
+                default:
+                    return false;
+            }
         }
         catch (Exception)
         {
