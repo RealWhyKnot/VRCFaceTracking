@@ -14,18 +14,10 @@ namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
 public class Calibration : TrackingMutation
 {
-#if DEBUG
-    [MutationProperty("[DEBUG] Window Size")]
-#endif
+    [MutationProperty("[DEV] Window Size")]
     public static int points = 64;
-#if DEBUG
-    [MutationProperty("[DEBUG] Step Delta")]
-#endif
-    public static float sDelta = 0.15f; // prevents noisy or unintended data from being included in data set
-#if DEBUG
-    [MutationProperty("[DEBUG] Calibration Delta")]
-#endif
-    public static float cDelta = 0.1f; // prevents noisy or unintended data from being included in data set
+    [MutationProperty("[DEV] Step Delta")]
+    public static float sDelta = 0.15f;
     [MutationProperty("Calibration Blend", true)]
     public float calibrationBlend = 1f;
 
@@ -166,8 +158,7 @@ public class Calibration : TrackingMutation
         }
     }
 
-#if DEBUG
-    [MutationButton("[DEBUG] Log Data")]
+    [MutationButton("[DEV] Log Data")]
     public void LogData()
     {
         Logger.LogInformation("Logging Calibration data:" +
@@ -181,7 +172,6 @@ public class Calibration : TrackingMutation
                                   $"\n  weighted value: {calData.Shapes[i].CalculateParameter(UnifiedTracking.Data.Shapes[i].Weight, calibrationBlend)}");
         }
     }
-#endif
 
     [MutationButton("Reset Calibration")]
     public void ClearData() => calData.Clear();

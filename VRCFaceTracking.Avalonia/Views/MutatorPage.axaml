@@ -2,12 +2,24 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ui="using:FluentAvalonia.UI.Controls"
+    xmlns:s="using:VRCFaceTracking.Strings"
     xmlns:vm="using:VRCFaceTracking.ViewModels"
     xmlns:mutation="clr-namespace:VRCFaceTracking.Core.Params.Data.Mutation;assembly=VRCFaceTracking.Core"
     x:DataType="vm:MutatorViewModel"
     x:Class="VRCFaceTracking.Views.MutatorPage">
 
-    <ScrollViewer>
+    <Grid RowDefinitions="Auto,*,Auto" Margin="{StaticResource PageRootMargin}">
+        <ui:SettingsExpander
+            Grid.Row="0"
+            Header="{x:Static s:Resources.MutationsSectionHeader}"
+            Description="{x:Static s:Resources.MutationsMasterDescription}"
+            Margin="0,0,0,8">
+            <ui:SettingsExpander.Footer>
+                <ToggleSwitch IsChecked="{Binding MutatorEnabled, Mode=TwoWay}" OffContent="" OnContent="" />
+            </ui:SettingsExpander.Footer>
+        </ui:SettingsExpander>
+
+        <ScrollViewer Grid.Row="1" IsEnabled="{Binding MutatorEnabled}">
         <ItemsControl ItemsSource="{Binding Mutations}" Margin="0,4">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="{x:Type mutation:TrackingMutation}">
@@ -19,6 +31,7 @@
                                     IsChecked="{Binding IsActive, Mode=TwoWay}"
                                     OffContent=""
                                     OnContent=""
+                                    ToolTip.Tip="{x:Static s:Resources.MutationActiveToggleTooltip}"
                                     Margin="0,0,12,0"
                                     VerticalAlignment="Center" />
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
@@ -33,6 +46,12 @@
                                 <ItemsControl.DataTemplates>
                                     <DataTemplate x:DataType="{x:Type mutation:MutationProperty}">
                                         <Border Padding="16,10" Margin="0,1">
+                                            <Border.IsVisible>
+                                                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                                    <Binding Path="!IsDeveloper" />
+                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).DeveloperMode" />
+                                                </MultiBinding>
+                                            </Border.IsVisible>
                                             <Grid ColumnDefinitions="5*,6*">
                                                 <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                 <CheckBox
@@ -82,8 +101,13 @@
 
                                     <DataTemplate x:DataType="{x:Type mutation:MutationAction}">
                                         <Border Padding="16,10" Margin="0,1">
+                                            <Border.IsVisible>
+                                                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                                                    <Binding Path="!IsDeveloper" />
+                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).DeveloperMode" />
+                                                </MultiBinding>
+                                            </Border.IsVisible>
                                             <Grid ColumnDefinitions="5*,6*">
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                 <Button Grid.Column="1" Content="{Binding Name}" Command="{Binding}" HorizontalAlignment="Right" />
                                             </Grid>
                                         </Border>
@@ -95,5 +119,12 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-    </ScrollViewer>
+        </ScrollViewer>
+
+        <CheckBox
+            Grid.Row="2"
+            Content="{x:Static s:Resources.ShowDeveloperSettingsContent}"
+            IsChecked="{Binding DeveloperMode, Mode=TwoWay}"
+            Margin="0,8,0,0" />
+    </Grid>
 </UserControl>
