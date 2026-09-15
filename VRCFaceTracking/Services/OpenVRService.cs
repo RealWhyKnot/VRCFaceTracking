@@ -14,6 +14,7 @@ public class OpenVRService
 
     private readonly ILogger<OpenVRService> _logger;
     private readonly object _initLock = new();
+    private readonly CancellationTokenSource _serviceCts = new();
     private CVRSystem? _system;
     private CancellationTokenSource? _pollingCts;
     private Task? _reconnectLoop;
@@ -81,24 +82,41 @@ public class OpenVRService
 
     private async Task ReconnectAsync()
     {
-        using var timer = new PeriodicTimer(ReconnectInterval);
-        while (await timer.WaitForNextTickAsync())
+        try
         {
-            if (!IsInitialized)
+            using var timer = new PeriodicTimer(ReconnectInterval);
+            while (await timer.WaitForNextTickAsync(_serviceCts.Token))
             {
-                Initialize(true);
+                if (!IsInitialized)
+                {
+                    Initialize(true);
+                }
             }
         }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "OpenVR reconnect loop stopped");
+        }
+    }
+
+    public void StopService()
+    {
+        _serviceCts.Cancel();
+        Shutdown();
     }
 
     private async Task PumpEventsAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(EventPollInterval);
         try
         {
+            using var timer = new PeriodicTimer(EventPollInterval);
             while (await timer.WaitForNextTickAsync(ct))
             {
-                if (_system == null || DrainEvents())
+                var system = _system;
+                if (system == null || DrainEvents(system))
                 {
                     return;
                 }
@@ -107,12 +125,19 @@ public class OpenVRService
         catch (OperationCanceledException)
         {
         }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "OpenVR event pump stopped unexpectedly");
+        }
     }
 
-    private bool DrainEvents()
+    private bool DrainEvents(CVRSystem system)
     {
         var vrEvent = new VREvent_t();
-        while (_system!.PollNextEvent(ref vrEvent, EventSize))
+        while (system.PollNextEvent(ref vrEvent, EventSize))
         {
             if ((EVREventType)vrEvent.eventType != EVREventType.VREvent_Quit)
             {
@@ -122,7 +147,7 @@ public class OpenVRService
             if (ExitWithSteamVr)
             {
                 _logger.LogInformation("SteamVR is shutting down, closing VRCFaceTracking");
-                _system.AcknowledgeQuit_Exiting();
+                system.AcknowledgeQuit_Exiting();
                 Shutdown();
                 QuitRequested?.Invoke();
             }
@@ -148,6 +173,7 @@ public class OpenVRService
             }
 
             _pollingCts?.Cancel();
+            _pollingCts?.Dispose();
             _pollingCts = null;
             IsInitialized = false;
             _system = null;

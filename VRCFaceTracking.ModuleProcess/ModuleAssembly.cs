@@ -68,7 +68,7 @@ public class ModuleAssembly
 
             foreach (var type in Assembly.GetExportedTypes())
             {
-                if (type.BaseType != typeof(ExtTrackingModule))
+                if (!type.IsSubclassOf(typeof(ExtTrackingModule)))
                 {
                     continue;
                 }

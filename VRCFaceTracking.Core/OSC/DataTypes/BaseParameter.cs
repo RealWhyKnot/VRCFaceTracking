@@ -117,10 +117,4 @@ public class BaseParam<T> : Parameter where T : struct
     public override bool Deprecated => !_paramName.StartsWith(CurrentVersionPrefix);
 
     protected virtual void Process(UnifiedTrackingData data) => ParamValue = _getValueFunc.Invoke(data);
-
-    ~BaseParam()
-    {
-        // Not sure if this is actually needed, but it's good practice
-        UnifiedTracking.OnUnifiedDataUpdated -= Process;
-    }
 }

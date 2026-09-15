@@ -114,8 +114,9 @@ public class OscSendService
         var index = 0;
         while (index < messages.Count)
         {
+            var lastIndex = index;
             var length = fti_osc.create_osc_bundle(_sendBuffer, _metaBuffer, messages.Count, ref index);
-            if (length <= 0)
+            if (length <= 0 || index <= lastIndex)
             {
                 _logger.LogError("OSC bundle encoding failed at message {Index} of {Count}", index, messages.Count);
                 break;

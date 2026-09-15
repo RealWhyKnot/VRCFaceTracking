@@ -768,6 +768,11 @@ public class UnifiedLibManager : ILibManager
                 AvailableSandboxModules.Clear();
             }
 
+            foreach (var module in threadModules.Concat(sandboxModules).Distinct())
+            {
+                module?.Process?.Dispose();
+            }
+
             EyeStatus = ModuleState.Uninitialized;
             ExpressionStatus = ModuleState.Uninitialized;
         }
@@ -775,6 +780,13 @@ public class UnifiedLibManager : ILibManager
         {
             _teardownInProgress = false;
         }
+    }
+
+    public static void ShutdownSandboxServer()
+    {
+        var server = _sandboxServer;
+        _sandboxServer = null;
+        server?.Close();
     }
 
     private void TeardownOneModule(ModuleRuntimeInfo module)

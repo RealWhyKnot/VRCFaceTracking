@@ -10,6 +10,7 @@ public static class UpdateHelperScript
         void Line(string text) => sb.Append(text).Append("\r\n");
 
         Line("$ErrorActionPreference = 'Stop'");
+        Line("$applied = $false");
         Line("try {");
         Line($"    Wait-Process -Id {processId} -Timeout 300 -ErrorAction SilentlyContinue");
         Line("    $attempt = 0");
@@ -23,12 +24,18 @@ public static class UpdateHelperScript
         Line("            Start-Sleep -Seconds 1");
         Line("        }");
         Line("    }");
+        Line("    $applied = $true");
+        Line("} catch {");
+        Line($"    'update apply FAILED; the install may be partially overwritten' | Add-Content -LiteralPath {Quote(logPath)}");
+        Line($"    $_ | Out-String | Add-Content -LiteralPath {Quote(logPath)}");
+        Line("}");
+        Line("try {");
         Line($"    Start-Process -FilePath {Quote(exePath)} -WorkingDirectory {Quote(installDir)}");
-        Line($"    Remove-Item -LiteralPath {Quote(stagingDir)} -Recurse -Force -ErrorAction SilentlyContinue");
         Line("} catch {");
         Line($"    $_ | Out-String | Add-Content -LiteralPath {Quote(logPath)}");
-        Line("    exit 1");
         Line("}");
+        Line($"Remove-Item -LiteralPath {Quote(stagingDir)} -Recurse -Force -ErrorAction SilentlyContinue");
+        Line("if (-not $applied) { exit 1 }");
         return sb.ToString();
     }
 

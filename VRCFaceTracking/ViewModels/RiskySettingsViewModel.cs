@@ -24,13 +24,19 @@ public partial class RiskySettingsViewModel(
     /// If something goes very wrong some time during init, this can be used to force retry.
     /// Most modules likely will not like this.
     /// </summary>
-    public void ForceReInit()
+    public async void ForceReInit()
     {
         logger.LogInformation("Reinitializing VRCFT...");
 
-        mainService.Teardown();
-
-        mainService.InitializeAsync();
+        try
+        {
+            await mainService.Teardown();
+            await mainService.InitializeAsync();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Reinitialize failed");
+        }
     }
 
     /// <summary>
@@ -42,7 +48,7 @@ public partial class RiskySettingsViewModel(
 
         // Create a file in the VRCFT folder called "reset"
         // This will cause the app to reset on the next launch
-        File.Create(Path.Combine(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "reset"));
+        File.Create(Path.Combine(VRCFaceTracking.Core.Utils.PersistentDataDirectory, "reset")).Dispose();
     }
 
     /// <summary>

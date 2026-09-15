@@ -139,6 +139,13 @@ public partial class UnifiedTrackingMutator : ObservableObject
     {
         // Try to load config and propogate data into Unified if they exist.
         _logger.LogDebug("Loading mutation data...");
+        _dispatcherService.Run(() =>
+        {
+            lock (_mutationsLock)
+            {
+                _mutations.Clear();
+            }
+        });
         IEnumerable<TrackingMutation> mutations;
         try
         {

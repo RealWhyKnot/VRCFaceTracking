@@ -32,7 +32,7 @@ public partial class OscQueryService(
     {
         logger.LogDebug("OSC Service Initializing");
 
-        recvService.OnMessageReceived = HandleNewMessage;
+        recvService.OnMessageReceived += HandleNewMessage;
 
         await settingsService.Load(oscTarget);
 
@@ -78,31 +78,45 @@ public partial class OscQueryService(
         HandleNewAvatar();
     }
 
+    private readonly SemaphoreSlim _avatarParseLock = new(1, 1);
+
     private async void HandleNewAvatar(string newId = null)
     {
-        (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? newAvatar;
-        if (multicastDnsService.VrchatClientEndpoint != null)
+        await _avatarParseLock.WaitAsync();
+        try
         {
-            newAvatar = await oscQueryConfigParser.ParseAvatar("");
-        }
-        else
-        {
-            // handle normal osc
-            newAvatar = await avatarConfigParser.ParseAvatar(newId);
-        }
+            (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? newAvatar;
+            if (multicastDnsService.VrchatClientEndpoint != null)
+            {
+                newAvatar = await oscQueryConfigParser.ParseAvatar("");
+            }
+            else
+            {
+                // handle normal osc
+                newAvatar = await avatarConfigParser.ParseAvatar(newId);
+            }
 
-        if (!newAvatar.HasValue)
-        {
-            return;
-        }
+            if (!newAvatar.HasValue)
+            {
+                return;
+            }
 
-        // Parsing success. Deregister callback and update values
-        httpHandler.OnHostInfoQueried -= HandleNewAvatarWrapper;
-        dispatcherService.Run(() =>
+            // Parsing success. Deregister callback and update values
+            httpHandler.OnHostInfoQueried -= HandleNewAvatarWrapper;
+            dispatcherService.Run(() =>
+            {
+                AvatarInfo = newAvatar.Value.avatarInfo;
+                AvatarParameters = newAvatar.Value.relevantParameters;
+            });
+        }
+        catch (Exception ex)
         {
-            AvatarInfo = newAvatar.Value.avatarInfo;
-            AvatarParameters = newAvatar.Value.relevantParameters;
-        });
+            logger.LogError(ex, "Failed to load the avatar configuration");
+        }
+        finally
+        {
+            _avatarParseLock.Release();
+        }
     }
 
     private void HandleNewAvatarWrapper() => HandleNewAvatar(); // Helper func used in callbacks

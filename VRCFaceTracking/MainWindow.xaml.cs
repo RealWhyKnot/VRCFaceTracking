@@ -39,6 +39,13 @@ public sealed partial class MainWindow : WindowEx
         UnifiedLibManager.MarkAppShutdown();
         try
         {
+            App.GetService<Services.OpenVRService>().StopService();
+        }
+        catch (Exception)
+        {
+        }
+        try
+        {
             await App.GetService<IMainService>().Teardown();
         }
         catch (Exception ex)
@@ -46,6 +53,13 @@ public sealed partial class MainWindow : WindowEx
             App.GetService<ILoggerFactory>().CreateLogger<MainWindow>().LogError(ex, "Teardown failed; closing anyway");
         }
         await App.StopHostAsync();
+        try
+        {
+            UnifiedLibManager.ShutdownSandboxServer();
+        }
+        catch (Exception)
+        {
+        }
         Close();
     }
 }

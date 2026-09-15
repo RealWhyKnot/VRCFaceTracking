@@ -59,10 +59,10 @@ public class UnifiedTracking
     /// <summary>
     /// Central update action for all expression data to subscribe to.
     /// </summary>
-    public static Action<UnifiedTrackingData> OnUnifiedDataUpdated = OnUnifiedDataUpdated + (_ => { }) ?? (_ => { });
+    public static event Action<UnifiedTrackingData> OnUnifiedDataUpdated;
 
     /// <summary>
     /// Central update function that updates all output parameter data and pushes the latest expressions from VRCFaceTracking modules into the internal expressions buffer.
     /// </summary>
-    public static void UpdateData() => OnUnifiedDataUpdated.Invoke(Mutator.MutateData(Data));
+    public static void UpdateData() => OnUnifiedDataUpdated?.Invoke(Mutator.MutateData(Data));
 }

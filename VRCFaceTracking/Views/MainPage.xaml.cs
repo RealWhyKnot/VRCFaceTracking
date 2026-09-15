@@ -22,6 +22,7 @@ public sealed partial class MainPage : Page
         ViewModel = App.GetService<MainViewModel>();
         NavigationService = App.GetService<INavigationService>();
 
+        Unloaded += (_, _) => ViewModel.Cleanup();
         InitializeComponent();
     }
 

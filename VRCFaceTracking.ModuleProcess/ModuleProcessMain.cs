@@ -26,7 +26,7 @@ public class ModuleProcessMain
 
     private static readonly LogLevelGate Gate = new();
     private static FileLoggerProvider? _fileLogger;
-    private static readonly Queue<IpcPacket> _packetsToSend = new();
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<IpcPacket> _packetsToSend = new();
     private static Timer? _connectionTimer;
     private static volatile bool _connected;
     private static Thread? _updateThread;
@@ -179,7 +179,15 @@ public class ModuleProcessMain
             Client.SendData(pkt);
         };
 
-        DefModuleAssembly = new ModuleAssembly(Logger, LoggerFactory, modulePath);
+        try
+        {
+            DefModuleAssembly = new ModuleAssembly(Logger, LoggerFactory, modulePath);
+        }
+        catch (ArgumentException e)
+        {
+            Logger.LogError("Invalid module path {Path}: {Message}", modulePath, e.Message);
+            return ModuleProcessExitCodes.MODULE_LOAD_FAILED;
+        }
         DefModuleAssembly.TryLoadAssembly();
         if (DefModuleAssembly.TrackingModule == null)
         {
@@ -259,6 +267,7 @@ public class ModuleProcessMain
                                 while (!DefModuleAssembly._updateCts.IsCancellationRequested)
                                 {
                                     DefModuleAssembly.TrackingModule.Update();
+                                    Thread.Sleep(1);
                                 }
                             }
                             catch (Exception e)

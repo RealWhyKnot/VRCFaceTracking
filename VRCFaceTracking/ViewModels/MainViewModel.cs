@@ -84,7 +84,7 @@ public partial class MainViewModel : ObservableRecipient
     private void MessageReceived(OscMessage msg) => _messagesRecvd++;
     private void MessageDispatched(int msgCount) => _messagesSent += msgCount;
 
-    ~MainViewModel()
+    public void Cleanup()
     {
         OscRecvService.OnMessageReceived -= MessageReceived;
         OscSendService.OnMessagesDispatched -= MessageDispatched;

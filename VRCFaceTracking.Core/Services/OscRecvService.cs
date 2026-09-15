@@ -15,6 +15,8 @@ public class OscRecvService : BackgroundService
     private readonly IOscTarget _oscTarget;
     private readonly ILocalSettingsService _settingsService;
 
+    private const int SIO_UDP_CONNRESET = -1744830452;
+
     private Socket _recvSocket;
     private readonly byte[] _recvBuffer = new byte[4096];
 
@@ -79,6 +81,10 @@ public class OscRecvService : BackgroundService
         _oscTarget.IsConnected = false;
 
         _recvSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        if (OperatingSystem.IsWindows())
+        {
+            _recvSocket.IOControl((IOControlCode)SIO_UDP_CONNRESET, new byte[] { 0, 0, 0, 0 }, null);
+        }
 
         try
         {
@@ -93,8 +99,12 @@ public class OscRecvService : BackgroundService
         }
         finally
         {
+            var oldCts = _cts;
+            var oldLinked = _linkedToken;
             _cts = new CancellationTokenSource();
             _linkedToken = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken, _cts.Token);
+            oldCts.Dispose();
+            oldLinked?.Dispose();
         }
 
         return null;
@@ -110,13 +120,15 @@ public class OscRecvService : BackgroundService
         {
             try
             {
-                if (_linkedToken.IsCancellationRequested || _recvSocket is not { IsBound: true })
+                var socket = _recvSocket;
+                var linkedToken = _linkedToken;
+                if (linkedToken.IsCancellationRequested || socket is not { IsBound: true })
                 {
                     await Task.Delay(50, _stoppingToken);
                     continue;
                 }
 
-                var bytesReceived = await _recvSocket.ReceiveAsync(_recvBuffer, SocketFlags.None, _linkedToken.Token);
+                var bytesReceived = await socket.ReceiveAsync(_recvBuffer, SocketFlags.None, linkedToken.Token);
                 var offset = 0;
                 var newMsg = OscMessage.TryParseOsc(_recvBuffer, bytesReceived, ref offset);
                 if (newMsg == null)
@@ -135,6 +147,13 @@ public class OscRecvService : BackgroundService
                 }
 
                 _logger.LogError(e, "Error encountered in OSC Receive thread");
+                try
+                {
+                    await Task.Delay(500, _stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                }
             }
         }
     }

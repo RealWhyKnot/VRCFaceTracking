@@ -18,7 +18,7 @@ public partial class MulticastDnsService : ObservableObject
 
     private static readonly Dictionary<IPAddress, UdpClient> Senders = new();
     private static readonly Dictionary<UdpClient, CancellationToken> Receivers = new();
-    private static readonly Dictionary<string, AdvertisedService> Services = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, AdvertisedService> Services = new();
 
     public Action OnVrcClientDiscovered = () => { };
 
