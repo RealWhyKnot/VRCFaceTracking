@@ -59,6 +59,14 @@ public partial class MainWindow : Window
         {
             App.GetService<ILoggerFactory>().CreateLogger<MainWindow>().LogError(ex, "Teardown failed; closing anyway");
         }
+        try
+        {
+            await App.GetService<ILocalSettingsService>().FlushAsync();
+        }
+        catch (Exception ex)
+        {
+            App.GetService<ILoggerFactory>().CreateLogger<MainWindow>().LogError(ex, "Flushing settings failed; closing anyway");
+        }
         await App.StopHostAsync();
         try
         {

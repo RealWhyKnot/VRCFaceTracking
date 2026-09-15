@@ -22,7 +22,10 @@ public partial class App : Application
 {
     private static App? _instance;
     private ILogger? _logger;
-    private IHost? _host;
+    private static IHost? _host;
+
+    public static bool StartServices = true;
+    private static bool _dataValidatorTrimmed;
 
     internal static readonly LogLevelGate LogGate = new();
     private static readonly LoggingSettings LoggingSettings = new();
@@ -40,12 +43,12 @@ public partial class App : Application
     public static T GetService<T>()
         where T : class
     {
-        if (_instance?._host == null)
+        if (_host == null)
         {
             throw new InvalidOperationException($"{typeof(T).Name} requested before the host was built.");
         }
 
-        if (_instance._host.Services.GetService(typeof(T)) is not T service)
+        if (_host.Services.GetService(typeof(T)) is not T service)
         {
             throw new ArgumentException($"{typeof(T)} needs to be registered in ConfigureServices within App.axaml.cs.");
         }
@@ -88,22 +91,29 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         // Remove duplicate Avalonia/CommunityToolkit data validation
-        BindingPlugins.DataValidators.RemoveAt(0);
+        if (!_dataValidatorTrimmed)
+        {
+            BindingPlugins.DataValidators.RemoveAt(0);
+            _dataValidatorTrimmed = true;
+        }
 
-        _host = Microsoft.Extensions.Hosting.Host
-            .CreateDefaultBuilder()
-            .ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                logging.AddDebug();
-                logging.AddConsole();
-                logging.AddProvider(new Services.Logging.OutputPageLogProvider(LogGate));
-                logging.AddProvider(FileLog);
-            })
-            .UseContentRoot(AppContext.BaseDirectory)
-            .ConfigureServices((context, services) => services.AddVrcftServices(context, LogGate, LoggingSettings, FileLog))
-            .Build();
-        Ioc.Default.ConfigureServices(_host.Services);
+        if (_host == null)
+        {
+            _host = Microsoft.Extensions.Hosting.Host
+                .CreateDefaultBuilder()
+                .ConfigureLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.AddDebug();
+                    logging.AddConsole();
+                    logging.AddProvider(new Services.Logging.OutputPageLogProvider(LogGate));
+                    logging.AddProvider(FileLog);
+                })
+                .UseContentRoot(AppContext.BaseDirectory)
+                .ConfigureServices((context, services) => services.AddVrcftServices(context, LogGate, LoggingSettings, FileLog))
+                .Build();
+            Ioc.Default.ConfigureServices(_host.Services);
+        }
 
         _logger = GetService<ILoggerFactory>().CreateLogger("App");
         _logger.LogDebug("Host built");
@@ -114,7 +124,10 @@ public partial class App : Application
             desktop.MainWindow = MainWindow;
         }
 
-        _ = LaunchAsync();
+        if (StartServices)
+        {
+            _ = LaunchAsync();
+        }
 
         base.OnFrameworkInitializationCompleted();
     }
@@ -163,7 +176,7 @@ public partial class App : Application
 
     public static async Task StopHostAsync()
     {
-        if (_instance?._host == null)
+        if (_host == null)
         {
             return;
         }
@@ -171,11 +184,11 @@ public partial class App : Application
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await _instance._host.StopAsync(cts.Token);
+            await _host.StopAsync(cts.Token);
         }
         catch (Exception ex)
         {
-            _instance._logger?.LogWarning(ex, "Host did not stop cleanly");
+            _instance?._logger?.LogWarning(ex, "Host did not stop cleanly");
         }
     }
 

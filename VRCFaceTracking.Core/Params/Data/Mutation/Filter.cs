@@ -14,11 +14,11 @@ public class Filter : TrackingMutation
 {
     public override int Order => 100;
 
-    [MutationProperty("[DEV] Minimum Cutoff", true, 0f, 2f)]
+    [MutationProperty("Minimum Cutoff", true, 0f, 2f, Developer = true)]
     public static float minCutoff = 1f;
-    [MutationProperty("[DEV] Beta", true)]
+    [MutationProperty("Beta", true, Developer = true)]
     public static float beta = 0.5f;
-    [MutationProperty("[DEV] Derivative Cutoff", true)]
+    [MutationProperty("Derivative Cutoff", true, Developer = true)]
     public static float dCutoff = 0.1f;
     private const float hz = 10f;
 

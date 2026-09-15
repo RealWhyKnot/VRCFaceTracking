@@ -35,7 +35,11 @@ public partial class ShellPage : UserControl
     private void ShowPage(Control page)
     {
         if (_currentPage != null)
+        {
+            if (_currentPage is INotifyNavigated leaving)
+                leaving.OnNavigatedFrom();
             _currentPage.IsVisible = false;
+        }
 
         page.IsVisible = true;
         _currentPage = page;

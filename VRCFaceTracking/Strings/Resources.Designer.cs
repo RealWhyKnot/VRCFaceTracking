@@ -78,15 +78,6 @@ namespace VRCFaceTracking.Strings {
         /// <summary>
         ///   Looks up a localized string similar to VRCFaceTracking.
         /// </summary>
-        public static string AppDescription {
-            get {
-                return ResourceManager.GetString("AppDescription", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to VRCFaceTracking.
-        /// </summary>
         public static string AppDisplayName {
             get {
                 return ResourceManager.GetString("AppDisplayName", resourceCulture);
@@ -99,35 +90,6 @@ namespace VRCFaceTracking.Strings {
         public static string Appearance_Text {
             get {
                 return ResourceManager.GetString("Appearance_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to &lt;toast launch=&quot;action=ToastClick&quot;&gt;
-        ///  &lt;visual&gt;
-        ///    &lt;binding template=&quot;ToastGeneric&quot;&gt;
-        ///      &lt;text&gt;App Notification&lt;/text&gt;
-        ///      &lt;text&gt;&lt;/text&gt;
-        ///      &lt;image placement=&quot;appLogoOverride&quot; hint-crop=&quot;circle&quot; src=&quot;{0}Assets/WindowIcon.ico&quot;/&gt;
-        ///    &lt;/binding&gt;
-        ///  &lt;/visual&gt;
-        ///  &lt;actions&gt;
-        ///    &lt;action content=&quot;Settings&quot; arguments=&quot;action=Settings&quot;/&gt;
-        ///  &lt;/actions&gt;
-        ///&lt;/toast&gt;.
-        /// </summary>
-        public static string AppNotificationSamplePayload {
-            get {
-                return ResourceManager.GetString("AppNotificationSamplePayload", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Author.
-        /// </summary>
-        public static string Author_Text {
-            get {
-                return ResourceManager.GetString("Author_Text", resourceCulture);
             }
         }
         
@@ -164,87 +126,6 @@ namespace VRCFaceTracking.Strings {
         public static string AutoStartSettingsUnavailableDescription {
             get {
                 return ResourceManager.GetString("AutoStartSettingsUnavailableDescription", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Avatar Status.
-        /// </summary>
-        public static string AvatarStatus_Text {
-            get {
-                return ResourceManager.GetString("AvatarStatus_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to File a bug report.
-        /// </summary>
-        public static string BugRequestCard_Header {
-            get {
-                return ResourceManager.GetString("BugRequestCard_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Calibrate.
-        /// </summary>
-        public static string CalibrateButton_Content {
-            get {
-                return ResourceManager.GetString("CalibrateButton_Content", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Toggles whether or not calibration is enabled.
-        /// </summary>
-        public static string CalibrationEnabledToggle_Description {
-            get {
-                return ResourceManager.GetString("CalibrationEnabledToggle_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Calibration Enabled.
-        /// </summary>
-        public static string CalibrationEnabledToggle_Header {
-            get {
-                return ResourceManager.GetString("CalibrationEnabledToggle_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Controls how much of an influence your facial expressions have on overall calibration over time.
-        /// </summary>
-        public static string CalibrationInfluenceSlider_Description {
-            get {
-                return ResourceManager.GetString("CalibrationInfluenceSlider_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Calibration Influence.
-        /// </summary>
-        public static string CalibrationInfluenceSlider_Header {
-            get {
-                return ResourceManager.GetString("CalibrationInfluenceSlider_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Tweak tracking data to your heart&apos;s content.
-        /// </summary>
-        public static string CalibrationSettings_Description {
-            get {
-                return ResourceManager.GetString("CalibrationSettings_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Calibration Settings.
-        /// </summary>
-        public static string CalibrationSettings_Header {
-            get {
-                return ResourceManager.GetString("CalibrationSettings_Header", resourceCulture);
             }
         }
         
@@ -375,29 +256,11 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to To clone this repository.
+        ///   Looks up a localized string similar to Contributors.
         /// </summary>
-        public static string CloneRepoCard_Header {
+        public static string ContributorsHeader {
             get {
-                return ResourceManager.GetString("CloneRepoCard_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Slowly calibrates to your facial expressions over time.
-        /// </summary>
-        public static string ContCalibrationToggle_Description {
-            get {
-                return ResourceManager.GetString("ContCalibrationToggle_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Continuous Calibration.
-        /// </summary>
-        public static string ContCalibrationToggle_Header {
-            get {
-                return ResourceManager.GetString("ContCalibrationToggle_Header", resourceCulture);
+                return ResourceManager.GetString("ContributorsHeader", resourceCulture);
             }
         }
         
@@ -420,29 +283,11 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to © 2023 VRCFaceTracking. All rights reserved..
-        /// </summary>
-        public static string Copyright_Description {
-            get {
-                return ResourceManager.GetString("Copyright_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to The nerds who made this all possible &lt;3.
         /// </summary>
         public static string Credits_Description {
             get {
                 return ResourceManager.GetString("Credits_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Dependencies &amp; references.
-        /// </summary>
-        public static string Dependencies_Header {
-            get {
-                return ResourceManager.GetString("Dependencies_Header", resourceCulture);
             }
         }
         
@@ -483,15 +328,6 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to THIS CODE AND INFORMATION IS PROVIDED ‘AS IS’ WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE..
-        /// </summary>
-        public static string Disclaimer_Header {
-            get {
-                return ResourceManager.GetString("Disclaimer_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Downloads.
         /// </summary>
         public static string Downloads_Text {
@@ -528,29 +364,11 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Eye Tracking Inactive.
-        /// </summary>
-        public static string EyeTrackingInactive_Text {
-            get {
-                return ResourceManager.GetString("EyeTrackingInactive_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Face Tracking Active.
         /// </summary>
         public static string FaceTrackingActive_Text {
             get {
                 return ResourceManager.GetString("FaceTrackingActive_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Face Tracking Inactive.
-        /// </summary>
-        public static string FaceTrackingInactive_Text {
-            get {
-                return ResourceManager.GetString("FaceTrackingInactive_Text", resourceCulture);
             }
         }
         
@@ -618,20 +436,11 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Stare at your tongue I guess?.
+        ///   Looks up a localized string similar to Install from .zip.
         /// </summary>
-        public static string HardwareDebug_Description {
+        public static string InstallFromZipTooltip {
             get {
-                return ResourceManager.GetString("HardwareDebug_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Hardware Debug.
-        /// </summary>
-        public static string HardwareDebug_Header {
-            get {
-                return ResourceManager.GetString("HardwareDebug_Header", resourceCulture);
+                return ResourceManager.GetString("InstallFromZipTooltip", resourceCulture);
             }
         }
         
@@ -686,24 +495,6 @@ namespace VRCFaceTracking.Strings {
         public static string LegacyParameters_Text {
             get {
                 return ResourceManager.GetString("LegacyParameters_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Select an item from the list..
-        /// </summary>
-        public static string ListDetails_NoSelection_Text {
-            get {
-                return ResourceManager.GetString("ListDetails_NoSelection_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Listening on Port:.
-        /// </summary>
-        public static string Listening_on_Port_Text {
-            get {
-                return ResourceManager.GetString("Listening_on_Port_Text", resourceCulture);
             }
         }
         
@@ -830,6 +621,51 @@ namespace VRCFaceTracking.Strings {
         public static string LogSaveFailed {
             get {
                 return ResourceManager.GetString("LogSaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Install failed.
+        /// </summary>
+        public static string ModuleActionFailed {
+            get {
+                return ResourceManager.GetString("ModuleActionFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Install.
+        /// </summary>
+        public static string ModuleActionInstall {
+            get {
+                return ResourceManager.GetString("ModuleActionInstall", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Installed..
+        /// </summary>
+        public static string ModuleActionInstalled {
+            get {
+                return ResourceManager.GetString("ModuleActionInstalled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Installing....
+        /// </summary>
+        public static string ModuleActionInstalling {
+            get {
+                return ResourceManager.GetString("ModuleActionInstalling", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Uninstall.
+        /// </summary>
+        public static string ModuleActionUninstall {
+            get {
+                return ResourceManager.GetString("ModuleActionUninstall", resourceCulture);
             }
         }
         
@@ -1005,15 +841,6 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Install some from here!.
-        /// </summary>
-        public static string no_modules_installed_warning_ButtonText {
-            get {
-                return ResourceManager.GetString("no_modules_installed_warning_ButtonText", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to You appear to have no modules installed..
         /// </summary>
         public static string no_modules_installed_warning_Description {
@@ -1028,15 +855,6 @@ namespace VRCFaceTracking.Strings {
         public static string no_modules_installed_warning_Title {
             get {
                 return ResourceManager.GetString("no_modules_installed_warning_Title", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Open Local Storage.
-        /// </summary>
-        public static string OpenLocalStorageCard_Header {
-            get {
-                return ResourceManager.GetString("OpenLocalStorageCard_Header", resourceCulture);
             }
         }
         
@@ -1077,20 +895,11 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to We noticed your OSC was turned off in VRChat, we&apos;ve just enabled it for you. If the game was open when this happened, you may need to manually enable it from your raidal menu. If not, you should be good to go!.
+        ///   Looks up a localized string similar to Destination IP.
         /// </summary>
-        public static string osc_was_disabled_warning_Description {
+        public static string OscAddressLabel {
             get {
-                return ResourceManager.GetString("osc_was_disabled_warning_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to OSC Settings Modified.
-        /// </summary>
-        public static string osc_was_disabled_warning_Title {
-            get {
-                return ResourceManager.GetString("osc_was_disabled_warning_Title", resourceCulture);
+                return ResourceManager.GetString("OscAddressLabel", resourceCulture);
             }
         }
         
@@ -1104,11 +913,29 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Receive Port (Legacy).
+        /// </summary>
+        public static string OscInPortLabel {
+            get {
+                return ResourceManager.GetString("OscInPortLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Port VRChat sends to. Only used when OSCQuery is unavailable..
         /// </summary>
         public static string OscInPortTooltip {
             get {
                 return ResourceManager.GetString("OscInPortTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Send Port.
+        /// </summary>
+        public static string OscOutPortLabel {
+            get {
+                return ResourceManager.GetString("OscOutPortLabel", resourceCulture);
             }
         }
         
@@ -1154,6 +981,15 @@ namespace VRCFaceTracking.Strings {
         public static string OSCStatus_Text {
             get {
                 return ResourceManager.GetString("OSCStatus_Text", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Action failed..
+        /// </summary>
+        public static string OutputActionFailed {
+            get {
+                return ResourceManager.GetString("OutputActionFailed", resourceCulture);
             }
         }
         
@@ -1217,24 +1053,6 @@ namespace VRCFaceTracking.Strings {
         public static string Parameters_Text {
             get {
                 return ResourceManager.GetString("Parameters_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Privacy Policy.
-        /// </summary>
-        public static string PrivacyPolicyCard_Header {
-            get {
-                return ResourceManager.GetString("PrivacyPolicyCard_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Rating.
-        /// </summary>
-        public static string Rating_Text {
-            get {
-                return ResourceManager.GetString("Rating_Text", resourceCulture);
             }
         }
         
@@ -1320,38 +1138,20 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Sending on Port:.
+        ///   Looks up a localized string similar to Save Log.
         /// </summary>
-        public static string Sending_on_Port_Text {
+        public static string SaveLogPickerTitle {
             get {
-                return ResourceManager.GetString("Sending_on_Port_Text", resourceCulture);
+                return ResourceManager.GetString("SaveLogPickerTitle", resourceCulture);
             }
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to VRChat OSC App to allow AV3 Avatars to interact with eye and lip tracking runtimes.
+        ///   Looks up a localized string similar to Search modules.
         /// </summary>
-        public static string Settings_About_Text {
+        public static string SearchModulesWatermark {
             get {
-                return ResourceManager.GetString("Settings_About_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to VRChat OSC App to allow AV3 Avatars to interact with eye and lip tracking runtimes.
-        /// </summary>
-        public static string Settings_AboutDescription_Text {
-            get {
-                return ResourceManager.GetString("Settings_AboutDescription_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Personalization.
-        /// </summary>
-        public static string Settings_Personalization_Text {
-            get {
-                return ResourceManager.GetString("Settings_Personalization_Text", resourceCulture);
+                return ResourceManager.GetString("SearchModulesWatermark", resourceCulture);
             }
         }
         
@@ -1383,42 +1183,6 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Theme.
-        /// </summary>
-        public static string Settings_Theme_Text {
-            get {
-                return ResourceManager.GetString("Settings_Theme_Text", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Privacy Statement.
-        /// </summary>
-        public static string SettingsPage_PrivacyTermsLink_Content {
-            get {
-                return ResourceManager.GetString("SettingsPage_PrivacyTermsLink_Content", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to https://github.com/benaclejames/VRCFaceTracking.
-        /// </summary>
-        public static string SettingsPage_PrivacyTermsLink_NavigateUri {
-            get {
-                return ResourceManager.GetString("SettingsPage_PrivacyTermsLink_NavigateUri", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to ListDetails.
-        /// </summary>
-        public static string Shell_ListDetails_Content {
-            get {
-                return ResourceManager.GetString("Shell_ListDetails_Content", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Home.
         /// </summary>
         public static string Shell_Main_Content {
@@ -1442,15 +1206,6 @@ namespace VRCFaceTracking.Strings {
         public static string Shell_Output_Content {
             get {
                 return ResourceManager.GetString("Shell_Output_Content", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Parameters.
-        /// </summary>
-        public static string Shell_Parameters_Content {
-            get {
-                return ResourceManager.GetString("Shell_Parameters_Content", resourceCulture);
             }
         }
         
@@ -1496,33 +1251,6 @@ namespace VRCFaceTracking.Strings {
         public static string ThemeSettings_Header {
             get {
                 return ResourceManager.GetString("ThemeSettings_Header", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Toggle Tracking.
-        /// </summary>
-        public static string ToggleTracking_Content {
-            get {
-                return ResourceManager.GetString("ToggleTracking_Content", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Heighten the influence your expressions make on calibration temporarily.
-        /// </summary>
-        public static string TrackingCalibrateButton_Description {
-            get {
-                return ResourceManager.GetString("TrackingCalibrateButton_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Calibrate.
-        /// </summary>
-        public static string TrackingCalibrateButton_Header {
-            get {
-                return ResourceManager.GetString("TrackingCalibrateButton_Header", resourceCulture);
             }
         }
         

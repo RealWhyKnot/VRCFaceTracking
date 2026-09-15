@@ -31,7 +31,7 @@
                 <ui:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <StackPanel Spacing="4">
-                            <TextBlock FontSize="12" Opacity="0.7" Text="Receive Port (Legacy)" />
+                            <TextBlock FontSize="12" Opacity="0.7" Text="{x:Static s:Resources.OscInPortLabel}" />
                             <NumericUpDown
                                 Minimum="1"
                                 Maximum="65535"
@@ -42,7 +42,7 @@
                                 Value="{Binding OscTarget.InPort, Mode=TwoWay}" />
                         </StackPanel>
                         <StackPanel Spacing="4">
-                            <TextBlock FontSize="12" Opacity="0.7" Text="Destination IP" />
+                            <TextBlock FontSize="12" Opacity="0.7" Text="{x:Static s:Resources.OscAddressLabel}" />
                             <TextBox
                                 Watermark="127.0.0.1"
                                 MinWidth="140"
@@ -50,7 +50,7 @@
                                 Text="{Binding OscTarget.DestinationAddress, Mode=TwoWay}" />
                         </StackPanel>
                         <StackPanel Spacing="4">
-                            <TextBlock FontSize="12" Opacity="0.7" Text="Send Port" />
+                            <TextBlock FontSize="12" Opacity="0.7" Text="{x:Static s:Resources.OscOutPortLabel}" />
                             <NumericUpDown
                                 Minimum="1"
                                 Maximum="65535"
@@ -269,7 +269,7 @@
                 </ui:SettingsExpander.Footer>
 
                 <ui:SettingsExpander.Items>
-                    <ui:SettingsExpanderItem Content="Contributors" Description="{x:Static s:Resources.Credits_Description}">
+                    <ui:SettingsExpanderItem Content="{x:Static s:Resources.ContributorsHeader}" Description="{x:Static s:Resources.Credits_Description}">
                         <ui:SettingsExpanderItem.Footer>
                             <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
                                 <ItemsControl ItemsSource="{Binding Contributors}">

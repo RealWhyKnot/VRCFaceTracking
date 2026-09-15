@@ -26,4 +26,6 @@ public interface ILocalSettingsService
 
     Task Save(object target);
     Task Load(object target);
+
+    Task FlushAsync();
 }

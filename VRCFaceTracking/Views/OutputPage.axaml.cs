@@ -53,10 +53,16 @@ public partial class OutputPage : UserControl
     private async void CopyToClipboard_Click(object? sender, RoutedEventArgs e)
     {
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-        if (clipboard != null)
+        if (clipboard == null) return;
+
+        try
         {
             await clipboard.SetTextAsync(JoinedLogText());
             StatusText.Text = Strings.Resources.CopiedToClipboard;
+        }
+        catch
+        {
+            StatusText.Text = Strings.Resources.OutputActionFailed;
         }
     }
 
@@ -65,12 +71,21 @@ public partial class OutputPage : UserControl
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
 
-        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        IStorageFile? file;
+        try
         {
-            Title = "Save Log",
-            SuggestedFileName = $"vrcft-log-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
-            FileTypeChoices = [new FilePickerFileType("Text") { Patterns = ["*.txt"] }]
-        });
+            file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = Strings.Resources.SaveLogPickerTitle,
+                SuggestedFileName = $"vrcft-log-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
+                FileTypeChoices = [new FilePickerFileType("Text") { Patterns = ["*.txt"] }]
+            });
+        }
+        catch
+        {
+            StatusText.Text = Strings.Resources.OutputActionFailed;
+            return;
+        }
 
         if (file == null)
         {
@@ -93,12 +108,19 @@ public partial class OutputPage : UserControl
 
     private async void OpenLogsFolder_Click(object? sender, RoutedEventArgs e)
     {
-        var dir = Core.Utils.LogDirectory;
-        Directory.CreateDirectory(dir);
-        var launcher = TopLevel.GetTopLevel(this)?.Launcher;
-        if (launcher != null)
+        try
         {
-            await launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(dir));
+            var dir = Core.Utils.LogDirectory;
+            Directory.CreateDirectory(dir);
+            var launcher = TopLevel.GetTopLevel(this)?.Launcher;
+            if (launcher != null)
+            {
+                await launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(dir));
+            }
+        }
+        catch
+        {
+            StatusText.Text = Strings.Resources.OutputActionFailed;
         }
     }
 

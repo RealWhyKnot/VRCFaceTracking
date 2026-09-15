@@ -14,9 +14,9 @@ namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
 public class Calibration : TrackingMutation
 {
-    [MutationProperty("[DEV] Window Size")]
+    [MutationProperty("Window Size", Developer = true)]
     public static int points = 64;
-    [MutationProperty("[DEV] Step Delta")]
+    [MutationProperty("Step Delta", Developer = true)]
     public static float sDelta = 0.15f;
     [MutationProperty("Calibration Blend", true)]
     public float calibrationBlend = 1f;
@@ -158,7 +158,7 @@ public class Calibration : TrackingMutation
         }
     }
 
-    [MutationButton("[DEV] Log Data")]
+    [MutationButton("Log Data", Developer = true)]
     public void LogData()
     {
         Logger.LogInformation("Logging Calibration data:" +

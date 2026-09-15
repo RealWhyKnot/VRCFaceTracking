@@ -7,6 +7,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.ViewModels;
@@ -21,6 +22,7 @@ public partial class SettingsPage : UserControl, INotifyNavigated
     private readonly StreamView _lipStream;
     private DispatcherTimer? _streamTimer;
     private DateTime _streamStart;
+    private bool _applyingTheme;
 
     public SettingsPage()
     {
@@ -29,12 +31,7 @@ public partial class SettingsPage : UserControl, INotifyNavigated
 
         VersionText.Text = SettingsViewModel.VersionText;
 
-        ThemeCombo.SelectedIndex = Application.Current?.RequestedThemeVariant?.Key?.ToString() switch
-        {
-            "Light" => 0,
-            "Dark" => 1,
-            _ => 2
-        };
+        SyncThemeCombo();
 
         _eyeStream = new StreamView(EyeStreamImage, EyeStreamStatus);
         _lipStream = new StreamView(LipStreamImage, LipStreamStatus);
@@ -48,10 +45,35 @@ public partial class SettingsPage : UserControl, INotifyNavigated
         Unloaded += (_, _) => OnCameraStreamsToggled(false);
     }
 
-    public void OnNavigatedTo() => ViewModel.RefreshOpenVrState();
+    public void OnNavigatedTo()
+    {
+        SyncThemeCombo();
+        ViewModel.RefreshOpenVrState();
+    }
+
+    public void OnNavigatedFrom() => CameraStreamsExpander.IsExpanded = false;
+
+    private void SyncThemeCombo()
+    {
+        _applyingTheme = true;
+        try
+        {
+            ThemeCombo.SelectedIndex = Application.Current?.RequestedThemeVariant?.Key?.ToString() switch
+            {
+                "Light" => 0,
+                "Dark" => 1,
+                _ => 2
+            };
+        }
+        finally
+        {
+            _applyingTheme = false;
+        }
+    }
 
     private void ThemeCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_applyingTheme) return;
         if (ThemeCombo.SelectedItem is not ComboBoxItem item) return;
 
         var tag = item.Tag?.ToString() ?? "Default";
@@ -69,16 +91,23 @@ public partial class SettingsPage : UserControl, INotifyNavigated
         var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
         if (storageProvider == null) return;
 
-        var folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        try
         {
-            Title = Strings.Resources.LogFolderPickerTitle,
-            AllowMultiple = false
-        });
+            var folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = Strings.Resources.LogFolderPickerTitle,
+                AllowMultiple = false
+            });
 
-        var path = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (!string.IsNullOrWhiteSpace(path))
+            var path = folders.FirstOrDefault()?.TryGetLocalPath();
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                await ViewModel.SetLogDirectoryAsync(path);
+            }
+        }
+        catch (Exception ex)
         {
-            await ViewModel.SetLogDirectoryAsync(path);
+            Ioc.Default.GetRequiredService<ILoggerFactory>().CreateLogger<SettingsPage>().LogError(ex, "Changing the log folder failed");
         }
     }
 

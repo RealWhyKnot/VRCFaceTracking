@@ -19,7 +19,7 @@
                                        VerticalAlignment="Center" Opacity="0.55" Margin="0,0,8,0" />
                         <TextBox Grid.Column="1"
                                  Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Watermark="Search modules"
+                                 Watermark="{x:Static s:Resources.SearchModulesWatermark}"
                                  FontSize="13"
                                  BorderThickness="0"
                                  Background="Transparent"
@@ -30,7 +30,7 @@
 
                 <Button Grid.Column="1"
                         Click="Button_OnClick"
-                        ToolTip.Tip="Install from .zip"
+                        ToolTip.Tip="{x:Static s:Resources.InstallFromZipTooltip}"
                         Width="32" Height="32"
                         Margin="6,0,0,0"
                         Padding="0"
@@ -103,11 +103,11 @@
                                 x:Name="InstallButton"
                                 Classes="accent"
                                 Click="InstallButton_Click"
-                                Content="Install" />
+                                Content="{x:Static s:Resources.ModuleActionInstall}" />
                             <Button
                                 x:Name="UninstallButton"
                                 Click="UninstallButton_Click"
-                                Content="Uninstall" />
+                                Content="{x:Static s:Resources.ModuleActionUninstall}" />
                         </StackPanel>
 
                         <Separator />

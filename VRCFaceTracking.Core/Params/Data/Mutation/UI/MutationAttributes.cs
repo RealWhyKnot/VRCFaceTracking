@@ -31,6 +31,10 @@ public class MutationPropertyAttribute : Attribute
     {
         get;
     }
+    public bool Developer
+    {
+        get; set;
+    }
 
     public MutationPropertyAttribute(string name, bool savedImmediate = false, float min = 0f, float max = 1f)
     {
@@ -55,6 +59,10 @@ public class MutationButtonAttribute : Attribute
     public string Name
     {
         get;
+    }
+    public bool Developer
+    {
+        get; set;
     }
 
     public MutationButtonAttribute(string name)

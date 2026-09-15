@@ -223,6 +223,8 @@ public class LocalSettingsService : ILocalSettingsService
         await FlushNowAsync();
     }
 
+    public async Task FlushAsync() => await FlushNowAsync();
+
     private async Task FlushNowAsync()
     {
         if (!_isInitialized)

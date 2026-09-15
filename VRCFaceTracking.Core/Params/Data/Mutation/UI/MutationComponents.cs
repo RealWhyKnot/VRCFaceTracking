@@ -17,8 +17,6 @@ public enum MutationPropertyType
 
 public interface IMutationComponent
 {
-    public const string DeveloperPrefix = "[DEV] ";
-
     public string Name
     {
         get;
@@ -100,7 +98,10 @@ public class MutationProperty : IMutationComponent, INotifyPropertyChanged
         get;
     }
 
-    public bool IsDeveloper => Name.StartsWith(IMutationComponent.DeveloperPrefix, StringComparison.Ordinal);
+    public bool IsDeveloper
+    {
+        get; set;
+    }
 
     public MutationPropertyType Type
     {
@@ -189,7 +190,10 @@ public class MutationAction : IMutationComponent, ICommand
         get;
     }
 
-    public bool IsDeveloper => Name.StartsWith(IMutationComponent.DeveloperPrefix, StringComparison.Ordinal);
+    public bool IsDeveloper
+    {
+        get; set;
+    }
 
     private readonly Action _execute;
 

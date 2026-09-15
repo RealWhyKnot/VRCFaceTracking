@@ -23,6 +23,7 @@ public static class MutationComponentFactory
         string name,
         float min,
         float max,
+        bool developer,
         object instance,
         object value,
         FieldInfo field,
@@ -60,7 +61,10 @@ public static class MutationComponentFactory
                 },
                 min,
                 max
-            );
+            )
+            {
+                IsDeveloper = developer
+            };
             components.Add(mutationProperty);
         }
     }
@@ -90,7 +94,7 @@ public static class MutationComponentFactory
                     {
                         var name = Enum.GetName(enumType, i);
                         if (name == null) break;
-                        CreateComponent(name, attribute.Min, attribute.Max, instance, valueArray.GetValue(i), field, components,
+                        CreateComponent(name, attribute.Min, attribute.Max, attribute.Developer, instance, valueArray.GetValue(i), field, components,
                             async () =>
                             {
                                 if (!attribute.SavedImmediate)
@@ -104,7 +108,7 @@ public static class MutationComponentFactory
                     }
                     processedObjects.Add(valueArray);
                 }
-                else CreateComponent(attribute.Name, attribute.Min, attribute.Max, instance, value, field, components, async () =>
+                else CreateComponent(attribute.Name, attribute.Min, attribute.Max, attribute.Developer, instance, value, field, components, async () =>
                 {
                     if (!attribute.SavedImmediate)
                     {
@@ -142,7 +146,10 @@ public static class MutationComponentFactory
                 (
                     attribute.Name,
                     () => method.Invoke(instance, null)
-                );
+                )
+                {
+                    IsDeveloper = attribute.Developer
+                };
                 components.Add(mutationProperty);
             }
         }

@@ -10,6 +10,7 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
     private readonly IModuleDataService _moduleDataService;
     [ObservableProperty] private InstallableTrackingModule? _selected;
     [ObservableProperty] private string _searchQuery = string.Empty;
+    private bool _loading;
 
     public ObservableCollection<InstallableTrackingModule> ModuleInfos { get; } = new();
     public ObservableCollection<InstallableTrackingModule> FilteredModuleInfos { get; } = new();
@@ -39,35 +40,57 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
 
     public async Task OnNavigatedTo()
     {
-        ModuleInfos.Clear();
-
-        var data = await _moduleDataService.GetRemoteModules();
-        var remoteModules = data
-            .OrderByDescending(x => x.AuthorName == "VRCFT Team")
-            .ThenBy(x => x.ModuleName)
-            .ToList();
-        foreach (var module in remoteModules)
+        if (_loading)
         {
-            module.InstallationState = InstallState.NotInstalled;
-            ModuleInfos.Add(module);
+            return;
         }
+        _loading = true;
 
-        var installedModules = _moduleDataService.GetInstalledModules().Concat(_moduleDataService.GetLegacyModules());
-        foreach (var installedModule in installedModules)
+        try
         {
-            var remoteModule = ModuleInfos.FirstOrDefault(x => x.ModuleId == installedModule.ModuleId);
-            if (remoteModule == null)
+            ModuleInfos.Clear();
+
+            IEnumerable<InstallableTrackingModule> data;
+            try
             {
-                installedModule.InstallationState = InstallState.Installed;
-                ModuleInfos.Insert(0, installedModule);
+                data = await _moduleDataService.GetRemoteModules();
             }
-            else
+            catch
             {
-                remoteModule.InstallationState = remoteModule.Version != installedModule.Version
-                    ? InstallState.Outdated
-                    : InstallState.Installed;
-                ModuleInfos.Move(ModuleInfos.IndexOf(remoteModule), 0);
+                data = [];
             }
+
+            var remoteModules = data
+                .OrderByDescending(x => x.AuthorName == "VRCFT Team")
+                .ThenBy(x => x.ModuleName)
+                .ToList();
+            foreach (var module in remoteModules)
+            {
+                module.InstallationState = InstallState.NotInstalled;
+                ModuleInfos.Add(module);
+            }
+
+            var installedModules = _moduleDataService.GetInstalledModules().Concat(_moduleDataService.GetLegacyModules());
+            foreach (var installedModule in installedModules)
+            {
+                var remoteModule = ModuleInfos.FirstOrDefault(x => x.ModuleId == installedModule.ModuleId);
+                if (remoteModule == null)
+                {
+                    installedModule.InstallationState = InstallState.Installed;
+                    ModuleInfos.Insert(0, installedModule);
+                }
+                else
+                {
+                    remoteModule.InstallationState = remoteModule.Version != installedModule.Version
+                        ? InstallState.Outdated
+                        : InstallState.Installed;
+                    ModuleInfos.Move(ModuleInfos.IndexOf(remoteModule), 0);
+                }
+            }
+        }
+        finally
+        {
+            _loading = false;
         }
     }
 }

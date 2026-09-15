@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices.Swift;
-using Avalonia.Threading;
+﻿using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using VRCFaceTracking.Contracts;
 using VRCFaceTracking.Core.Contracts;
@@ -92,12 +91,4 @@ public partial class MainViewModel : ObservableRecipient
 
     private void MessageReceived(OscMessage msg) => _messagesRecvd++;
     private void MessageDispatched(int msgCount) => _messagesSent += msgCount;
-
-    ~MainViewModel()
-    {
-        OscRecvService.OnMessageReceived -= MessageReceived;
-        OscSendService.OnMessagesDispatched -= MessageDispatched;
-
-        msgCounterTimer.Stop();
-    }
 }
