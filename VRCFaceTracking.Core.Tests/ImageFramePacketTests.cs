@@ -3,6 +3,7 @@ using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Tests;
 
+[Collection("PartialPacketState")]
 public class ImageFramePacketTests
 {
     private static ImageFrameUpdatePacket BuildFrame(byte kind, int width, int height)

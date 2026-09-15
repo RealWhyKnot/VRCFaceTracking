@@ -4,6 +4,7 @@ using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Tests;
 
+[Collection("PartialPacketState")]
 public class PacketDecoderTests
 {
     private static readonly byte[] Magic = { 0xAF, 0xEC, 0x00, 0x8D };
