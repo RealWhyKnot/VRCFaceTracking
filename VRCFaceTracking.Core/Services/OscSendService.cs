@@ -17,7 +17,6 @@ public class OscSendService
 
     private Socket _sendSocket;
     private readonly byte[] _sendBuffer = new byte[4096];
-    private OscMessageMeta[] _metaBuffer = new OscMessageMeta[256];
 
     private CancellationTokenSource _cts;
     public Action<int> OnMessagesDispatched = _ => { };
@@ -79,7 +78,7 @@ public class OscSendService
     public async Task Send(OscMessage message, CancellationToken ct)
     {
         var nextByteIndex = message.Encode(_sendBuffer);
-        if (nextByteIndex > _sendBuffer.Length)
+        if (nextByteIndex < 0)
         {
             _logger.LogError("OSC message too large to send! Skipping this batch of messages.");
             return;
@@ -101,21 +100,11 @@ public class OscSendService
             return;
         }
 
-        if (_metaBuffer.Length < messages.Count)
-        {
-            _metaBuffer = new OscMessageMeta[Math.Max(messages.Count, _metaBuffer.Length * 2)];
-        }
-
-        for (var i = 0; i < messages.Count; i++)
-        {
-            _metaBuffer[i] = messages[i]._meta;
-        }
-
         var index = 0;
         while (index < messages.Count)
         {
             var lastIndex = index;
-            var length = fti_osc.create_osc_bundle(_sendBuffer, _metaBuffer, messages.Count, ref index);
+            var length = OscCodec.EncodeBundle(_sendBuffer, messages, ref index);
             if (length <= 0 || index <= lastIndex)
             {
                 _logger.LogError("OSC bundle encoding failed at message {Index} of {Count}", index, messages.Count);

@@ -17,7 +17,7 @@ try {
     "-p:VftBuildChannel=$Channel" "-p:VftVersion=$Version" -o $OutDir
   if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
 
-  foreach ($required in @('VRCFaceTracking.exe', 'VRCFaceTracking.ModuleProcess.exe', 'fti_osc.dll', 'app.vrmanifest')) {
+  foreach ($required in @('VRCFaceTracking.exe', 'VRCFaceTracking.ModuleProcess.exe', 'app.vrmanifest')) {
     if (-not (Test-Path -LiteralPath (Join-Path $OutDir $required))) { throw "$required missing from $OutDir" }
   }
 
