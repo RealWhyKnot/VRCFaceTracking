@@ -40,6 +40,12 @@ public class AvatarConfigParser
             return (new NullAvatarDef(newId.Substring(10), newId), paramList);
         }*/
 
+        if (string.IsNullOrEmpty(VRChat.VRCOSCDirectory) || !Directory.Exists(VRChat.VRCOSCDirectory))
+        {
+            _logger.LogWarning("VRChat OSC directory not found at {path}", VRChat.VRCOSCDirectory);
+            return null;
+        }
+
         AvatarConfigFile avatarConfig = null;
         foreach (var userFolder in Directory.GetDirectories(VRChat.VRCOSCDirectory)
                      .Where(folder => Directory.Exists(Path.Combine(folder, "Avatars"))))
