@@ -12,8 +12,8 @@ public static class LogFileNames
 
     public static string Sanitize(string name)
     {
-        var invalid = Path.GetInvalidFileNameChars();
-        var chars = name.Select(c => invalid.Contains(c) || c == ' ' ? '_' : c).ToArray();
+        const string invalid = "<>:\"/\\|?*";
+        var chars = name.Select(c => invalid.Contains(c) || char.IsControl(c) || c == ' ' ? '_' : c).ToArray();
         var result = new string(chars).Trim('_');
         return result.Length == 0 ? "module" : result;
     }

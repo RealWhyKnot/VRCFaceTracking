@@ -150,7 +150,7 @@ public class LogRetentionTests : IDisposable
     }
 
     [Fact]
-    public void LockedFileIsSkipped()
+    public void LockedFileIsSkippedOnlyOnWindows()
     {
         var start = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var locked = Touch(LogFileNames.Main(start), start);
@@ -160,8 +160,16 @@ public class LogRetentionTests : IDisposable
         using var handle = new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None);
         var deleted = LogRetention.Prune(_dir, LogFileNames.MainPattern, 1);
 
-        Assert.Equal(1, deleted);
-        Assert.True(File.Exists(locked));
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal(1, deleted);
+            Assert.True(File.Exists(locked));
+        }
+        else
+        {
+            Assert.Equal(2, deleted);
+            Assert.False(File.Exists(locked));
+        }
     }
 
     [Fact]
