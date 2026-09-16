@@ -95,7 +95,7 @@
                 Description="{x:Static s:Resources.DeveloperModeDescription}">
                 <ui:SettingsExpander.Footer>
                     <ToggleSwitch
-                        IsChecked="{Binding DeveloperMode, Mode=TwoWay}" />
+                        IsChecked="{Binding Developer.Enabled, Mode=TwoWay}" />
                 </ui:SettingsExpander.Footer>
             </ui:SettingsExpander>
 
@@ -253,7 +253,7 @@
 
             <ui:SettingsExpander Header="{x:Static s:Resources.AppDisplayName}">
                 <ui:SettingsExpander.Footer>
-                    <TextBlock x:Name="VersionText" Opacity="0.6" FontSize="13" VerticalAlignment="Center" />
+                    <TextBlock Classes="caption" Text="{x:Static vm:SettingsViewModel.VersionText}" VerticalAlignment="Center" />
                 </ui:SettingsExpander.Footer>
 
                 <ui:SettingsExpander.Items>

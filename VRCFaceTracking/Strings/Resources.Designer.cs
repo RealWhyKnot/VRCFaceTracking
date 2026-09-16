@@ -670,6 +670,15 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Uninstalling....
+        /// </summary>
+        public static string ModuleActionUninstalling {
+            get {
+                return ResourceManager.GetString("ModuleActionUninstalling", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Module process stopped unexpectedly.
         /// </summary>
         public static string ModuleCrashedText {

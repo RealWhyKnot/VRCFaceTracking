@@ -5,7 +5,9 @@ using VRCFaceTracking.Services.Logging;
 
 namespace VRCFaceTracking.ViewModels;
 
-public class OutputViewModel : ObservableRecipient
+public partial class OutputViewModel : ObservableRecipient
 {
+    [ObservableProperty] private string _statusMessage = string.Empty;
+
     public ObservableCollection<LogLine> Logs => OutputPageLogger.AllLogs;
 }

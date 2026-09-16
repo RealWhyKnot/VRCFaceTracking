@@ -153,6 +153,8 @@ public partial class App : Application
             await GetService<ILocalSettingsService>().Load(GetService<UpdateSettings>());
             var developer = GetService<DeveloperSettings>();
             developer.Enabled = await GetService<ILocalSettingsService>().ReadSettingAsync(DeveloperSettings.SettingKey, developer.Enabled);
+            developer.PropertyChanged += (_, _) =>
+                _ = GetService<ILocalSettingsService>().SaveSettingAsync(DeveloperSettings.SettingKey, developer.Enabled);
 
             var savedTheme = await GetService<ILocalSettingsService>().ReadSettingAsync<string?>(ViewModels.SettingsViewModel.ThemeSettingKey);
             if (!string.IsNullOrEmpty(savedTheme))

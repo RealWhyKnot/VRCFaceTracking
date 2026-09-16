@@ -44,7 +44,7 @@
                         </StackPanel>
                     </ToggleButton>
                 </WrapPanel>
-                <TextBlock Grid.Column="2" x:Name="StatusText" Classes="caption" VerticalAlignment="Center" Margin="8,0" />
+                <TextBlock Grid.Column="2" Classes="caption" Text="{Binding StatusMessage}" VerticalAlignment="Center" Margin="8,0" />
             </Grid>
         </Border>
 

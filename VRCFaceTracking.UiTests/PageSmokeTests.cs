@@ -92,9 +92,9 @@ public class PageSmokeTests
         Assert.NotEmpty(page.GetVisualDescendants().OfType<Slider>());
         Assert.NotEmpty(page.GetVisualDescendants().OfType<CheckBox>());
 
-        viewModel.DeveloperMode = true;
+        viewModel.Developer.Enabled = true;
         Dispatcher.UIThread.RunJobs();
-        viewModel.DeveloperMode = false;
+        viewModel.Developer.Enabled = false;
         Dispatcher.UIThread.RunJobs();
 
         window.Close();

@@ -39,7 +39,7 @@
                                             <Border.IsVisible>
                                                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                                                     <Binding Path="!IsDeveloper" />
-                                                    <Binding Path="$parent[UserControl].DataContext.DeveloperMode" />
+                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).Developer.Enabled" />
                                                 </MultiBinding>
                                             </Border.IsVisible>
                                             <Grid ColumnDefinitions="5*,6*">
@@ -96,7 +96,7 @@
                                             <Border.IsVisible>
                                                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                                                     <Binding Path="!IsDeveloper" />
-                                                    <Binding Path="$parent[UserControl].DataContext.DeveloperMode" />
+                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).Developer.Enabled" />
                                                 </MultiBinding>
                                             </Border.IsVisible>
                                             <Grid ColumnDefinitions="5*,6*">
@@ -116,7 +116,7 @@
         <CheckBox
             Grid.Row="1"
             Content="{x:Static s:Resources.ShowDeveloperSettingsContent}"
-            IsChecked="{Binding DeveloperMode, Mode=TwoWay}"
+            IsChecked="{Binding Developer.Enabled, Mode=TwoWay}"
             Margin="0,8,0,0" />
     </Grid>
 </UserControl>

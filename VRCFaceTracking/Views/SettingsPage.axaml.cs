@@ -29,7 +29,6 @@ public partial class SettingsPage : UserControl, INotifyNavigated
         InitializeComponent();
         DataContext = Ioc.Default.GetRequiredService<SettingsViewModel>();
 
-        VersionText.Text = SettingsViewModel.VersionText;
 
         SyncThemeCombo();
 

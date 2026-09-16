@@ -58,11 +58,11 @@ public partial class OutputPage : UserControl
         try
         {
             await clipboard.SetTextAsync(JoinedLogText());
-            StatusText.Text = Strings.Resources.CopiedToClipboard;
+            ViewModel.StatusMessage = Strings.Resources.CopiedToClipboard;
         }
         catch
         {
-            StatusText.Text = Strings.Resources.OutputActionFailed;
+            ViewModel.StatusMessage = Strings.Resources.OutputActionFailed;
         }
     }
 
@@ -83,13 +83,13 @@ public partial class OutputPage : UserControl
         }
         catch
         {
-            StatusText.Text = Strings.Resources.OutputActionFailed;
+            ViewModel.StatusMessage = Strings.Resources.OutputActionFailed;
             return;
         }
 
         if (file == null)
         {
-            StatusText.Text = Strings.Resources.OperationCancelled;
+            ViewModel.StatusMessage = Strings.Resources.OperationCancelled;
             return;
         }
 
@@ -98,11 +98,11 @@ public partial class OutputPage : UserControl
             await using var stream = await file.OpenWriteAsync();
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync(JoinedLogText());
-            StatusText.Text = string.Format(Strings.Resources.LogSaved, file.Name);
+            ViewModel.StatusMessage = string.Format(Strings.Resources.LogSaved, file.Name);
         }
         catch
         {
-            StatusText.Text = string.Format(Strings.Resources.LogSaveFailed, file.Name);
+            ViewModel.StatusMessage = string.Format(Strings.Resources.LogSaveFailed, file.Name);
         }
     }
 
@@ -120,7 +120,7 @@ public partial class OutputPage : UserControl
         }
         catch
         {
-            StatusText.Text = Strings.Resources.OutputActionFailed;
+            ViewModel.StatusMessage = Strings.Resources.OutputActionFailed;
         }
     }
 

@@ -99,14 +99,16 @@
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button
-                                x:Name="InstallButton"
                                 Classes="accent"
                                 Click="InstallButton_Click"
-                                Content="{x:Static s:Resources.ModuleActionInstall}" />
+                                IsVisible="{Binding $parent[UserControl].((vm:ModuleRegistryViewModel)DataContext).CanInstall}"
+                                IsEnabled="{Binding !$parent[UserControl].((vm:ModuleRegistryViewModel)DataContext).IsBusy}"
+                                Content="{Binding $parent[UserControl].((vm:ModuleRegistryViewModel)DataContext).InstallButtonText}" />
                             <Button
-                                x:Name="UninstallButton"
                                 Click="UninstallButton_Click"
-                                Content="{x:Static s:Resources.ModuleActionUninstall}" />
+                                IsVisible="{Binding $parent[UserControl].((vm:ModuleRegistryViewModel)DataContext).CanUninstall}"
+                                IsEnabled="{Binding !$parent[UserControl].((vm:ModuleRegistryViewModel)DataContext).IsBusy}"
+                                Content="{Binding $parent[UserControl].((vm:ModuleRegistryViewModel)DataContext).UninstallButtonText}" />
                         </StackPanel>
 
                         <Separator />

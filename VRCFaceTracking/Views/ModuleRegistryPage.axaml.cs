@@ -30,26 +30,15 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
     public async void OnNavigatedTo() => await ViewModel.OnNavigatedTo();
 
     private void ModuleSelection_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (ViewModel.Selected is not InstallableTrackingModule module) return;
-        InstallButton.IsVisible = module.InstallationState != InstallState.Installed;
-        UninstallButton.IsVisible = module.InstallationState == InstallState.Installed;
-        InstallButton.Content = Strings.Resources.ModuleActionInstall;
-        InstallButton.IsEnabled = true;
-        if (module.InstallationState != InstallState.AwaitingRestart)
-        {
-            UninstallButton.IsEnabled = true;
-            UninstallButton.Content = Strings.Resources.ModuleActionUninstall;
-        }
-    }
+        => ViewModel.RefreshActionState();
 
     private async void InstallButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (ViewModel.Selected is not InstallableTrackingModule module) return;
-        InstallButton.IsEnabled = false;
-        InstallButton.Content = Strings.Resources.ModuleActionInstalling;
 
-        var installed = false;
+        ViewModel.IsBusy = true;
+        ViewModel.InstallButtonText = Strings.Resources.ModuleActionInstalling;
+
         try
         {
             await Task.Run(() => _libManager.TeardownAllAndReset());
@@ -57,9 +46,9 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
             if (path != null)
             {
                 module.InstallationState = InstallState.Installed;
-                installed = true;
             }
             _libManager.Initialize();
+            await ViewModel.OnNavigatedTo();
         }
         catch (Exception ex)
         {
@@ -67,8 +56,7 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
         }
         finally
         {
-            InstallButton.Content = installed ? Strings.Resources.ModuleActionInstalled : Strings.Resources.ModuleActionFailed;
-            InstallButton.IsEnabled = true;
+            ViewModel.RefreshActionState();
         }
     }
 
@@ -76,7 +64,9 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
     {
         if (ViewModel.Selected is not InstallableTrackingModule module) return;
 
-        UninstallButton.IsEnabled = false;
+        ViewModel.IsBusy = true;
+        ViewModel.UninstallButtonText = Strings.Resources.ModuleActionUninstalling;
+
         try
         {
             await Task.Run(() =>
@@ -94,7 +84,7 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
         }
         finally
         {
-            UninstallButton.IsEnabled = true;
+            ViewModel.RefreshActionState();
         }
     }
 

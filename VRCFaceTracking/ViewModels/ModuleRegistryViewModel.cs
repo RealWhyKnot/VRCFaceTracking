@@ -10,6 +10,11 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
     private readonly IModuleDataService _moduleDataService;
     [ObservableProperty] private InstallableTrackingModule? _selected;
     [ObservableProperty] private string _searchQuery = string.Empty;
+    [ObservableProperty] private bool _canInstall;
+    [ObservableProperty] private bool _canUninstall;
+    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _installButtonText = Strings.Resources.ModuleActionInstall;
+    [ObservableProperty] private string _uninstallButtonText = Strings.Resources.ModuleActionUninstall;
     private bool _loading;
 
     public ObservableCollection<InstallableTrackingModule> ModuleInfos { get; } = new();
@@ -23,18 +28,47 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
 
     partial void OnSearchQueryChanged(string value) => ApplyFilter();
 
+    partial void OnSelectedChanged(InstallableTrackingModule? value) => RefreshActionState();
+
+    public void RefreshActionState()
+    {
+        var state = Selected?.InstallationState;
+        CanInstall = state is not null and not InstallState.Installed;
+        CanUninstall = state is InstallState.Installed or InstallState.Outdated;
+        IsBusy = false;
+        InstallButtonText = Strings.Resources.ModuleActionInstall;
+        UninstallButtonText = Strings.Resources.ModuleActionUninstall;
+    }
+
     private void ApplyFilter()
     {
-        FilteredModuleInfos.Clear();
         var query = SearchQuery?.Trim();
-        var filtered = string.IsNullOrEmpty(query)
+        var desired = (string.IsNullOrEmpty(query)
             ? ModuleInfos
             : ModuleInfos.Where(m =>
                 (m.ModuleName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (m.AuthorName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false));
-        foreach (var m in filtered)
+                (m.AuthorName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))).ToList();
+
+        for (var i = FilteredModuleInfos.Count - 1; i >= 0; i--)
         {
-            FilteredModuleInfos.Add(m);
+            if (!desired.Contains(FilteredModuleInfos[i]))
+            {
+                FilteredModuleInfos.RemoveAt(i);
+            }
+        }
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var module = desired[i];
+            var current = FilteredModuleInfos.IndexOf(module);
+            if (current < 0)
+            {
+                FilteredModuleInfos.Insert(i, module);
+            }
+            else if (current != i)
+            {
+                FilteredModuleInfos.Move(current, i);
+            }
         }
     }
 

@@ -558,6 +558,9 @@
   <data name="ModuleActionInstalling" xml:space="preserve">
     <value>Installing...</value>
   </data>
+  <data name="ModuleActionUninstalling" xml:space="preserve">
+    <value>Uninstalling...</value>
+  </data>
   <data name="ModuleActionInstalled" xml:space="preserve">
     <value>Installed.</value>
   </data>

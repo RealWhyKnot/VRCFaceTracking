@@ -71,17 +71,6 @@ public partial class SettingsViewModel : ObservableRecipient
         OnPropertyChanged(nameof(AutoStart));
     }
 
-    public bool DeveloperMode
-    {
-        get => Developer.Enabled;
-        set
-        {
-            Developer.Enabled = value;
-            _ = _localSettingsService.SaveSettingAsync(DeveloperSettings.SettingKey, value);
-            OnPropertyChanged();
-        }
-    }
-
     public static bool IsOpenVRSupported => OpenVRService.IsSupported;
 
     public bool ExitWithSteamVr

@@ -20,17 +20,6 @@ public class MutatorViewModel : ObservableRecipient
         get;
     }
 
-    public bool DeveloperMode
-    {
-        get => Developer.Enabled;
-        set
-        {
-            Developer.Enabled = value;
-            _ = _localSettingsService.SaveSettingAsync(DeveloperSettings.SettingKey, value);
-            OnPropertyChanged();
-        }
-    }
-
     public MutatorViewModel(UnifiedTrackingMutator trackingMutator, DeveloperSettings developer, ILocalSettingsService localSettingsService)
     {
         Developer = developer;
