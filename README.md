@@ -4,9 +4,8 @@ Fork of [benaclejames/VRCFaceTracking](https://github.com/benaclejames/VRCFaceTr
 tweaks. Docs for avatars, parameters and modules: [docs.vrcft.io](https://docs.vrcft.io).
 
 Runs on Windows and Linux; macOS builds are experimental. You can run several tracking modules at
-once: each module can be limited to the data it should provide (eyes, brows, mouth, tongue, head),
-and whatever one module doesn't cover falls to the next. I also added a live view of the module
-camera feeds for debugging, under the developer section of the settings page.
+once: each module can be limited to the data it should provide (eyes, brows, mouth, tongue, head).
+I also added a live view of the module camera feeds for debugging, under the developer section of the settings page.
 
 ![Home](docs/img/home.png)
 
