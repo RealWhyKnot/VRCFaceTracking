@@ -1,7 +1,7 @@
 using System.Globalization;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Data.Converters;
-using Avalonia.Media;
 using Microsoft.Extensions.Logging;
 
 namespace VRCFaceTracking.Helpers;
@@ -10,23 +10,31 @@ public class LogLevelBrushConverter : IValueConverter
 {
     public static readonly LogLevelBrushConverter Instance = new();
 
-    private static readonly IBrush Dim = new SolidColorBrush(Color.Parse("#8A8A8A"));
-    private static readonly IBrush Warning = new SolidColorBrush(Color.Parse("#FFC107"));
-    private static readonly IBrush Error = new SolidColorBrush(Color.Parse("#F44747"));
-    private static readonly IBrush Critical = new SolidColorBrush(Color.Parse("#A70023"));
+    private const string DimKey = "TextFillColorTertiaryBrush";
+    private const string WarningKey = "SystemFillColorCautionBrush";
+    private const string CriticalKey = "SystemFillColorCriticalBrush";
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is LogLevel level
             ? level switch
             {
-                LogLevel.Trace => Dim,
-                LogLevel.Debug => Dim,
-                LogLevel.Warning => Warning,
-                LogLevel.Error => Error,
-                LogLevel.Critical => Critical,
+                LogLevel.Trace or LogLevel.Debug => Resolve(DimKey),
+                LogLevel.Warning => Resolve(WarningKey),
+                LogLevel.Error or LogLevel.Critical => Resolve(CriticalKey),
                 _ => AvaloniaProperty.UnsetValue
             }
             : AvaloniaProperty.UnsetValue;
+
+    private static object Resolve(string key)
+    {
+        var app = Application.Current;
+        if (app is not null && app.TryFindResource(key, app.ActualThemeVariant, out var brush) && brush is not null)
+        {
+            return brush;
+        }
+
+        return AvaloniaProperty.UnsetValue;
+    }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotImplementedException();

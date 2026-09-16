@@ -10,25 +10,13 @@
 
     <ScrollViewer>
         <StackPanel Margin="{StaticResource PageRootMargin}" Classes="page-stack">
-            <Border
+            <ui:InfoBar
                 IsVisible="{Binding NoModulesInstalled, Mode=OneWay}"
-                Classes="card"
-                Padding="20,15">
-                <Border.BorderBrush>
-                    <SolidColorBrush Color="#FFC107" Opacity="0.6" />
-                </Border.BorderBrush>
-                <Border.Background>
-                    <SolidColorBrush Color="#FFC107" Opacity="0.08" />
-                </Border.Background>
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <ui:SymbolIcon Symbol="Alert" FontSize="20" VerticalAlignment="Center" Foreground="#FFC107" />
-                    <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="{x:Static s:Resources.no_modules_installed_warning_Title}" />
-                        <TextBlock Classes="caption"
-                                   Text="{x:Static s:Resources.no_modules_installed_warning_Description}" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                IsOpen="True"
+                IsClosable="False"
+                Severity="Warning"
+                Title="{x:Static s:Resources.no_modules_installed_warning_Title}"
+                Message="{x:Static s:Resources.no_modules_installed_warning_Description}" />
 
             <TextBlock Classes="section-header" Text="{x:Static s:Resources.ModulesSectionHeader}" />
 
@@ -89,7 +77,7 @@
                                                        IsVisible="{Binding UsingExpression, Mode=OneWay}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Crashed, Mode=OneWay}">
-                                            <TextBlock FontSize="12" Foreground="#E81123" Text="{x:Static s:Resources.ModuleCrashedText}" />
+                                            <TextBlock FontSize="12" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Text="{x:Static s:Resources.ModuleCrashedText}" />
                                             <TextBlock Classes="caption" Text="{Binding CrashDescription, Mode=OneWay}" />
                                         </StackPanel>
                                     </StackPanel>
@@ -198,7 +186,7 @@
                             <TextBlock Classes="caption" Text="{Binding ParameterOutputService.AvatarInfo.Id, Mode=OneWay}" />
                             <StackPanel Orientation="Horizontal" Spacing="6"
                                         IsVisible="{Binding ParameterOutputService.AvatarInfo.Id, Mode=OneWay, Converter={StaticResource IsLocalTestAvatarConverter}}">
-                                <Ellipse Width="8" Height="8" Fill="Red" VerticalAlignment="Center" />
+                                <Ellipse Width="8" Height="8" Fill="{DynamicResource SystemFillColorCriticalBrush}" VerticalAlignment="Center" />
                                 <TextBlock Classes="caption" VerticalAlignment="Center"
                                            Text="{x:Static s:Resources.LocalTestAvatar_Text}"
                                            ToolTip.Tip="{x:Static s:Resources.LocalTestAvatarTooltip_Content}" />
@@ -213,7 +201,7 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6"
                                     IsVisible="{Binding ParameterOutputService.AvatarParameters, Mode=OneWay, Converter={StaticResource HasLegacyParametersConverter}}">
-                            <Ellipse Width="8" Height="8" Fill="Orange" VerticalAlignment="Center" />
+                            <Ellipse Width="8" Height="8" Fill="{DynamicResource SystemFillColorAttentionBrush}" VerticalAlignment="Center" />
                             <TextBlock FontSize="12" Text="{Binding ParameterOutputService.AvatarParameters, Mode=OneWay, Converter={StaticResource LegacyParameterCountConverter}}" />
                             <TextBlock Classes="caption" Text="{x:Static s:Resources.LegacyParameters_Text}" />
                         </StackPanel>
