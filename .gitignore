@@ -9,6 +9,7 @@ build/
 *.exe
 *.pdb
 *.dll
+!VRCFaceTracking/runtimes/**/*.dll
 *.user
 *.suo
 *.cache
