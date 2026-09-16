@@ -11,7 +11,7 @@ public class MouthBrowAssists : TrackingMutation
     public override string Description => "Mouth close compensation, smile open assist, idle mouth auto-close, and eyelid-brow sync.";
     public override MutationPriority Step => MutationPriority.Postprocessor;
     public override int Order => 20;
-    public override bool IsActive { get; set; } = true;
+    public override bool IsActive { get; set; } = false;
 
     [MutationProperty("Mouth Close Compensation", true)]
     public bool mouthCloseCompensation = false;

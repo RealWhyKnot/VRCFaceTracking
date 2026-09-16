@@ -211,4 +211,13 @@ public class MouthBrowAssistsTests
         Assert.True(eyeAssists < mouthBrow);
         Assert.True(mouthBrow < filter);
     }
+
+    [Fact]
+    public void Assists_AreInactiveByDefault()
+    {
+        var mutations = TrackingMutation.GetImplementingMutations(true);
+
+        Assert.False(mutations.Single(m => m.Name == "Eye Assists").IsActive);
+        Assert.False(mutations.Single(m => m.Name == "Mouth & Brow Assists").IsActive);
+    }
 }

@@ -10,7 +10,7 @@ public class EyeAssists : TrackingMutation
     public override string Description => "Gaze convergence fix, eye close assist, eyelid sync with wink preservation, and force eyes closed.";
     public override MutationPriority Step => MutationPriority.Postprocessor;
     public override int Order => 10;
-    public override bool IsActive { get; set; } = true;
+    public override bool IsActive { get; set; } = false;
 
     [MutationProperty("Gaze Convergence Fix", true)]
     public bool convergenceFix = false;
