@@ -7,10 +7,6 @@ Runs on Windows and Linux; macOS builds are experimental. You can run several tr
 once: each module can be limited to the data it should provide (eyes, brows, mouth, tongue, head).
 I also added a live view of the module camera feeds for debugging, under the developer section of the settings page.
 
-![Home](docs/img/home.png)
-
-![Tracking settings](docs/img/tracking-settings.png)
-
 ## Install
 
 Grab the archive for your OS from the latest release and extract it anywhere.
