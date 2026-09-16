@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using FluentAvalonia.UI.Controls;
 using Microsoft.Extensions.Logging.Abstractions;
 using VRCFaceTracking.Core.Params.Data.Mutation;
 using VRCFaceTracking.ViewModels;
@@ -42,16 +43,26 @@ public class PageSmokeTests
     public void SettingsPage_Renders() => ShowAndClose(new SettingsPage());
 
     [AvaloniaFact]
-    public void ShellPage_RendersEveryPage()
+    public void ShellPage_NavigatesToEveryPage()
     {
         var shell = new ShellPage();
         var window = ShowInWindow(shell);
 
-        foreach (var page in shell.GetVisualDescendants().OfType<UserControl>().ToList())
+        var nav = shell.GetVisualDescendants().OfType<NavigationView>().Single();
+        var host = shell.GetVisualDescendants().OfType<TransitioningContentControl>().Single();
+        var seen = new List<Type>();
+
+        foreach (var item in nav.MenuItems.OfType<NavigationViewItem>().ToList())
         {
-            page.IsVisible = true;
+            nav.SelectedItem = item;
             Dispatcher.UIThread.RunJobs();
+
+            var content = Assert.IsAssignableFrom<Control>(host.Content);
+            seen.Add(content.GetType());
         }
+
+        Assert.Equal(4, seen.Count);
+        Assert.Equal(seen.Count, seen.Distinct().Count());
 
         window.Close();
         Dispatcher.UIThread.RunJobs();

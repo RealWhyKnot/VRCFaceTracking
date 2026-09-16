@@ -36,7 +36,14 @@
             </ui:NavigationViewItem>
         </ui:NavigationView.MenuItems>
 
-        <Panel x:Name="PageContainer" Margin="20,0,20,20" />
+        <TransitioningContentControl
+            x:Name="PageHost"
+            PageTransition="{StaticResource PageFade}"
+            Padding="24,12,24,20"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
+            VerticalContentAlignment="Stretch" />
 
     </ui:NavigationView>
 </UserControl>

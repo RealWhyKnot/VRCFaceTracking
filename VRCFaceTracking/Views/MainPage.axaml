@@ -9,7 +9,7 @@
     x:Class="VRCFaceTracking.Views.MainPage">
 
     <ScrollViewer>
-        <StackPanel Margin="{StaticResource PageRootMargin}" Classes="page-stack">
+        <StackPanel Classes="page-stack">
             <ui:InfoBar
                 IsVisible="{Binding NoModulesInstalled, Mode=OneWay}"
                 IsOpen="True"
@@ -30,7 +30,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock FontSize="12" Text="{Binding Name}" />
+                                        <TextBlock Classes="value" Text="{Binding Name}" />
                                         <TextBlock Classes="caption"
                                                    Text="{Binding Stage, Converter={StaticResource ModuleInitStageConverter}}" />
                                     </StackPanel>
@@ -61,7 +61,7 @@
                                                 <Border CornerRadius="6" ClipToBounds="True"
                                                         Background="{DynamicResource ControlFillColorSecondaryBrush}">
                                                     <Image Source="{Binding Converter={StaticResource StreamToBitmapConverter}}"
-                                                           Height="72"
+                                                           MaxHeight="96" MaxWidth="160"
                                                            Stretch="Uniform" />
                                                 </Border>
                                             </DataTemplate>
@@ -77,7 +77,7 @@
                                                        IsVisible="{Binding UsingExpression, Mode=OneWay}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Crashed, Mode=OneWay}">
-                                            <TextBlock FontSize="12" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Text="{x:Static s:Resources.ModuleCrashedText}" />
+                                            <TextBlock Classes="value" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Text="{x:Static s:Resources.ModuleCrashedText}" />
                                             <TextBlock Classes="caption" Text="{Binding CrashDescription, Mode=OneWay}" />
                                         </StackPanel>
                                     </StackPanel>
@@ -88,8 +88,6 @@
                                                 Click="RestartModules_OnClick" />
                                         <ToggleSwitch
                                             IsChecked="{Binding Active, Mode=TwoWay}"
-                                            OffContent=""
-                                            OnContent=""
                                             VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Grid>
@@ -99,14 +97,14 @@
                                           IsVisible="{Binding Active, Mode=OneWay}">
                                     <Expander.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock FontSize="12" Text="{x:Static s:Resources.ModuleTrackingHeader}" />
-                                            <TextBlock FontSize="12" Opacity="0.5" Text="{x:Static s:Resources.ModuleTrackingAutomatic}"
+                                            <TextBlock Classes="value" Text="{x:Static s:Resources.ModuleTrackingHeader}" />
+                                            <TextBlock Classes="caption" Text="{x:Static s:Resources.ModuleTrackingAutomatic}"
                                                        IsVisible="{Binding IsAutomatic, Mode=OneWay}" />
-                                            <TextBlock FontSize="12" Opacity="0.5" Text="{x:Static s:Resources.ModuleTrackingCustom}"
+                                            <TextBlock Classes="caption" Text="{x:Static s:Resources.ModuleTrackingCustom}"
                                                        IsVisible="{Binding !IsAutomatic, Mode=OneWay}" />
                                         </StackPanel>
                                     </Expander.Header>
-                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                    <WrapPanel ItemSpacing="14" LineSpacing="8">
                                         <CheckBox Content="{x:Static s:Resources.CapabilityEyes}"
                                                   IsChecked="{Binding AllowEyes, Mode=TwoWay}"
                                                   IsEnabled="{Binding SupportedEye, Mode=OneWay}" />
@@ -124,7 +122,7 @@
                                         <Button Content="{x:Static s:Resources.ModuleTrackingResetContent}"
                                                 IsEnabled="{Binding !IsAutomatic, Mode=OneWay}"
                                                 Click="ResetCapabilities_OnClick" />
-                                    </StackPanel>
+                                    </WrapPanel>
                                 </Expander>
                             </StackPanel>
                         </Border>
@@ -148,24 +146,24 @@
                             <StackPanel Orientation="Horizontal" Spacing="4"
                                         IsVisible="{Binding OscTarget.IsConnected}">
                                 <TextBlock Classes="caption" Text="Recv:" />
-                                <TextBlock FontSize="12" Text="{Binding OscTarget.InPort, Mode=OneWay}" />
+                                <TextBlock Classes="value" Text="{Binding OscTarget.InPort, Mode=OneWay}" />
                                 <TextBlock Classes="caption" Text="  Send:" />
-                                <TextBlock FontSize="12" Text="{Binding OscTarget.OutPort, Mode=OneWay}" />
+                                <TextBlock Classes="value" Text="{Binding OscTarget.OutPort, Mode=OneWay}" />
                                 <TextBlock Classes="caption" Text=" @" />
-                                <TextBlock FontSize="12" Text="{Binding OscTarget.DestinationAddress, Mode=OneWay}" />
+                                <TextBlock Classes="value" Text="{Binding OscTarget.DestinationAddress, Mode=OneWay}" />
                             </StackPanel>
-                            <TextBlock FontSize="12" Opacity="0.5" Text="Not connected"
+                            <TextBlock Classes="caption" Text="Not connected"
                                        IsVisible="{Binding !OscTarget.IsConnected}" />
                         </StackPanel>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="4">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
-                            <TextBlock FontSize="12" Text="{Binding MessagesInPerSec, Mode=OneWay}" />
+                        <StackPanel Classes="metric">
+                            <TextBlock Classes="value" Text="{Binding MessagesInPerSec, Mode=OneWay}" />
                             <TextBlock Classes="caption" Text="{x:Static s:Resources.msIncoming_Text}" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
-                            <TextBlock FontSize="12" Text="{Binding MessagesOutPerSec, Mode=OneWay}" />
+                        <StackPanel Classes="metric">
+                            <TextBlock Classes="value" Text="{Binding MessagesOutPerSec, Mode=OneWay}" />
                             <TextBlock Classes="caption" Text="{x:Static s:Resources.msOutgoing_Text}" />
                         </StackPanel>
                     </StackPanel>
@@ -195,14 +193,14 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="4">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
-                            <TextBlock FontSize="12" Text="{Binding ParameterOutputService.AvatarParameters.Count, Mode=OneWay}" />
+                        <StackPanel Classes="metric">
+                            <TextBlock Classes="value" Text="{Binding ParameterOutputService.AvatarParameters.Count, Mode=OneWay}" />
                             <TextBlock Classes="caption" Text="{x:Static s:Resources.Parameters_Text}" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6"
+                        <StackPanel Classes="metric"
                                     IsVisible="{Binding ParameterOutputService.AvatarParameters, Mode=OneWay, Converter={StaticResource HasLegacyParametersConverter}}">
                             <Ellipse Width="8" Height="8" Fill="{DynamicResource SystemFillColorAttentionBrush}" VerticalAlignment="Center" />
-                            <TextBlock FontSize="12" Text="{Binding ParameterOutputService.AvatarParameters, Mode=OneWay, Converter={StaticResource LegacyParameterCountConverter}}" />
+                            <TextBlock Classes="value" Text="{Binding ParameterOutputService.AvatarParameters, Mode=OneWay, Converter={StaticResource LegacyParameterCountConverter}}" />
                             <TextBlock Classes="caption" Text="{x:Static s:Resources.LegacyParameters_Text}" />
                         </StackPanel>
                     </StackPanel>

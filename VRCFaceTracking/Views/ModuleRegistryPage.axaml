@@ -8,9 +8,9 @@
     x:DataType="vm:ModuleRegistryViewModel"
     x:Class="VRCFaceTracking.Views.ModuleRegistryPage">
 
-    <Grid ColumnDefinitions="300,*" Margin="{StaticResource PageRootMargin}">
+    <Grid ColumnDefinitions="1*,3*">
 
-        <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="0,0,10,0">
+        <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="0,0,10,0" MinWidth="260" MaxWidth="380">
 
             <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
                 <Border Grid.Column="0" Height="32" Classes="card" Padding="10,0">
@@ -43,14 +43,14 @@
             </Grid>
 
             <Border Grid.Row="1" Classes="card" Padding="0">
-                <ListBox
+                <ListBox Classes="module-list"
                     ItemsSource="{Binding FilteredModuleInfos, Mode=OneWay}"
                     SelectedItem="{Binding Selected}"
                     SelectionChanged="ModuleSelection_Click"
                     ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="models:InstallableTrackingModule">
-                            <Grid Height="56" Margin="4,2">
+                            <Grid MinHeight="56" Margin="4,2">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -63,10 +63,9 @@
                                                Text="{Binding AuthorName}"
                                                TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
-                                <Border Grid.Column="1" CornerRadius="4" Padding="6,2"
-                                        Margin="8,0,0,0" VerticalAlignment="Center"
-                                        x:Name="StateBadge">
-                                    <TextBlock FontSize="11" Text="{Binding InstallationState, Mode=OneWay, Converter={StaticResource InstallStateToTextConverter}}" />
+                                <Border Grid.Column="1" Classes="state-badge"
+                                        Background="{Binding InstallationState, Mode=OneWay, Converter={StaticResource InstallStateToBrushConverter}}">
+                                    <TextBlock Classes="value" Text="{Binding InstallationState, Mode=OneWay, Converter={StaticResource InstallStateToTextConverter}}" />
                                 </Border>
                             </Grid>
                         </DataTemplate>
@@ -112,29 +111,28 @@
 
                         <Separator />
 
-                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" VerticalAlignment="Top">
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="8" VerticalAlignment="Top">
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" FontWeight="SemiBold" Opacity="0.7" Text="{x:Static s:Resources.Version_Text}" />
+                            <TextBlock Grid.Row="0" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.Version_Text}" />
                             <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Version}" TextWrapping="Wrap" />
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" FontWeight="SemiBold" Opacity="0.7" Text="{x:Static s:Resources.Downloads_Text}" Margin="0,8,0,0" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Downloads}" Margin="0,8,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.Downloads_Text}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Downloads}" />
 
-                            <TextBlock Grid.Row="2" Grid.Column="0" FontWeight="SemiBold" Opacity="0.7" Text="{x:Static s:Resources.LastUpdated_Text}" Margin="0,8,0,0" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastUpdated, StringFormat='{}{0:d}'}" Margin="0,8,0,0" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.LastUpdated_Text}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastUpdated, StringFormat='{}{0:d}'}" />
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" FontWeight="SemiBold" Opacity="0.7" Text="{x:Static s:Resources.ModulePage_Text}" Margin="0,8,0,0" />
-                            <Button Grid.Row="3" Grid.Column="1" Margin="0,8,0,0"
+                            <TextBlock Grid.Row="3" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.ModulePage_Text}" />
+                            <HyperlinkButton Grid.Row="3" Grid.Column="1"
                                     Padding="0"
-                                    Classes="hyperlink"
                                     Content="{Binding ModulePageUrl}"
                                     Click="OpenModulePage_Click" />
 
-                            <TextBlock Grid.Row="4" Grid.Column="0" FontWeight="SemiBold" Opacity="0.7" Text="{x:Static s:Resources.Description_Text}" Margin="0,16,0,0" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ModuleDescription}" TextWrapping="Wrap" Margin="0,16,0,0" />
+                            <TextBlock Grid.Row="4" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.Description_Text}" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ModuleDescription}" TextWrapping="Wrap" />
 
-                            <TextBlock Grid.Row="5" Grid.Column="0" FontWeight="SemiBold" Opacity="0.7" Text="{x:Static s:Resources.UsageInstructions_Text}" Margin="0,8,0,0" VerticalAlignment="Top" />
-                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding UsageInstructions}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                            <TextBlock Grid.Row="5" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.UsageInstructions_Text}" VerticalAlignment="Top" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding UsageInstructions}" TextWrapping="Wrap" />
                         </Grid>
 
                     </StackPanel>

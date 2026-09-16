@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Styling;
 
@@ -71,4 +72,13 @@ public class ThemeResourceTests
 
     private static string Describe(object? brush) =>
         brush is ISolidColorBrush solid ? solid.Color.ToString() : brush?.ToString() ?? "null";
+
+    [AvaloniaTheory]
+    [InlineData("avares://VRCFaceTracking/Styles/Shared.axaml")]
+    [InlineData("avares://VRCFaceTracking/Styles/Motion.axaml")]
+    public void StyleSheet_Parses(string uri)
+    {
+        var loaded = AvaloniaXamlLoader.Load(new Uri(uri));
+        Assert.IsAssignableFrom<Styles>(loaded);
+    }
 }

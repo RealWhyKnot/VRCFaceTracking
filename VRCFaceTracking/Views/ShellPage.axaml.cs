@@ -18,35 +18,34 @@ public partial class ShellPage : UserControl
     {
         InitializeComponent();
 
-        PageContainer.Children.Add(_mainPage);
-        PageContainer.Children.Add(_outputPage);
-        PageContainer.Children.Add(_moduleRegistryPage);
-        PageContainer.Children.Add(_mutatorPage);
-        PageContainer.Children.Add(_settingsPage);
+        if (!App.EnableMotion)
+        {
+            PageHost.PageTransition = null;
+        }
 
-        foreach (var child in PageContainer.Children)
-            child.IsVisible = false;
-
-        // Select the first nav item and show the main page
         NavView.SelectedItem = NavView.MenuItems[0];
         ShowPage(_mainPage);
     }
 
     private void ShowPage(Control page)
     {
-        if (_currentPage != null)
+        if (ReferenceEquals(_currentPage, page))
         {
-            if (_currentPage is INotifyNavigated leaving)
-                leaving.OnNavigatedFrom();
-            _currentPage.IsVisible = false;
+            return;
         }
 
-        page.IsVisible = true;
-        _currentPage = page;
+        if (_currentPage is INotifyNavigated leaving)
+        {
+            leaving.OnNavigatedFrom();
+        }
 
-        // Notify module registry when navigated to so it loads data
+        _currentPage = page;
+        PageHost.Content = page;
+
         if (page is INotifyNavigated notifyNavigated)
+        {
             notifyNavigated.OnNavigatedTo();
+        }
     }
 
     private void OnNavigationSelectionChanged(object? sender, NavigationViewSelectionChangedEventArgs e)

@@ -12,6 +12,7 @@ public static class TestAppBuilder
     public static AppBuilder BuildAvaloniaApp()
     {
         App.StartServices = false;
+        App.EnableMotion = false;
         return AppBuilder.Configure<App>()
             .UseSkia()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });

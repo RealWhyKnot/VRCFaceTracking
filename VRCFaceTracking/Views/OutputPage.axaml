@@ -8,42 +8,42 @@
     x:DataType="vm:OutputViewModel"
     x:Class="VRCFaceTracking.Views.OutputPage">
 
-    <Grid RowDefinitions="Auto,*" Margin="{StaticResource PageRootMargin}">
+    <Grid RowDefinitions="Auto,*">
 
         <Border Grid.Row="0" Classes="card" Padding="8,6" Margin="0,0,0,10">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                <WrapPanel Grid.Column="0" ItemSpacing="6" LineSpacing="6">
                     <Button ToolTip.Tip="{x:Static s:Resources.CopyLogButtonTooltip}" Click="CopyToClipboard_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ui:SymbolIcon Symbol="Copy" FontSize="16" />
-                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputCopyButtonContent}" />
+                        <StackPanel Classes="icon-label">
+                            <ui:SymbolIcon Symbol="Copy" />
+                            <TextBlock Text="{x:Static s:Resources.OutputCopyButtonContent}" />
                         </StackPanel>
                     </Button>
                     <Button ToolTip.Tip="{x:Static s:Resources.SaveLogButtonTooltip}" Click="SaveToFile_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ui:SymbolIcon Symbol="Save" FontSize="16" />
-                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputSaveButtonContent}" />
+                        <StackPanel Classes="icon-label">
+                            <ui:SymbolIcon Symbol="Save" />
+                            <TextBlock Text="{x:Static s:Resources.OutputSaveButtonContent}" />
                         </StackPanel>
                     </Button>
                     <Button ToolTip.Tip="{x:Static s:Resources.OpenLogsFolderButtonTooltip}" Click="OpenLogsFolder_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ui:SymbolIcon Symbol="OpenFolder" FontSize="16" />
-                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputOpenFolderButtonContent}" />
+                        <StackPanel Classes="icon-label">
+                            <ui:SymbolIcon Symbol="OpenFolder" />
+                            <TextBlock Text="{x:Static s:Resources.OutputOpenFolderButtonContent}" />
                         </StackPanel>
                     </Button>
                     <Button ToolTip.Tip="{x:Static s:Resources.OutputClearButtonTooltip}" Click="ClearLogs_Click">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ui:SymbolIcon Symbol="Delete" FontSize="16" />
-                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputClearButtonContent}" />
+                        <StackPanel Classes="icon-label">
+                            <ui:SymbolIcon Symbol="Delete" />
+                            <TextBlock Text="{x:Static s:Resources.OutputClearButtonContent}" />
                         </StackPanel>
                     </Button>
                     <ToggleButton x:Name="AutoScrollToggle" IsChecked="True" IsCheckedChanged="AutoScrollToggle_IsCheckedChanged">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <ui:SymbolIcon Symbol="ChevronDown" FontSize="16" />
-                            <TextBlock VerticalAlignment="Center" Text="{x:Static s:Resources.OutputAutoScrollToggleContent}" />
+                        <StackPanel Classes="icon-label">
+                            <ui:SymbolIcon Symbol="ChevronDown" />
+                            <TextBlock Text="{x:Static s:Resources.OutputAutoScrollToggleContent}" />
                         </StackPanel>
                     </ToggleButton>
-                </StackPanel>
+                </WrapPanel>
                 <TextBlock Grid.Column="2" x:Name="StatusText" Classes="caption" VerticalAlignment="Center" Margin="8,0" />
             </Grid>
         </Border>

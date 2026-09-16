@@ -8,7 +8,7 @@
     x:Class="VRCFaceTracking.Views.SettingsPage">
 
     <ScrollViewer>
-        <StackPanel Spacing="4" Margin="{StaticResource PageRootMargin}">
+        <StackPanel Classes="page-stack" Spacing="4">
 
             <TextBlock Text="{x:Static s:Resources.Appearance_Text}" Classes="section-header" />
 
@@ -29,9 +29,9 @@
                 Header="{x:Static s:Resources.OscSettings_Header}"
                 Description="{x:Static s:Resources.OscSettings_Description}">
                 <ui:SettingsExpander.Footer>
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <StackPanel Spacing="4">
-                            <TextBlock FontSize="12" Opacity="0.7" Text="{x:Static s:Resources.OscInPortLabel}" />
+                    <WrapPanel ItemSpacing="12" LineSpacing="8" MaxWidth="420">
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="caption" Text="{x:Static s:Resources.OscInPortLabel}" />
                             <NumericUpDown
                                 Minimum="1"
                                 Maximum="65535"
@@ -41,16 +41,16 @@
                                 ToolTip.Tip="{x:Static s:Resources.OscInPortTooltip}"
                                 Value="{Binding OscTarget.InPort, Mode=TwoWay}" />
                         </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock FontSize="12" Opacity="0.7" Text="{x:Static s:Resources.OscAddressLabel}" />
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="caption" Text="{x:Static s:Resources.OscAddressLabel}" />
                             <TextBox
                                 Watermark="127.0.0.1"
                                 MinWidth="140"
                                 ToolTip.Tip="{x:Static s:Resources.OscAddressTooltip}"
                                 Text="{Binding OscTarget.DestinationAddress, Mode=TwoWay}" />
                         </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock FontSize="12" Opacity="0.7" Text="{x:Static s:Resources.OscOutPortLabel}" />
+                        <StackPanel Classes="field">
+                            <TextBlock Classes="caption" Text="{x:Static s:Resources.OscOutPortLabel}" />
                             <NumericUpDown
                                 Minimum="1"
                                 Maximum="65535"
@@ -60,7 +60,7 @@
                                 ToolTip.Tip="{x:Static s:Resources.OscOutPortTooltip}"
                                 Value="{Binding OscTarget.OutPort, Mode=TwoWay}" />
                         </StackPanel>
-                    </StackPanel>
+                    </WrapPanel>
                 </ui:SettingsExpander.Footer>
             </ui:SettingsExpander>
 
@@ -74,9 +74,7 @@
                 <ui:SettingsExpander.Footer>
                     <ToggleSwitch
                         IsChecked="{Binding AutoStart, Mode=TwoWay}"
-                        IsEnabled="{Binding IsOpenVREnabled}"
-                        OffContent=""
-                        OnContent="" />
+                        IsEnabled="{Binding IsOpenVREnabled}" />
                 </ui:SettingsExpander.Footer>
             </ui:SettingsExpander>
 
@@ -86,9 +84,7 @@
                 IsVisible="{Binding IsOpenVRSupported}">
                 <ui:SettingsExpander.Footer>
                     <ToggleSwitch
-                        IsChecked="{Binding ExitWithSteamVr, Mode=TwoWay}"
-                        OffContent=""
-                        OnContent="" />
+                        IsChecked="{Binding ExitWithSteamVr, Mode=TwoWay}" />
                 </ui:SettingsExpander.Footer>
             </ui:SettingsExpander>
 
@@ -99,9 +95,7 @@
                 Description="{x:Static s:Resources.DeveloperModeDescription}">
                 <ui:SettingsExpander.Footer>
                     <ToggleSwitch
-                        IsChecked="{Binding DeveloperMode, Mode=TwoWay}"
-                        OffContent=""
-                        OnContent="" />
+                        IsChecked="{Binding DeveloperMode, Mode=TwoWay}" />
                 </ui:SettingsExpander.Footer>
             </ui:SettingsExpander>
 
@@ -116,9 +110,7 @@
                     <ui:SettingsExpander.Footer>
                         <ToggleSwitch
                             IsChecked="{Binding VerboseLogging, Mode=TwoWay}"
-                            IsEnabled="{Binding IsVerboseToggleEnabled}"
-                            OffContent=""
-                            OnContent="" />
+                            IsEnabled="{Binding IsVerboseToggleEnabled}" />
                     </ui:SettingsExpander.Footer>
                 </ui:SettingsExpander>
 
@@ -183,9 +175,7 @@
                 IsVisible="{Binding IsUpdateCheckAvailable}">
                 <ui:SettingsExpander.Footer>
                     <ToggleSwitch
-                        IsChecked="{Binding CheckUpdatesOnStartup, Mode=TwoWay}"
-                        OffContent=""
-                        OnContent="" />
+                        IsChecked="{Binding CheckUpdatesOnStartup, Mode=TwoWay}" />
                 </ui:SettingsExpander.Footer>
 
                 <ui:SettingsExpander.Items>
@@ -224,8 +214,6 @@
                             <ui:SettingsExpanderItem.Footer>
                                 <ToggleSwitch
                                     IsChecked="{Binding RiskySettings.AllRelevantDebug, Mode=TwoWay}"
-                                    OffContent=""
-                                    OnContent=""
                                     ToolTip.Tip="{x:Static s:Resources.ForceRelevancyTooltip}" />
                             </ui:SettingsExpanderItem.Footer>
                         </ui:SettingsExpanderItem>

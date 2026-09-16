@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.DependencyInjection;
@@ -25,6 +26,7 @@ public partial class App : Application
     private static IHost? _host;
 
     public static bool StartServices = true;
+    public static bool EnableMotion = true;
     private static bool _dataValidatorTrimmed;
 
     internal static readonly LogLevelGate LogGate = new();
@@ -73,6 +75,17 @@ public partial class App : Application
             bootLogger.LogCritical(e, "App XAML initialization failed");
             FileLog.Flush();
             throw;
+        }
+
+        if (!EnableMotion)
+        {
+            var motion = Styles
+                .OfType<StyleInclude>()
+                .FirstOrDefault(s => s.Source?.ToString().EndsWith("Motion.axaml", StringComparison.Ordinal) == true);
+            if (motion is not null)
+            {
+                Styles.Remove(motion);
+            }
         }
 
         // gsettings breaks gamescope on linux and system theme is unreliable on plasma anyways
