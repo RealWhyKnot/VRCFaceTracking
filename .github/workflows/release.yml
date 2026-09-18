@@ -172,12 +172,10 @@ jobs:
           dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
 
-      - name: Package and upload
+      - name: Package
         shell: pwsh
         run: |
-          $tag = $env:RELEASE_TAG
           $version = $env:RELEASE_VERSION
-          $uploaded = @()
           foreach ($rid in '${{ matrix.rids }}'.Split(' ')) {
             $name = "VRCFaceTracking-$version-$rid"
             $dir = "build/$name"
@@ -189,26 +187,29 @@ jobs:
               }
             }
             if ('${{ matrix.ext }}' -eq 'zip') {
-              $archive = "build/$name.zip"
-              Compress-Archive -Path "$dir/*" -DestinationPath $archive -Force
+              Compress-Archive -Path "$dir/*" -DestinationPath "build/$name.zip" -Force
             } else {
-              $archive = "build/$name.tar.gz"
-              tar -czf $archive -C $dir .
+              tar -czf "build/$name.tar.gz" -C $dir .
               if ($LASTEXITCODE -ne 0) { throw "tar failed ($LASTEXITCODE)" }
             }
-            $archiveLeaf = Split-Path -Leaf $archive
-            $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-            $integrity = "build/$name.integrity.tsv"
-            $rows = @("$hash`t$((Get-Item $archive).Length)`t$archiveLeaf")
-            $dirFull = (Resolve-Path $dir).Path
-            Get-ChildItem $dir -Recurse -File | Sort-Object FullName | ForEach-Object {
-              $rel = $_.FullName.Substring($dirFull.Length + 1).Replace('\', '/')
-              $rows += "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())`t$($_.Length)`t$rel"
-            }
-            [System.IO.File]::WriteAllLines($integrity, [string[]]$rows, (New-Object System.Text.UTF8Encoding($false)))
-            gh release upload $tag $archive $integrity --repo '${{ github.repository }}' --clobber
+          }
+
+      - name: Checksums
+        uses: RealWhyKnot/workflows/checksums@v1
+        with:
+          archives: build/*.${{ matrix.ext }}
+
+      - name: Upload
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $uploaded = @()
+          foreach ($manifest in Get-ChildItem build -Filter '*.integrity.tsv') {
+            $first = (Get-Content -LiteralPath $manifest.FullName -TotalCount 1).Split("`t")
+            $archive = Join-Path build $first[2]
+            gh release upload $tag $archive $manifest.FullName --repo '${{ github.repository }}' --clobber
             if ($LASTEXITCODE -ne 0) { throw "gh release upload failed ($LASTEXITCODE)" }
-            $uploaded += [pscustomobject]@{ name = $archiveLeaf; sha256 = $hash }
+            $uploaded += [pscustomobject]@{ name = $first[2]; sha256 = $first[0] }
           }
           ConvertTo-Json -InputObject @($uploaded) | Set-Content -LiteralPath build/uploaded.json
 
