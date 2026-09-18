@@ -249,6 +249,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+      RELEASE_CHANNEL: ${{ needs.validate.outputs.channel }}
     steps:
       - name: Install display dependencies
         if: matrix.os == 'linux'
@@ -271,21 +272,31 @@ jobs:
           tar -xzf smoke/app.tar.gz -C smoke/app
           chmod +x smoke/app/VRCFaceTracking
           (cd smoke/app && xvfb-run -a timeout 60 ./VRCFaceTracking) &
+          markers=("channel=$RELEASE_CHANNEL")
+          if [ "$RELEASE_CHANNEL" != release ]; then
+            markers+=("Initializing OSC")
+          fi
           found=
           for i in $(seq 1 60); do
             sleep 1
-            if grep -rlq "Initializing OSC" "$HOME/.local/share/VRCFaceTracking/logs" 2>/dev/null; then
-              found=1
+            found=1
+            for marker in "${markers[@]}"; do
+              if ! grep -rlq "$marker" "$HOME/.local/share/VRCFaceTracking/logs" 2>/dev/null; then
+                found=
+                break
+              fi
+            done
+            if [ -n "$found" ]; then
               break
             fi
           done
           pkill -f VRCFaceTracking || true
           if [ -z "$found" ]; then
-            echo "No log under ~/.local/share/VRCFaceTracking/logs contained 'Initializing OSC' within 60s"
+            echo "No log under ~/.local/share/VRCFaceTracking/logs contained ${markers[*]} within 60s"
             ls -la "$HOME/.local/share/VRCFaceTracking/logs" 2>/dev/null || true
             exit 1
           fi
-          echo "App reached OSC initialization"
+          echo "App startup logged ${markers[*]}"
 
       - name: Launch check win-x64
         if: matrix.os == 'windows'
@@ -304,19 +315,22 @@ jobs:
           $app = (Resolve-Path smoke/app).Path
           $logs = Join-Path $env:LOCALAPPDATA 'VRCFaceTracking/logs'
           Start-Process -FilePath (Join-Path $app 'VRCFaceTracking.exe') -WorkingDirectory $app | Out-Null
+          $markers = @("channel=$env:RELEASE_CHANNEL")
+          if ($env:RELEASE_CHANNEL -ne 'release') { $markers += 'Initializing OSC' }
           $found = $false
           for ($i = 0; $i -lt 60 -and -not $found; $i++) {
             Start-Sleep -Seconds 1
             if (Test-Path -LiteralPath $logs) {
-              $found = @(Get-ChildItem -LiteralPath $logs -File -Recurse | Where-Object { (Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue) -match 'Initializing OSC' }).Count -gt 0
+              $text = (Get-ChildItem -LiteralPath $logs -File -Recurse | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue }) -join "`n"
+              $found = @($markers | Where-Object { $text -notmatch [regex]::Escape($_) }).Count -eq 0
             }
           }
           Get-Process -Name VRCFaceTracking, VRCFaceTracking.ModuleProcess -ErrorAction SilentlyContinue | Stop-Process -Force
           if (-not $found) {
             if (Test-Path -LiteralPath $logs) { Get-ChildItem -LiteralPath $logs -Recurse | Out-String | Write-Host }
-            throw "No log under $logs contained 'Initializing OSC' within 60s"
+            throw "No log under $logs contained $($markers -join ', ') within 60s"
           }
-          Write-Host "App reached OSC initialization"
+          Write-Host "App startup logged $($markers -join ', ')"
 
   notes:
     name: Release notes
