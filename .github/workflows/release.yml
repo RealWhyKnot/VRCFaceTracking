@@ -333,11 +333,26 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.validate.outputs.tag }}
 
+      - name: Resolve the changelog base
+        id: base
+        shell: bash
+        run: |
+          case "$RELEASE_TAG" in
+            *-*) previous=$(git describe --tags --abbrev=0 "$RELEASE_TAG^" 2>/dev/null || true) ;;
+            *) previous=$(git describe --tags --abbrev=0 --exclude '*-*' "$RELEASE_TAG^" 2>/dev/null || true) ;;
+          esac
+          if [ -z "$previous" ]; then
+            previous=$(tr -d '[:space:]' < .github/release-base)
+          fi
+          echo "Changelog base: $previous"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+
       - name: Build the changelog
         id: changelog
         uses: RealWhyKnot/workflows/release-notes@v1
         with:
           tag: ${{ env.RELEASE_TAG }}
+          previous-tag: ${{ steps.base.outputs.previous }}
           title: VRCFaceTracking ${{ env.RELEASE_TAG }}
 
       - name: Download release assets
