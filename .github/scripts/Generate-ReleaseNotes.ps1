@@ -53,7 +53,11 @@ try {
 
   $archives = @()
   if ($AssetsDir) {
-    $archives = @(Get-ChildItem -LiteralPath $AssetsDir -File | Where-Object { $_.Name -like '*.zip' -or $_.Name -like '*.tar.gz' } | Sort-Object Name)
+    $archives = @(Get-ChildItem -LiteralPath $AssetsDir -File -Filter '*.integrity.tsv' | Sort-Object Name | ForEach-Object {
+      $fields = "$(@(Get-Content -LiteralPath $_.FullName -TotalCount 1 -Encoding UTF8))".Split("`t")
+      if ($fields.Count -lt 3) { throw "$($_.Name) does not open with a hash, size and archive name row." }
+      [pscustomobject]@{ Name = $fields[2].Trim(); Length = [long] $fields[1]; Hash = $fields[0].Trim().ToLowerInvariant() }
+    })
   }
 
   $lines = [System.Collections.Generic.List[string]]::new()
@@ -66,9 +70,8 @@ try {
     $lines.Add("| Asset | Size (MiB) | SHA-256 |") | Out-Null
     $lines.Add("| --- | --- | --- |") | Out-Null
     foreach ($archive in $archives) {
-      $hash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
       $sizeMiB = ($archive.Length / 1MB).ToString('0.00', [System.Globalization.CultureInfo]::InvariantCulture)
-      $lines.Add("| ``$($archive.Name)`` | $sizeMiB | ``$hash`` |") | Out-Null
+      $lines.Add("| ``$($archive.Name)`` | $sizeMiB | ``$($archive.Hash)`` |") | Out-Null
     }
     $lines.Add("") | Out-Null
     $lines.Add("Per-file hashes ship beside each archive as a matching ``.integrity.tsv`` asset.") | Out-Null

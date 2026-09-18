@@ -54,11 +54,12 @@ try {
 
   $assetsDir = Join-Path $root "assets"
   New-Item -ItemType Directory -Path $assetsDir | Out-Null
-  $zip = Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-win-x64.zip"
-  [System.IO.File]::WriteAllBytes($zip, [byte[]](1..64))
-  $tarGz = Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz"
-  [System.IO.File]::WriteAllBytes($tarGz, [byte[]](65..192))
-  [System.IO.File]::WriteAllText((Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-win-x64.integrity.tsv"), "ignored`n")
+  $zipHash = 'a' * 64
+  $tarHash = 'b' * 64
+  [System.IO.File]::WriteAllText((Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-win-x64.integrity.tsv"),
+    "$zipHash`t64`tVRCFaceTracking-2026.9.2.0-beta-win-x64.zip`n$('c' * 64)`t8`tVRCFaceTracking.exe`n")
+  [System.IO.File]::WriteAllText((Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-linux-x64.integrity.tsv"),
+    "$tarHash`t128`tVRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz`n")
 
   $templateDir = Join-Path $root ".github/release-template"
   New-Item -ItemType Directory -Path $templateDir -Force | Out-Null
@@ -79,11 +80,10 @@ try {
   Assert-Contains -Text $text -Expected "compare/v2026.9.1.0...v2026.9.2.0-beta" -Message "Full changelog link missing."
   if ($text.IndexOf("# VRCFaceTracking v2026.9.2.0-beta") -ne 0) { throw "The changelog must lead the body." }
   Assert-Contains -Text $text -Expected "| Asset | Size (MiB) | SHA-256 |" -Message "Integrity table header missing."
-  $zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-  $tarHash = (Get-FileHash -LiteralPath $tarGz -Algorithm SHA256).Hash.ToLowerInvariant()
   Assert-Contains -Text $text -Expected "| ``VRCFaceTracking-2026.9.2.0-beta-win-x64.zip`` | 0.00 | ``$zipHash`` |" -Message "Zip table row missing."
   Assert-Contains -Text $text -Expected "| ``VRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz`` | 0.00 | ``$tarHash`` |" -Message "Tar table row missing."
   Assert-NotContains -Text $text -Expected "VRCFaceTracking-2026.9.2.0-beta-win-x64.integrity.tsv`` |" -Message "The integrity tsv must not get a table row."
+  Assert-NotContains -Text $text -Expected "VRCFaceTracking.exe`` |" -Message "Per-file rows must not reach the table."
   Assert-Contains -Text $text -Expected ".integrity.tsv" -Message "Integrity companion note missing."
   Assert-Contains -Text $text -Expected "## Install on Windows" -Message "Windows install section missing."
   Assert-Contains -Text $text -Expected "Download ``VRCFaceTracking-2026.9.2.0-beta-win-x64.zip`` from this release." -Message "Windows zip name not substituted."

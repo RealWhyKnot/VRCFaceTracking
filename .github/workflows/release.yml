@@ -369,20 +369,19 @@ jobs:
           previous-tag: ${{ steps.base.outputs.previous }}
           title: VRCFaceTracking ${{ env.RELEASE_TAG }}
 
-      - name: Download release assets
-        shell: pwsh
+      - name: Download integrity manifests
+        shell: bash
         run: |
-          $tag = $env:RELEASE_TAG
-          $json = gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate --jq ".[] | select(.tag_name==`"$tag`") | .assets"
-          if ($LASTEXITCODE -ne 0) { throw "gh api releases failed ($LASTEXITCODE)" }
-          $assets = @(($json -join "`n") | ConvertFrom-Json)
-          if ($assets.Count -eq 0) { throw "Release $tag has no assets." }
-          New-Item -ItemType Directory -Force assets | Out-Null
-          foreach ($asset in $assets) {
-            $dest = Join-Path 'assets' $asset.name
-            $download = Start-Process -FilePath gh -ArgumentList @('api', "repos/${{ github.repository }}/releases/assets/$($asset.id)", '-H', '"Accept: application/octet-stream"') -RedirectStandardOutput $dest -NoNewWindow -Wait -PassThru
-            if ($download.ExitCode -ne 0) { throw "gh api asset download failed for $($asset.name) ($($download.ExitCode))" }
-          }
+          mkdir -p assets
+          gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate --jq ".[] | select(.tag_name==\"$RELEASE_TAG\") | .assets[] | select(.name | endswith(\".integrity.tsv\")) | \"\(.id) \(.name)\"" > manifests.txt
+          if [ ! -s manifests.txt ]; then
+            echo "Release $RELEASE_TAG has no integrity manifests"
+            exit 1
+          fi
+          while read -r id name; do
+            gh api "repos/${{ github.repository }}/releases/assets/$id" -H "Accept: application/octet-stream" > "assets/$name"
+          done < manifests.txt
+          head -n 1 -v assets/*.integrity.tsv
 
       - name: Compose the release body
         shell: pwsh
