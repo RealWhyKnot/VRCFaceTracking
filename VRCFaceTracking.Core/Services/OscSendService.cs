@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
@@ -105,7 +105,14 @@ public class OscSendService
         {
             var lastIndex = index;
             var length = OscCodec.EncodeBundle(_sendBuffer, messages, ref index);
-            if (length <= 0 || index <= lastIndex)
+            if (index <= lastIndex)
+            {
+                _logger.LogError("OSC message {Index} of {Count} is too large to encode; skipping it", lastIndex, messages.Count);
+                index = lastIndex + 1;
+                continue;
+            }
+
+            if (length <= 0)
             {
                 _logger.LogError("OSC bundle encoding failed at message {Index} of {Count}", index, messages.Count);
                 break;
