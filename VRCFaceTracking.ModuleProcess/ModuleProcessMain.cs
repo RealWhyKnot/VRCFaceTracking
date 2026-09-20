@@ -293,13 +293,47 @@ public class ModuleProcessMain
                             {
                                 VRCFaceTracking.UnifiedTracking.ModuleSnapshot ??= new UnifiedTrackingData();
 
+                                var diag = Logger.IsEnabled(LogLevel.Debug);
+                                var updateMs = new DiagStat();
+                                var copyMs = new DiagStat();
+                                var loopGapMs = new DiagStat();
+                                var toMs = 1000.0 / Stopwatch.Frequency;
+                                var lastLoop = Stopwatch.GetTimestamp();
+                                var lastReport = lastLoop;
+
                                 while (!DefModuleAssembly._updateCts.IsCancellationRequested)
                                 {
+                                    var t0 = Stopwatch.GetTimestamp();
                                     DefModuleAssembly.TrackingModule.Update();
+                                    var t1 = Stopwatch.GetTimestamp();
 
                                     lock (VRCFaceTracking.UnifiedTracking.DataLock)
                                     {
                                         VRCFaceTracking.UnifiedTracking.ModuleSnapshot.CopyPropertiesOf(VRCFaceTracking.UnifiedTracking.Data);
+                                    }
+
+                                    if (diag)
+                                    {
+                                        var t2 = Stopwatch.GetTimestamp();
+                                        updateMs.Add((t1 - t0) * toMs);
+                                        copyMs.Add((t2 - t1) * toMs);
+                                        loopGapMs.Add((t0 - lastLoop) * toMs);
+                                        lastLoop = t0;
+
+                                        if ((t2 - lastReport) * toMs >= 1000)
+                                        {
+                                            lastReport = t2;
+                                            var (uP50, uP99) = updateMs.Percentiles();
+                                            var (cP50, cP99) = copyMs.Percentiles();
+                                            var (gP50, gP99) = loopGapMs.Percentiles();
+                                            Logger.LogDebug(
+                                                "diag.module updates={N} rate={Rate:N0}/s | Update p50={UP50:N2} p99={UP99:N2} max={UMax:N2}ms | snapshotCopy p50={CP50:N3} p99={CP99:N3} max={CMax:N3}ms | loopGap p50={GP50:N2} p99={GP99:N2} max={GMax:N2}ms",
+                                                updateMs.Count, updateMs.Count, uP50, uP99, updateMs.Max,
+                                                cP50, cP99, copyMs.Max, gP50, gP99, loopGapMs.Max);
+                                            updateMs.Reset();
+                                            copyMs.Reset();
+                                            loopGapMs.Reset();
+                                        }
                                     }
 
                                     Thread.Sleep(1);

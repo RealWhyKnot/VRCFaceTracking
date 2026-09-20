@@ -53,8 +53,15 @@ public partial class OscQueryService(
         await Task.CompletedTask;
     }
 
+    private int _clientDiscovered;
+
     private void FirstClientDiscovered()
     {
+        if (Interlocked.Exchange(ref _clientDiscovered, 1) == 1)
+        {
+            return;
+        }
+
         multicastDnsService.OnVrcClientDiscovered -= FirstClientDiscovered;
 
         logger.LogInformation($"OSCQuery detected at {multicastDnsService.VrchatClientEndpoint}. Setting port negotiation to autopilot.");
@@ -81,10 +88,28 @@ public partial class OscQueryService(
     }
 
     private readonly SemaphoreSlim _avatarParseLock = new(1, 1);
+    private string _loadedAvatarId;
 
     private async void HandleNewAvatar(string newId = null)
     {
-        await _avatarParseLock.WaitAsync();
+        if (newId != null && string.Equals(newId, _loadedAvatarId, StringComparison.Ordinal))
+        {
+            logger.LogDebug("diag.avatar skipping reload, {Id} is already loaded", newId);
+            return;
+        }
+
+        if (newId == null)
+        {
+            if (!await _avatarParseLock.WaitAsync(0))
+            {
+                return;
+            }
+        }
+        else
+        {
+            await _avatarParseLock.WaitAsync();
+        }
+
         try
         {
             (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? newAvatar;
@@ -105,6 +130,7 @@ public partial class OscQueryService(
 
             // Parsing success. Deregister callback and update values
             httpHandler.OnHostInfoQueried -= HandleNewAvatarWrapper;
+            _loadedAvatarId = newAvatar.Value.avatarInfo.Id;
             dispatcherService.Run(() =>
             {
                 AvatarInfo = newAvatar.Value.avatarInfo;

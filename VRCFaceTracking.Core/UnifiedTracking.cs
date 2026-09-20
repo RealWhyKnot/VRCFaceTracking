@@ -45,10 +45,21 @@ public class UnifiedTracking
     /// </summary>
     public static int DataVersion => Volatile.Read(ref _dataVersion);
 
+    private static long _lastDataUpdateTicks;
+
+    /// <summary>
+    /// Timestamp ticks of the most recent module merge, for measuring how stale the sent data is.
+    /// </summary>
+    public static long LastDataUpdateTicks => Interlocked.Read(ref _lastDataUpdateTicks);
+
     /// <summary>
     /// Marks <see cref="Data"/> as carrying values a module has not published yet.
     /// </summary>
-    public static void MarkDataUpdated() => Interlocked.Increment(ref _dataVersion);
+    public static void MarkDataUpdated()
+    {
+        Interlocked.Increment(ref _dataVersion);
+        Interlocked.Exchange(ref _lastDataUpdateTicks, System.Diagnostics.Stopwatch.GetTimestamp());
+    }
 
     /// <summary>
     /// Container of all features and functions that mutates the incoming expression data into output data suitable for driving Unified Expressions.
