@@ -73,8 +73,18 @@ public class ModuleProcessMain
         Gate.Set(args.Contains("--verbose") || BuildInfo.VerboseForced);
 
         _raisedTimerResolution = OperatingSystem.IsWindows() && Core.Utils.TimeBeginPeriod(1) == 0;
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
+            }
+            catch (Exception)
+            {
+            }
+        }
         _fileLogger = new FileLoggerProvider(Core.Utils.LogDirectory, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}"), Gate);
-        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum}");
+        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass}");
 
         var serviceProvider = new ServiceCollection()
             .AddLogging(loggingBuilder => loggingBuilder

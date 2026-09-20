@@ -21,6 +21,54 @@ public static class Utils
     [DllImport("winmm.dll", EntryPoint = "timeEndPeriod", SetLastError = true)]
     public static extern uint TimeEndPeriod(uint uMilliseconds);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessPowerThrottlingState
+    {
+        public uint Version;
+        public uint ControlMask;
+        public uint StateMask;
+    }
+
+    private const int ProcessPowerThrottling = 4;
+    private const uint ProcessPowerThrottlingCurrentVersion = 1;
+    private const uint ProcessPowerThrottlingIgnoreTimerResolution = 0x4;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetProcessInformation(IntPtr hProcess, int processInformationClass, ref ProcessPowerThrottlingState state, int size);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetProcessInformation(IntPtr hProcess, int processInformationClass, ref ProcessPowerThrottlingState state, int size);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    public static bool AlwaysHonorTimerResolution(out int error)
+    {
+        error = 0;
+        var state = new ProcessPowerThrottlingState
+        {
+            Version = ProcessPowerThrottlingCurrentVersion,
+            ControlMask = ProcessPowerThrottlingIgnoreTimerResolution,
+            StateMask = 0,
+        };
+        var size = Marshal.SizeOf<ProcessPowerThrottlingState>();
+        if (!SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, ref state, size))
+        {
+            error = Marshal.GetLastWin32Error();
+            return false;
+        }
+
+        var readBack = new ProcessPowerThrottlingState { Version = ProcessPowerThrottlingCurrentVersion };
+        if (!GetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, ref readBack, size))
+        {
+            error = Marshal.GetLastWin32Error();
+            return false;
+        }
+
+        return (readBack.ControlMask & ProcessPowerThrottlingIgnoreTimerResolution) != 0
+            && (readBack.StateMask & ProcessPowerThrottlingIgnoreTimerResolution) == 0;
+    }
+
     // Proc memory read helpers
     public const int PROCESS_VM_READ = 0x0010;
 

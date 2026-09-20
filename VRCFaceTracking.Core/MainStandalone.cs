@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Library;
@@ -85,7 +86,24 @@ public class MainStandalone : IMainService
 
         if (isWindows)
         {
+            if (Utils.AlwaysHonorTimerResolution(out var error))
+            {
+                _logger.LogDebug("Timer resolution requests will be honored while the window is occluded");
+            }
+            else
+            {
+                _logger.LogWarning("Could not opt out of timer resolution throttling (error {Error}); update rate drops to 64 Hz while the window is covered", error);
+            }
             Utils.TimeBeginPeriod(1);
+            var priority = Process.GetCurrentProcess().PriorityClass;
+            if (priority == ProcessPriorityClass.AboveNormal)
+            {
+                _logger.LogDebug("Process priority class is {Priority}", priority);
+            }
+            else
+            {
+                _logger.LogWarning("Process priority class is {Priority}; tracking may stall while the window is in the background", priority);
+            }
         }
     }
 }
