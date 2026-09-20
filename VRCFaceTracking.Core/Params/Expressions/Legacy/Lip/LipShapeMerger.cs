@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Params.DataTypes;
+using VRCFaceTracking.Core.Params.DataTypes;
 
 namespace VRCFaceTracking.Core.Params.Expressions.Legacy.Lip;
 
@@ -142,6 +142,6 @@ public static class LipShapeMerger
             shape.Value.GetBlendedLipShape(exp), 0.0f));
 
     private static IEnumerable<EParam> GetAllLipShapes() =>
-        ((SRanipal_LipShape_v2[])Enum.GetValues(typeof(SRanipal_LipShape_v2))).ToList().Select(shape =>
+        Enum.GetValues<SRanipal_LipShape_v2>().Select(shape =>
            new EParam(shape.ToString(), exp => UnifiedSRanMapper.GetTransformedShape(shape, exp), 0.0f));
 }

@@ -159,7 +159,7 @@ public partial class UnifiedTrackingMutator : ObservableObject
                 _mutations.Clear();
             }
         });
-        IEnumerable<TrackingMutation> mutations;
+        TrackingMutation[] mutations;
         try
         {
             mutations = TrackingMutation.GetImplementingMutations(true);
@@ -168,6 +168,11 @@ public partial class UnifiedTrackingMutator : ObservableObject
         {
             _logger.LogError(ex, "Failed to discover mutations");
             mutations = Array.Empty<TrackingMutation>();
+        }
+
+        if (mutations.Length == 0)
+        {
+            _logger.LogWarning("No mutations were discovered. Calibration and filtering are unavailable for this session.");
         }
         await _localSettingsService.Load(this);
 

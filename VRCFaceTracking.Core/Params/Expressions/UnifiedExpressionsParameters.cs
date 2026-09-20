@@ -315,10 +315,10 @@ public static class UnifiedExpressionsParameters
         GetAllBaseExpressions().Union(GetAllBaseSimpleExpressions()).Union(UnifiedCombinedShapes).ToArray();
 
     private static IEnumerable<EParam> GetAllBaseExpressions() =>
-        ((UnifiedExpressions[])Enum.GetValues(typeof(UnifiedExpressions))).ToList().Select(shape =>
+        Enum.GetValues<UnifiedExpressions>().Select(shape =>
            new EParam("v2/" + shape.ToString(), exp => exp.Shapes[(int)shape].Weight, 0.0f));
     private static IEnumerable<EParam> GetAllBaseSimpleExpressions() =>
-        ((UnifiedSimpleExpressions[])Enum.GetValues(typeof(UnifiedSimpleExpressions))).ToList().Select(simple =>
+        Enum.GetValues<UnifiedSimpleExpressions>().Select(simple =>
            new EParam("v2/" + simple.ToString(), exp => GetSimpleShape(exp, simple), 0.0f));
 
     private static float GetSimpleShape(UnifiedTrackingData data, UnifiedSimpleExpressions expression) => UnifiedSimplifier.ExpressionMap[expression].Invoke(data);
