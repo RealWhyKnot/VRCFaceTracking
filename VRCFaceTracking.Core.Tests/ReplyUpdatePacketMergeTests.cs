@@ -207,4 +207,65 @@ public class ReplyUpdatePacketMergeTests
         Assert.Equal(0.7f, UnifiedTracking.Data.Head.HeadYaw);
         Assert.Equal(ShapeValue(jawOpen + 1), UnifiedTracking.Data.Shapes[jawOpen + 1].Weight);
     }
+
+    [Fact]
+    public void UpdateGlobalState_AdvancesDataVersion()
+    {
+        var packet = CapturePacket(FillEverything);
+
+        var before = UnifiedTracking.DataVersion;
+        packet.UpdateGlobalState(TrackingCapability.All);
+        var after = UnifiedTracking.DataVersion;
+
+        Assert.True(after > before, $"expected DataVersion to advance, was {before} and is {after}");
+    }
+
+    [Fact]
+    public void DataVersion_IsStableWhenNoModulePublishes()
+    {
+        var before = UnifiedTracking.DataVersion;
+        UnifiedTracking.Data.Shapes[0].Weight = 0.9f;
+        Assert.Equal(before, UnifiedTracking.DataVersion);
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    [InlineData(Invalid)]
+    public void IsValid_RejectsNonFiniteAndSentinel(float value) =>
+        Assert.False(ReplyUpdatePacket.IsValid(value));
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    [InlineData(-1f)]
+    [InlineData(0.5f)]
+    public void IsValid_AcceptsOrdinaryValues(float value) =>
+        Assert.True(ReplyUpdatePacket.IsValid(value));
+
+    [Fact]
+    public void UpdateGlobalState_DoesNotPublishNonFiniteValues()
+    {
+        var jawOpen = (int)UnifiedExpressions.JawOpen;
+
+        var packet = CapturePacket(data =>
+        {
+            FillEverything(data);
+            data.Shapes[jawOpen].Weight = float.NaN;
+            data.Eye.Left.Openness = float.NaN;
+            data.Head.HeadYaw = float.PositiveInfinity;
+        });
+
+        UnifiedTracking.Data = new UnifiedTrackingData();
+        UnifiedTracking.Data.Shapes[jawOpen].Weight = 0.25f;
+        UnifiedTracking.Data.Eye.Left.Openness = 0.5f;
+        UnifiedTracking.Data.Head.HeadYaw = 0.5f;
+
+        packet.UpdateGlobalState(TrackingCapability.Eyes | TrackingCapability.Head | TrackingCapability.Mouth);
+
+        Assert.Equal(0.25f, UnifiedTracking.Data.Shapes[jawOpen].Weight);
+        Assert.Equal(0.5f, UnifiedTracking.Data.Eye.Left.Openness);
+        Assert.Equal(0.5f, UnifiedTracking.Data.Head.HeadYaw);
+    }
 }

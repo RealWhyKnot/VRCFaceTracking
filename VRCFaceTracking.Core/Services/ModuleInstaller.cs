@@ -1,4 +1,4 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
@@ -60,6 +60,7 @@ public class ModuleInstaller
         using var client = HappyEyeballsHttp.CreateHttpClient();
 
         var response = await client.GetAsync(moduleMetadata.DownloadUrl);
+        response.EnsureSuccessStatusCode();
         var content = await response.Content.ReadAsByteArrayAsync();
         if (!string.IsNullOrEmpty(md5Hash))
         {
@@ -73,8 +74,9 @@ public class ModuleInstaller
             }
         }
 
-        await File.WriteAllBytesAsync(filePath, content);
-        await Task.CompletedTask;
+        var tempPath = filePath + ".tmp";
+        await File.WriteAllBytesAsync(tempPath, content);
+        File.Move(tempPath, filePath, true);
     }
 
     /* Removes the 'downloaded from the internet' attribute from a module
