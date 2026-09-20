@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Linq;
@@ -98,6 +98,18 @@ public class VrcftSandboxClient : UdpFullDuplex
         }
     }
 
+    private const int ChunkSpacingMicroseconds = 50;
+
+    private static void SpaceChunk()
+    {
+        var target = System.Diagnostics.Stopwatch.GetTimestamp()
+            + (System.Diagnostics.Stopwatch.Frequency * ChunkSpacingMicroseconds / 1_000_000L);
+        while (System.Diagnostics.Stopwatch.GetTimestamp() < target)
+        {
+            Thread.SpinWait(50);
+        }
+    }
+
     private void SendData(in byte[] message)
     {
         // @TODO: Check packet size, if too big, convert to partial packet, and send partial packets
@@ -115,7 +127,7 @@ public class VrcftSandboxClient : UdpFullDuplex
                 foreach (var packetChunk in packetChunkBytes)
                 {
                     SendData(packetChunk);
-                    Thread.Sleep(1);    //TODO: Potentially switch to ACK based chunking system
+                    SpaceChunk();
                 }
             }
             else

@@ -1,4 +1,4 @@
-﻿using System.CommandLine;
+using System.CommandLine;
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -32,7 +32,6 @@ public class ModuleProcessMain
     private static Thread? _updateThread;
 
     private static readonly AutoResetEvent _wakeup = new(false);
-    private static volatile bool _shouldCallReceive;
     private static volatile bool _imageStreamEnabled;
     private const int ImageFrameIntervalMs = 100;
     private static readonly System.Diagnostics.Stopwatch _eyeFrameTimer = System.Diagnostics.Stopwatch.StartNew();
@@ -64,12 +63,6 @@ public class ModuleProcessMain
             Data = (byte[])data.Clone(),
         });
     }
-    public static void QueueReceiveEvent()
-    {
-        _shouldCallReceive = true;
-        _wakeup.Set();
-    }
-
     public static int Main(string[] args)
     {
         var modulePathArg = args.SkipWhile(a => a != "--module-path").Skip(1).FirstOrDefault();
@@ -251,7 +244,6 @@ public class ModuleProcessMain
             UnifiedTracking.Data.Shapes[i].Weight = 0xFFFFFFFF;
         }
 
-        Client.OnReceiveShouldBeQueued += QueueReceiveEvent;
         Client.OnPacketReceivedCallback += (in IpcPacket packet) =>
         {
             _connected = true;
@@ -297,7 +289,10 @@ public class ModuleProcessMain
                             {
                                 while (!DefModuleAssembly._updateCts.IsCancellationRequested)
                                 {
-                                    DefModuleAssembly.TrackingModule.Update();
+                                    lock (VRCFaceTracking.UnifiedTracking.DataLock)
+                                    {
+                                        DefModuleAssembly.TrackingModule.Update();
+                                    }
                                     Thread.Sleep(1);
                                 }
                             }
@@ -405,11 +400,6 @@ public class ModuleProcessMain
                 Client.SendData(pkt);
             }
 
-            if (_shouldCallReceive)
-            {
-                _shouldCallReceive = false;
-                Client.ReceivePackets();
-            }
 
             if (_packetsToSend.Count == 0)
             {

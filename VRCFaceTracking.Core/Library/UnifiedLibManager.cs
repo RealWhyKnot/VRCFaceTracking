@@ -1,6 +1,7 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
@@ -827,7 +828,7 @@ public class UnifiedLibManager : ILibManager
         {
             if (module.SandboxProcessPort > 0 && !(module.Process?.HasExited ?? true))
             {
-                _sandboxServer.SendData(packet, module.SandboxProcessPort);
+                _sandboxServer?.SendData(packet, module.SandboxProcessPort);
             }
         }
     }
@@ -855,14 +856,29 @@ public class UnifiedLibManager : ILibManager
             while (!cts.IsCancellationRequested)
             {
                 Thread.Sleep(10); // Wait 10ms => 100Hz
-                _sandboxServer.SendData(updatePacket, port);
+                try
+                {
+                    _sandboxServer?.SendData(updatePacket, port);
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (SocketException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Stopped update thread for module on port {Port}", port);
+                    break;
+                }
             }
             _logger.LogDebug("Thread for {module} ended", module.GetType().Name);
         });
         thread.IsBackground = true;
-        thread.Start();
         module.UpdateCancellationToken = cts;
         module.UpdateThread = thread;
+        thread.Start();
 
         lock (_modulesLock)
         {

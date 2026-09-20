@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Sandboxing;
 
@@ -12,7 +12,7 @@ public class VrcftPacketDecoder
     /// <returns>Whether decoding was successful. If it was not, the data stored in packet should be discarded.</returns>
     public static bool TryDecodePacket(in byte[] data, out IpcPacket packet)
     {
-        packet = new IpcPacket();
+        packet = null;
 
         if (data == null || data.Length < IpcPacket.SIZE_PACKET_MAGIC + IpcPacket.SIZE_PACKET_TYPE)
         {

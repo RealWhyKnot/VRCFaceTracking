@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 
 namespace VRCFaceTracking.Core.Sandboxing.IPC;
 
@@ -17,7 +17,8 @@ public class PartialPacket : IpcPacket
 
     // Global counter for which partial packet we are encoding
     private static uint _encodePartialPacketCounter = 0;
-    private static uint _encodePartialPacketBase = 0;
+    private static readonly uint _encodePartialPacketBase =
+        (uint)((Environment.ProcessId * Environment.ProcessId) + Random.Shared.Next(0, 10000));
     private static readonly Dictionary<ulong, PartialPacketChunkTemporaryBuffer> _packetBuffers = new();
 
     private struct PartialPacketChunk
@@ -130,29 +131,37 @@ public class PartialPacket : IpcPacket
     combinePackets:
 
         // We have received all packets! Allocate some memory to combine them into before we return
+        var chunks = _packetBuffers[packetId].Chunks;
+
         long computedPacketSize = 0;
-        for (var i = 0; i < _packetBuffers[packetId].Chunks.Count; i++)
+        for (var i = 0; i < chunks.Count; i++)
         {
-            computedPacketSize += _packetBuffers[packetId].Chunks[i].Data.Length;
+            computedPacketSize += chunks[i].Data.Length;
         }
         packetData = new byte[computedPacketSize];
 
-        // Copy the data to packetData
-        var copyOffset = 0;
-        // We iterate by packetPart. This should solve packets arriving in an out-of-order fashion.
-        for (var copiedPartCounter = 0; copiedPartCounter < _packetBuffers[packetId].Chunks.Count; copiedPartCounter++)
+        // We index by packetPart. This should solve packets arriving in an out-of-order fashion.
+        var ordered = new PartialPacketChunk[chunks.Count];
+        for (var i = 0; i < chunks.Count; i++)
         {
-            for (var i = 0; i < _packetBuffers[packetId].Chunks.Count; i++)
+            var part = chunks[i].PacketPart;
+            if (part < (uint)ordered.Length && ordered[part].Data == null)
             {
-                // Search for the chunk containing the current packetPart we are looking for
-                if (_packetBuffers[packetId].Chunks[i].PacketPart == copiedPartCounter)
-                {
-                    Buffer.BlockCopy(_packetBuffers[packetId].Chunks[i].Data, 0, packetData, copyOffset, _packetBuffers[packetId].Chunks[i].Data.Length);
-                    copyOffset += _packetBuffers[packetId].Chunks[i].Data.Length;
-
-                    break; // Exit out of inner loop
-                }
+                ordered[part] = chunks[i];
             }
+        }
+
+        var copyOffset = 0;
+        for (var i = 0; i < ordered.Length; i++)
+        {
+            var chunkData = ordered[i].Data;
+            if (chunkData == null)
+            {
+                continue;
+            }
+
+            Buffer.BlockCopy(chunkData, 0, packetData, copyOffset, chunkData.Length);
+            copyOffset += chunkData.Length;
         }
 
         _packetBuffers.Remove(packetId);
@@ -178,12 +187,7 @@ public class PartialPacket : IpcPacket
         // We also add a constant random number to the offset.
         // We then also XOR the packet ID with a counter.
         // @TODO: Test this algorithm for collisions. This should effectively guarantee unique numbers regardless of which connection it is.
-        if (_encodePartialPacketBase == 0)
-        {
-            _encodePartialPacketBase = (uint)((Process.GetCurrentProcess().Id * Process.GetCurrentProcess().Id) + new Random().Next(0, 10000));
-        }
-        var packetId = _encodePartialPacketBase ^ _encodePartialPacketCounter;
-        _encodePartialPacketCounter++;
+        var packetId = _encodePartialPacketBase ^ Interlocked.Increment(ref _encodePartialPacketCounter);
 
         var packetTypeBytes = BitConverter.GetBytes((uint)PacketType.SplitPacketChunk);
         var packetIdBytes = BitConverter.GetBytes(packetId);

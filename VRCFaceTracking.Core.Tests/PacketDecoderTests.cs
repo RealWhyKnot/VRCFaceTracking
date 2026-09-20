@@ -140,4 +140,47 @@ public class PacketDecoderTests
         }
         Assert.Equal(payload, combined);
     }
+
+    [Theory]
+    [InlineData(16 * 1024)]
+    [InlineData(64 * 1024)]
+    [InlineData(640 * 1024)]
+    public void DecodePacket_ReassemblesOutOfOrderChunks(int payloadSize)
+    {
+        var payload = new byte[payloadSize];
+        new Random(1234).NextBytes(payload);
+
+        var chunks = PartialPacket.SplitPacketIntoChunks(payload, 8192);
+        Assert.True(chunks.Length > 1);
+
+        var shuffled = chunks.OrderBy(_ => Guid.NewGuid()).ToArray();
+
+        byte[] combined = null;
+        foreach (var chunk in shuffled)
+        {
+            PartialPacket.DecodePacket(chunk, out combined);
+        }
+
+        Assert.Equal(payload, combined);
+    }
+
+    [Fact]
+    public void SplitPacketIntoChunks_ConcurrentCallers_NeverShareAPacketId()
+    {
+        const int threads = 8;
+        const int perThread = 400;
+        var payload = new byte[4096];
+        var ids = new System.Collections.Concurrent.ConcurrentBag<uint>();
+
+        Parallel.For(0, threads, _ =>
+        {
+            for (var i = 0; i < perThread; i++)
+            {
+                var chunks = PartialPacket.SplitPacketIntoChunks(payload, 1024);
+                ids.Add(BitConverter.ToUInt32(chunks[0], 12));
+            }
+        });
+
+        Assert.Equal(threads * perThread, ids.Distinct().Count());
+    }
 }

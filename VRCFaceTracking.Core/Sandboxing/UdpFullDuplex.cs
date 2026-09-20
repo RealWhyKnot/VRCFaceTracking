@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -8,7 +8,6 @@ using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Sandboxing;
 
-public delegate void OnReceiveShouldBeQueued();
 
 public class UdpFullDuplex : IDisposable
 {
@@ -25,22 +24,17 @@ public class UdpFullDuplex : IDisposable
 
     protected UdpClient _receivingUdpClient;
     private IPEndPoint _remoteIpEndPoint;
-    private readonly Queue<byte[]> _queue;
     private readonly ManualResetEvent _closingEvent;
-    private bool _closing = false;
     protected bool _isConnected = false;
     protected SimpleEventBus _eventBus;
-    private bool _isCallbackRegistered = false;
     private readonly Task _receiveThread;
     private readonly int _maximumTransferUnit = ETHERNET_FRAME_SIZE;
     private readonly CancellationTokenSource _cts = new();
-    public OnReceiveShouldBeQueued OnReceiveShouldBeQueued;
     public int MTU => _maximumTransferUnit;
 
     public UdpFullDuplex(int port, int[] reservedPorts = null, IPEndPoint remoteIpEndPoint = null)
     {
         Port = port;
-        _queue = new Queue<byte[]>();
         _closingEvent = new ManualResetEvent(false);
         _callbackLock = new object();
         _eventBus = new SimpleEventBus();
@@ -50,7 +44,7 @@ public class UdpFullDuplex : IDisposable
         {
             try
             {
-                _receivingUdpClient = new UdpClient(port);
+                _receivingUdpClient = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
                 // Disable crash from ICMP messages from modules which crashed. Windows only
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
@@ -113,9 +107,6 @@ public class UdpFullDuplex : IDisposable
         _maximumTransferUnit = 8192;
         _receivingUdpClient.Client.ReceiveBufferSize = 1024 * 1024;
 
-        // setup first async event
-        // AsyncCallback callBack = new AsyncCallback(ReceiveCallback);
-        // _receivingUdpClient.BeginReceive(callBack, null);
         _receiveThread = Task.Run(ListenAsync, _cts.Token);
     }
 
@@ -152,93 +143,17 @@ public class UdpFullDuplex : IDisposable
             {
                 // This happens when a module terminates / crashes / is shut down
             }
-        }
-    }
-
-    private void ReceiveThread()
-    {
-
-        EndPoint remoteEndpoint = (EndPoint)_remoteIpEndPoint;
-        while (!_cts.IsCancellationRequested)
-        {
-            var receiveWindow = new byte[4096];
-            var res = 0;
-
-            Monitor.Enter(_callbackLock);
-
-            try
+            catch (Exception ex)
             {
-                res = _receivingUdpClient.Client.ReceiveFrom(receiveWindow, ref remoteEndpoint);
-            }
-            catch (ObjectDisposedException)
-            {
-                // Ignore if disposed. This happens when closing the listener
-            }
-            catch (SocketException)
-            {
-                // This happens when a module terminates / crashes / is shut down
-
-            }
-
-            if (res > 0)
-            {
-                OnBytesReceived(in receiveWindow, in _remoteIpEndPoint);
-            }
-
-            if (_closing)
-            {
-                _closingEvent.Set();
-            }
-            Monitor.Exit(_callbackLock);
-        }
-    }
-
-    private void ReceiveCallback(IAsyncResult result)
-    {
-        Monitor.Enter(_callbackLock);
-        Byte[] bytes = null;
-
-        try
-        {
-            bytes = _receivingUdpClient.EndReceive(result, ref _remoteIpEndPoint);
-        }
-        catch (ObjectDisposedException)
-        {
-            // Ignore if disposed. This happens when closing the listener
-        }
-        catch (SocketException)
-        {
-            // This happens when a module terminates / crashes / is shut down
-        }
-
-        _isCallbackRegistered = false;
-
-        // Process bytes
-        if (bytes != null && bytes.Length > 0 && _closing == false)
-        {
-            OnBytesReceived(in bytes, in _remoteIpEndPoint);
-        }
-
-        if (_closing)
-        {
-            _closingEvent.Set();
-        }
-        else
-        {
-            if (OnReceiveShouldBeQueued != null)
-            {
-                OnReceiveShouldBeQueued();
+                try
+                {
+                    OnReceiveError(ex);
+                }
+                catch
+                {
+                }
             }
         }
-        Monitor.Exit(_callbackLock);
-    }
-
-    public void ReceivePackets()
-    {
-        // Setup next async event
-        AsyncCallback callBack = new AsyncCallback(ReceiveCallback);
-        _receivingUdpClient.BeginReceive(callBack, null);
-        _isCallbackRegistered = true;
     }
 
     public void Close()
@@ -246,36 +161,23 @@ public class UdpFullDuplex : IDisposable
         _cts.Cancel();
         lock (_callbackLock)
         {
-            _closingEvent.Reset();
-            _closing = true;
-            _receivingUdpClient.Close();
-            _closingEvent.Set();
+            _receivingUdpClient?.Close();
         }
-        _closingEvent.WaitOne();
+
+        try
+        {
+            _receiveThread?.Wait(TimeSpan.FromSeconds(1));
+        }
+        catch (AggregateException)
+        {
+        }
     }
 
     public void Dispose()
     {
-        this.Close();
-    }
-
-    private byte[] ReceiveBytes()
-    {
-        if (_closing)
-        {
-            throw new Exception("UDPListener has been closed.");
-        }
-
-        lock (_queue)
-        {
-            if (_queue.Count() > 0)
-            {
-                var bytes = _queue.Dequeue();
-                return bytes;
-            }
-            else
-                return null;
-        }
+        Close();
+        _cts.Dispose();
+        _closingEvent.Dispose();
     }
 
     private void SendData(in byte[] message, in IPEndPoint remoteEndpoint)
