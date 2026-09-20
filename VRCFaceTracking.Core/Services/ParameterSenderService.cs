@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.OSC;

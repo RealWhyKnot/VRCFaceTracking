@@ -16,8 +16,14 @@ public class OscSendServiceTests
 
         private int _outPort;
 
-        public bool IsConnected { get; set; }
-        public int InPort { get; set; }
+        public bool IsConnected
+        {
+            get; set;
+        }
+        public int InPort
+        {
+            get; set;
+        }
         public string DestinationAddress { get; set; } = "127.0.0.1";
 
         public int OutPort

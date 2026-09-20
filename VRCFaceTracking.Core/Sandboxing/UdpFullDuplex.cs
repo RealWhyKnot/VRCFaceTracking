@@ -23,7 +23,7 @@ public class UdpFullDuplex : IDisposable
     private readonly object _callbackLock;
 
     protected UdpClient _receivingUdpClient;
-    private IPEndPoint _remoteIpEndPoint;
+    private readonly IPEndPoint _remoteIpEndPoint;
     private readonly ManualResetEvent _closingEvent;
     protected bool _isConnected = false;
     protected SimpleEventBus _eventBus;
