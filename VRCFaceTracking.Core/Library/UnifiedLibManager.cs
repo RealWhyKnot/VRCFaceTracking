@@ -76,6 +76,75 @@ public class UnifiedLibManager : ILibManager
     private static VrcftSandboxServer _sandboxServer;
     #endregion
 
+    #region IPC latency diagnostics
+    private const double PokeGapWarnMs = 50;
+    private const double SlowRoundTripMs = 50;
+    private const double MaxPlausibleLegMs = 10_000;
+    private readonly DiagStat _ipcPokeToModule = new();
+    private readonly DiagStat _ipcModuleWait = new();
+    private readonly DiagStat _ipcModuleToHost = new();
+    private long _ipcLastReport;
+    private long _ipcUnstamped;
+
+    private void RecordIpcLatency(ReplyUpdatePacket reply)
+    {
+        var now = Stopwatch.GetTimestamp();
+        var toMs = 1000.0 / Stopwatch.Frequency;
+        if (_ipcLastReport == 0)
+        {
+            _ipcLastReport = now;
+        }
+
+        if (reply.PokeSentTicks == 0 || reply.PokeReceivedTicks == 0 || reply.ReplySentTicks == 0)
+        {
+            _ipcUnstamped++;
+        }
+        else
+        {
+            var pokeToModule = (reply.PokeReceivedTicks - reply.PokeSentTicks) * toMs;
+            var moduleWait = (reply.ReplySentTicks - reply.PokeReceivedTicks) * toMs;
+            var moduleToHost = (now - reply.ReplySentTicks) * toMs;
+            var plausible = pokeToModule >= 0 && moduleWait >= 0 && moduleToHost >= 0
+                && pokeToModule + moduleWait + moduleToHost < MaxPlausibleLegMs;
+            if (plausible)
+            {
+                _ipcPokeToModule.Add(pokeToModule);
+                _ipcModuleWait.Add(moduleWait);
+                _ipcModuleToHost.Add(moduleToHost);
+                if (pokeToModule + moduleWait + moduleToHost > SlowRoundTripMs)
+                {
+                    _logger.LogDebug("diag.ipc SLOW round trip {Total:N1}ms: poke->module {A:N1} moduleWait {B:N1} module->host {C:N1}",
+                        pokeToModule + moduleWait + moduleToHost, pokeToModule, moduleWait, moduleToHost);
+                }
+            }
+            else
+            {
+                _ipcUnstamped++;
+            }
+        }
+
+        if ((now - _ipcLastReport) * toMs < 1000)
+        {
+            return;
+        }
+
+        _ipcLastReport = now;
+        var (aP50, aP99) = _ipcPokeToModule.Percentiles();
+        var (bP50, bP99) = _ipcModuleWait.Percentiles();
+        var (cP50, cP99) = _ipcModuleToHost.Percentiles();
+        _logger.LogDebug(
+            "diag.ipc replies={N} unstamped={U} | poke->module p50={AP50:N2} p99={AP99:N2} max={AMax:N2}ms | moduleWait p50={BP50:N2} p99={BP99:N2} max={BMax:N2}ms | module->host p50={CP50:N2} p99={CP99:N2} max={CMax:N2}ms",
+            _ipcPokeToModule.Count, _ipcUnstamped,
+            aP50, aP99, _ipcPokeToModule.Max,
+            bP50, bP99, _ipcModuleWait.Max,
+            cP50, cP99, _ipcModuleToHost.Max);
+        _ipcPokeToModule.Reset();
+        _ipcModuleWait.Reset();
+        _ipcModuleToHost.Reset();
+        _ipcUnstamped = 0;
+    }
+    #endregion
+
     public UnifiedLibManager(ILoggerFactory factory, IDispatcherService dispatcherService, IModuleDataService moduleDataService, ILocalSettingsService localSettingsService, LogLevelGate logGate)
     {
         _loggerFactory = factory;
@@ -394,6 +463,11 @@ public class UnifiedLibManager : ILibManager
                                 {
                                     replyUpdatePacket.UpdateGlobalState(module.ModuleInformation.EffectiveCapabilities);
                                 }
+                            }
+
+                            if (_logger.IsEnabled(LogLevel.Debug))
+                            {
+                                RecordIpcLatency(replyUpdatePacket);
                             }
 
                             break;
@@ -853,11 +927,21 @@ public class UnifiedLibManager : ILibManager
         {
             _logger.LogDebug("Starting thread for {module}", module.GetType().Name);
             var updatePacket = new EventUpdatePacket();
+            var toMs = 1000.0 / Stopwatch.Frequency;
+            var lastPoke = Stopwatch.GetTimestamp();
             while (!cts.IsCancellationRequested)
             {
                 Thread.Sleep(10); // Wait 10ms => 100Hz
                 try
                 {
+                    var now = Stopwatch.GetTimestamp();
+                    var gapMs = (now - lastPoke) * toMs;
+                    lastPoke = now;
+                    if (gapMs > PokeGapWarnMs && _logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("diag.poke gap {Gap:N1}ms on port {Port}", gapMs, port);
+                    }
+                    updatePacket.SentTicks = now;
                     _sandboxServer?.SendData(updatePacket, port);
                 }
                 catch (ObjectDisposedException)

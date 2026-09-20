@@ -62,6 +62,7 @@ public class ModuleProcessMain
             Height = y,
             Data = (byte[])data.Clone(),
         });
+        _wakeup.Set();
     }
     private static bool _raisedTimerResolution;
 
@@ -264,6 +265,7 @@ public class ModuleProcessMain
                             expressionAvailable = result.SupportsExpression
                         };
                         _packetsToSend.Enqueue(pkt);
+                        _wakeup.Set();
                         break;
                     }
                 case IpcPacket.PacketType.EventInit:
@@ -357,6 +359,7 @@ public class ModuleProcessMain
                             IconDataStreams = DefModuleAssembly.TrackingModule.ModuleInformation.StaticImages
                         };
                         _packetsToSend.Enqueue(pktNew);
+                        _wakeup.Set();
                         break;
                     }
 
@@ -388,8 +391,13 @@ public class ModuleProcessMain
 
                 case IpcPacket.PacketType.EventUpdate:
                     {
-                        var pkt = new ReplyUpdatePacket();
+                        var pkt = new ReplyUpdatePacket
+                        {
+                            PokeSentTicks = ((EventUpdatePacket)packet).SentTicks,
+                            PokeReceivedTicks = Stopwatch.GetTimestamp(),
+                        };
                         _packetsToSend.Enqueue(pkt);
+                        _wakeup.Set();
                         if (_imageStreamEnabled)
                         {
                             TryEnqueueImageFrame(UnifiedTracking.EyeImageData, ImageFrameUpdatePacket.EyeKind, _eyeFrameTimer);

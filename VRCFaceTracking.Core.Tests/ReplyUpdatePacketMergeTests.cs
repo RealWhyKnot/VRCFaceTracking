@@ -127,6 +127,56 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
+    public void Stamps_RoundTrip()
+    {
+        var data = new UnifiedTrackingData();
+        UnifiedTracking.Data = data;
+        byte[] bytes;
+        try
+        {
+            bytes = new ReplyUpdatePacket { PokeSentTicks = 100, PokeReceivedTicks = 200 }.GetBytes();
+        }
+        finally
+        {
+            UnifiedTracking.Data = new UnifiedTrackingData();
+        }
+
+        var packet = new ReplyUpdatePacket();
+        packet.Decode(bytes);
+        Assert.Equal(100, packet.PokeSentTicks);
+        Assert.Equal(200, packet.PokeReceivedTicks);
+        Assert.True(packet.ReplySentTicks > 0);
+    }
+
+    [Fact]
+    public void Stamps_MissingTrailerDecodesAsZeroAndStillMerges()
+    {
+        var data = new UnifiedTrackingData();
+        FillEverything(data);
+        UnifiedTracking.Data = data;
+        byte[] full;
+        try
+        {
+            full = new ReplyUpdatePacket().GetBytes();
+        }
+        finally
+        {
+            UnifiedTracking.Data = new UnifiedTrackingData();
+        }
+        var structSize = BitConverter.ToInt32(full, 8);
+        var truncated = full.Take(12 + structSize).ToArray();
+
+        var received = new ReplyUpdatePacket { PokeSentTicks = 5, PokeReceivedTicks = 6, ReplySentTicks = 7 };
+        received.Decode(truncated);
+        Assert.Equal(0, received.PokeSentTicks);
+        Assert.Equal(0, received.PokeReceivedTicks);
+        Assert.Equal(0, received.ReplySentTicks);
+
+        received.UpdateGlobalState(TrackingCapability.Eyes);
+        Assert.Equal(ShapeValue((int)UnifiedExpressions.EyeSquintRight), UnifiedTracking.Data.Shapes[(int)UnifiedExpressions.EyeSquintRight].Weight);
+    }
+
+    [Fact]
     public void UpdateGlobalState_None_WritesNothing()
     {
         var packet = CapturePacket(FillEverything);

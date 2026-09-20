@@ -113,6 +113,22 @@ public class PacketDecoderTests
     }
 
     [Fact]
+    public void EventUpdate_RoundTripsSentTicks()
+    {
+        var sent = new EventUpdatePacket { SentTicks = 1234567890123L };
+        Assert.True(VrcftPacketDecoder.TryDecodePacket(sent.GetBytes(), out var packet));
+        var received = Assert.IsType<EventUpdatePacket>(packet);
+        Assert.Equal(1234567890123L, received.SentTicks);
+    }
+
+    [Fact]
+    public void EventUpdate_LegacyHeaderOnlyDecodesWithZeroTicks()
+    {
+        Assert.True(VrcftPacketDecoder.TryDecodePacket(Header(IpcPacket.PacketType.EventUpdate), out var packet));
+        Assert.Equal(0, Assert.IsType<EventUpdatePacket>(packet).SentTicks);
+    }
+
+    [Fact]
     public void PartialPacket_ShortChunkIsDiscarded()
     {
         PartialPacket.DecodePacket(new byte[10], out var packetData);

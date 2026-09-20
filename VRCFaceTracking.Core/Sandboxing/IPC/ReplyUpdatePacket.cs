@@ -48,6 +48,11 @@ public class ReplyUpdatePacket : IpcPacket
         Expression_Shapes = new float[EXPRESSION_COUNT]
     };
 
+    private const int StampCount = 3;
+    public long PokeSentTicks;
+    public long PokeReceivedTicks;
+    public long ReplySentTicks;
+
     public override PacketType GetPacketType() => PacketType.ReplyUpdate;
 
     // We send a challenge to the vrcft host, and if we receive a reply with the same data, we consider the connection successfully ACKed.
@@ -110,7 +115,7 @@ public class ReplyUpdatePacket : IpcPacket
             Marshal.FreeHGlobal(ptr);
         }
 
-        packetSize = packetSize + sizeof(int) + sizeStruct;
+        packetSize = packetSize + sizeof(int) + sizeStruct + StampCount * sizeof(long);
 
         // Prepare buffer
         var finalDataStream = new byte[packetSize];
@@ -118,6 +123,12 @@ public class ReplyUpdatePacket : IpcPacket
         Buffer.BlockCopy(packetTypeBytes, 0, finalDataStream, 4, SIZE_PACKET_TYPE);      // Packet Type
         Buffer.BlockCopy(sizeStructBytes, 0, finalDataStream, 8, sizeof(int));           // Struct.Length
         Buffer.BlockCopy(arr, 0, finalDataStream, 12, sizeStruct);            // Data
+
+        ReplySentTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+        var stamps = finalDataStream.AsSpan(12 + sizeStruct);
+        BitConverter.TryWriteBytes(stamps, PokeSentTicks);
+        BitConverter.TryWriteBytes(stamps.Slice(8), PokeReceivedTicks);
+        BitConverter.TryWriteBytes(stamps.Slice(16), ReplySentTicks);
 
         return finalDataStream;
     }
@@ -145,6 +156,18 @@ public class ReplyUpdatePacket : IpcPacket
         finally
         {
             Marshal.FreeHGlobal(ptr);
+        }
+
+        var stampsOffset = 12 + structSize;
+        if (data.Length >= stampsOffset + StampCount * sizeof(long))
+        {
+            PokeSentTicks = BitConverter.ToInt64(data, stampsOffset);
+            PokeReceivedTicks = BitConverter.ToInt64(data, stampsOffset + 8);
+            ReplySentTicks = BitConverter.ToInt64(data, stampsOffset + 16);
+        }
+        else
+        {
+            PokeSentTicks = PokeReceivedTicks = ReplySentTicks = 0;
         }
     }
 

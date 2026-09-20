@@ -25,6 +25,9 @@ public class ParameterSenderService : BackgroundService
     private long _diagStalls;
     private long _diagMessages;
     private bool _staleReported;
+    private TimeSpan _lastGcPause;
+    private TimeSpan _lastReportGcPause;
+    private int _lastGen0, _lastGen1, _lastGen2;
 
     private static readonly ConcurrentQueue<OscMessage> SendQueue = new();
     private readonly List<OscMessage> _batch = new();
@@ -68,13 +71,15 @@ public class ParameterSenderService : BackgroundService
         var (batchP50, _) = _batchSize.Percentiles();
         var (ageP50, ageP99) = _dataAgeMs.Percentiles();
 
+        var gcPause = GC.GetTotalPauseDuration();
         _logger.LogDebug(
-            "diag.send ticks={Ticks} gap p50={GapP50:N1} p99={GapP99:N1} max={GapMax:N1}ms | batch p50={BatchP50:N0} max={BatchMax:N0} msgs={Msgs} | send p50={SendP50:N2} p99={SendP99:N2} max={SendMax:N2}ms | dataAge p50={AgeP50:N1} p99={AgeP99:N1} max={AgeMax:N1}ms | queue={Queue} stalls={Stalls}",
+            "diag.send ticks={Ticks} gap p50={GapP50:N1} p99={GapP99:N1} max={GapMax:N1}ms | batch p50={BatchP50:N0} max={BatchMax:N0} msgs={Msgs} | send p50={SendP50:N2} p99={SendP99:N2} max={SendMax:N2}ms | dataAge p50={AgeP50:N1} p99={AgeP99:N1} max={AgeMax:N1}ms | queue={Queue} stalls={Stalls} gcPause={GcPause:N1}ms",
             _tickGap.Count, gapP50, gapP99, _tickGap.Max,
             batchP50, _batchSize.Max, _diagMessages,
             sendP50, sendP99, _sendMs.Max,
             ageP50, ageP99, _dataAgeMs.Max,
-            SendQueue.Count, _diagStalls);
+            SendQueue.Count, _diagStalls, (gcPause - _lastReportGcPause).TotalMilliseconds);
+        _lastReportGcPause = gcPause;
 
         _tickGap.Reset();
         _sendMs.Reset();
@@ -117,12 +122,22 @@ public class ParameterSenderService : BackgroundService
                         _dataAgeMs.Add((tickNow - updateTicks) * toMs);
                     }
 
+                    var gcPause = GC.GetTotalPauseDuration();
+                    var gen0 = GC.CollectionCount(0);
+                    var gen1 = GC.CollectionCount(1);
+                    var gen2 = GC.CollectionCount(2);
                     if (gapMs > StallTickGapMs)
                     {
                         _diagStalls++;
-                        _logger.LogDebug("diag.send STALL tick gap {Gap:N1}ms (expected {Expected}ms), queue {Queue}",
-                            gapMs, TickIntervalMs, SendQueue.Count);
+                        _logger.LogDebug("diag.send STALL tick gap {Gap:N1}ms (expected {Expected}ms), queue {Queue} | gcPause {GcPause:N1}ms gcs {Gen0}/{Gen1}/{Gen2} | threadPool pending {Pending} threads {Threads}",
+                            gapMs, TickIntervalMs, SendQueue.Count,
+                            (gcPause - _lastGcPause).TotalMilliseconds, gen0 - _lastGen0, gen1 - _lastGen1, gen2 - _lastGen2,
+                            ThreadPool.PendingWorkItemCount, ThreadPool.ThreadCount);
                     }
+                    _lastGcPause = gcPause;
+                    _lastGen0 = gen0;
+                    _lastGen1 = gen1;
+                    _lastGen2 = gen2;
 
                     if (updateTicks != 0)
                     {
