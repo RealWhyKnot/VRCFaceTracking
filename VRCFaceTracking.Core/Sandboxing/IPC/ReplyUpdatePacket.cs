@@ -50,8 +50,6 @@ public class ReplyUpdatePacket : IpcPacket
 
     public override PacketType GetPacketType() => PacketType.ReplyUpdate;
 
-    private const int SnapshotLockTimeoutMs = 2;
-
     // We send a challenge to the vrcft host, and if we receive a reply with the same data, we consider the connection successfully ACKed.
     // In other words, this packet is the handshake begin and ACK packet.
 
@@ -63,46 +61,35 @@ public class ReplyUpdatePacket : IpcPacket
 
         var packetSize = SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE;
 
-        var lockTaken = false;
-        try
+        var source = UnifiedTracking.ModuleSnapshot ?? UnifiedTracking.Data;
+        lock (UnifiedTracking.DataLock)
         {
-            Monitor.TryEnter(UnifiedTracking.DataLock, SnapshotLockTimeoutMs, ref lockTaken);
-            if (lockTaken)
+            // Update the internal data structure to match the current state of unified tracking
+            _contiguousUnifiedData.Eye_Left_GazeX = source.Eye.Left.Gaze.x;
+            _contiguousUnifiedData.Eye_Left_GazeY = source.Eye.Left.Gaze.y;
+            _contiguousUnifiedData.Eye_Left_PupilDiameter_MM = source.Eye.Left.PupilDiameter_MM;
+            _contiguousUnifiedData.Eye_Left_Openness = source.Eye.Left.Openness;
+
+            _contiguousUnifiedData.Eye_Right_GazeX = source.Eye.Right.Gaze.x;
+            _contiguousUnifiedData.Eye_Right_GazeY = source.Eye.Right.Gaze.y;
+            _contiguousUnifiedData.Eye_Right_PupilDiameter_MM = source.Eye.Right.PupilDiameter_MM;
+            _contiguousUnifiedData.Eye_Right_Openness = source.Eye.Right.Openness;
+
+            _contiguousUnifiedData.Eye_MaxDilation = source.Eye._maxDilation;
+            _contiguousUnifiedData.Eye_MinDilation = source.Eye._minDilation;
+
+            _contiguousUnifiedData.Head_Yaw = source.Head.HeadYaw;
+            _contiguousUnifiedData.Head_Pitch = source.Head.HeadPitch;
+            _contiguousUnifiedData.Head_Roll = source.Head.HeadRoll;
+
+            _contiguousUnifiedData.Head_PosX = source.Head.HeadPosX;
+            _contiguousUnifiedData.Head_PosY = source.Head.HeadPosY;
+            _contiguousUnifiedData.Head_PosZ = source.Head.HeadPosZ;
+
+            // Copy face tracking
+            for (var i = 0; i < _contiguousUnifiedData.Expression_Shapes.Length; i++)
             {
-                // Update the internal data structure to match the current state of unified tracking
-                _contiguousUnifiedData.Eye_Left_GazeX = UnifiedTracking.Data.Eye.Left.Gaze.x;
-                _contiguousUnifiedData.Eye_Left_GazeY = UnifiedTracking.Data.Eye.Left.Gaze.y;
-                _contiguousUnifiedData.Eye_Left_PupilDiameter_MM = UnifiedTracking.Data.Eye.Left.PupilDiameter_MM;
-                _contiguousUnifiedData.Eye_Left_Openness = UnifiedTracking.Data.Eye.Left.Openness;
-
-                _contiguousUnifiedData.Eye_Right_GazeX = UnifiedTracking.Data.Eye.Right.Gaze.x;
-                _contiguousUnifiedData.Eye_Right_GazeY = UnifiedTracking.Data.Eye.Right.Gaze.y;
-                _contiguousUnifiedData.Eye_Right_PupilDiameter_MM = UnifiedTracking.Data.Eye.Right.PupilDiameter_MM;
-                _contiguousUnifiedData.Eye_Right_Openness = UnifiedTracking.Data.Eye.Right.Openness;
-
-                _contiguousUnifiedData.Eye_MaxDilation = UnifiedTracking.Data.Eye._maxDilation;
-                _contiguousUnifiedData.Eye_MinDilation = UnifiedTracking.Data.Eye._minDilation;
-
-                _contiguousUnifiedData.Head_Yaw = UnifiedTracking.Data.Head.HeadYaw;
-                _contiguousUnifiedData.Head_Pitch = UnifiedTracking.Data.Head.HeadPitch;
-                _contiguousUnifiedData.Head_Roll = UnifiedTracking.Data.Head.HeadRoll;
-
-                _contiguousUnifiedData.Head_PosX = UnifiedTracking.Data.Head.HeadPosX;
-                _contiguousUnifiedData.Head_PosY = UnifiedTracking.Data.Head.HeadPosY;
-                _contiguousUnifiedData.Head_PosZ = UnifiedTracking.Data.Head.HeadPosZ;
-
-                // Copy face tracking
-                for (var i = 0; i < _contiguousUnifiedData.Expression_Shapes.Length; i++)
-                {
-                    _contiguousUnifiedData.Expression_Shapes[i] = UnifiedTracking.Data.Shapes[i].Weight;
-                }
-            }
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                Monitor.Exit(UnifiedTracking.DataLock);
+                _contiguousUnifiedData.Expression_Shapes[i] = source.Shapes[i].Weight;
             }
         }
 

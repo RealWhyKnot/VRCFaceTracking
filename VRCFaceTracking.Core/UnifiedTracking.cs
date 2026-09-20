@@ -32,6 +32,12 @@ public class UnifiedTracking
     /// </summary>
     public static readonly object DataLock = new();
 
+    /// <summary>
+    /// Coherent copy of <see cref="Data"/> taken by the module process after each module update.
+    /// Null in the host, where <see cref="Data"/> is already the merged result.
+    /// </summary>
+    public static UnifiedTrackingData ModuleSnapshot;
+
     private static int _dataVersion;
 
     /// <summary>

@@ -63,11 +63,15 @@ public class ModuleProcessMain
             Data = (byte[])data.Clone(),
         });
     }
+    private static bool _raisedTimerResolution;
+
     public static int Main(string[] args)
     {
         var modulePathArg = args.SkipWhile(a => a != "--module-path").Skip(1).FirstOrDefault();
         var moduleName = Path.GetFileNameWithoutExtension(modulePathArg ?? "module");
         Gate.Set(args.Contains("--verbose") || BuildInfo.VerboseForced);
+
+        _raisedTimerResolution = OperatingSystem.IsWindows() && Core.Utils.TimeBeginPeriod(1) == 0;
         _fileLogger = new FileLoggerProvider(Core.Utils.LogDirectory, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}"), Gate);
         _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum}");
 
@@ -287,12 +291,17 @@ public class ModuleProcessMain
                         {
                             try
                             {
+                                VRCFaceTracking.UnifiedTracking.ModuleSnapshot ??= new UnifiedTrackingData();
+
                                 while (!DefModuleAssembly._updateCts.IsCancellationRequested)
                                 {
+                                    DefModuleAssembly.TrackingModule.Update();
+
                                     lock (VRCFaceTracking.UnifiedTracking.DataLock)
                                     {
-                                        DefModuleAssembly.TrackingModule.Update();
+                                        VRCFaceTracking.UnifiedTracking.ModuleSnapshot.CopyPropertiesOf(VRCFaceTracking.UnifiedTracking.Data);
                                     }
+
                                     Thread.Sleep(1);
                                 }
                             }
@@ -410,6 +419,11 @@ public class ModuleProcessMain
         DefModuleAssembly._updateCts?.Cancel();
         _updateThread?.Join(TimeSpan.FromSeconds(2));
         _connectionTimer?.Dispose();
+
+        if (_raisedTimerResolution)
+        {
+            Core.Utils.TimeEndPeriod(1);
+        }
 
         _fileLogger?.Flush();
         Environment.Exit(ModuleProcessExitCodes.OK);
