@@ -1,6 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts;
@@ -16,6 +17,7 @@ public class OscRecvService : BackgroundService
     private readonly ILocalSettingsService _settingsService;
 
     private const int SIO_UDP_CONNRESET = -1744830452;
+    private const int ReceiveTimeoutMs = 250;
 
     private Socket _recvSocket;
     private readonly byte[] _recvBuffer = new byte[4096];
@@ -24,6 +26,32 @@ public class OscRecvService : BackgroundService
     private CancellationToken _stoppingToken;
 
     public Action<OscMessage> OnMessageReceived = _ => { };
+    public Action<int> OnMessagesReceived = _ => { };
+
+    private readonly HashSet<string> _handledAddresses = new(StringComparer.Ordinal);
+    private byte[][] _handledAddressBytes = Array.Empty<byte[]>();
+
+    public void HandleAddress(string address)
+    {
+        if (_handledAddresses.Add(address))
+        {
+            _handledAddressBytes = _handledAddresses.Select(Encoding.UTF8.GetBytes).ToArray();
+        }
+    }
+
+    private bool IsHandled(byte[] buffer, int length)
+    {
+        var span = buffer.AsSpan(0, Math.Min(length, buffer.Length));
+        foreach (var address in _handledAddressBytes)
+        {
+            if (OscCodec.AddressMatches(span, address))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public OscRecvService(
         ILogger<OscRecvService> logger,
@@ -80,7 +108,10 @@ public class OscRecvService : BackgroundService
         _recvSocket?.Close();
         _oscTarget.IsConnected = false;
 
-        _recvSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        _recvSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+        {
+            ReceiveTimeout = ReceiveTimeoutMs,
+        };
         if (OperatingSystem.IsWindows())
         {
             _recvSocket.IOControl((IOControlCode)SIO_UDP_CONNRESET, new byte[] { 0, 0, 0, 0 }, null);
@@ -110,25 +141,62 @@ public class OscRecvService : BackgroundService
         return null;
     }
 
-    protected async override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stoppingToken = stoppingToken;
 
         _linkedToken = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken, _cts.Token);
 
+        var completion = new TaskCompletionSource();
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                ReceiveLoop();
+            }
+            finally
+            {
+                completion.TrySetResult();
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "OSC Receive",
+        };
+        thread.Start();
+        return completion.Task;
+    }
+
+    private void ReceiveLoop()
+    {
         while (!_stoppingToken.IsCancellationRequested)
         {
             try
             {
                 var socket = _recvSocket;
-                var linkedToken = _linkedToken;
-                if (linkedToken.IsCancellationRequested || socket is not { IsBound: true })
+                if (socket is not { IsBound: true })
                 {
-                    await Task.Delay(50, _stoppingToken);
+                    Thread.Sleep(50);
                     continue;
                 }
 
-                var bytesReceived = await socket.ReceiveAsync(_recvBuffer, SocketFlags.None, linkedToken.Token);
+                int bytesReceived;
+                try
+                {
+                    bytesReceived = socket.Receive(_recvBuffer, SocketFlags.None);
+                }
+                catch (SocketException ex) when (ex.SocketErrorCode is SocketError.TimedOut or SocketError.ConnectionReset)
+                {
+                    continue;
+                }
+
+                OnMessagesReceived(1);
+
+                if (!IsHandled(_recvBuffer, bytesReceived))
+                {
+                    continue;
+                }
+
                 var offset = 0;
                 var newMsg = OscMessage.TryParseOsc(_recvBuffer, bytesReceived, ref offset);
                 if (newMsg == null)
@@ -143,17 +211,12 @@ public class OscRecvService : BackgroundService
                 if (e is OperationCanceledException or ObjectDisposedException
                     or SocketException { SocketErrorCode: SocketError.OperationAborted or SocketError.Interrupted })
                 {
+                    Thread.Sleep(50);
                     continue;
                 }
 
                 _logger.LogError(e, "Error encountered in OSC Receive thread");
-                try
-                {
-                    await Task.Delay(500, _stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                }
+                Thread.Sleep(500);
             }
         }
     }

@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
 using VRCFaceTracking.OSC;
 
 namespace VRCFaceTracking.Core.OSC;
@@ -9,10 +11,20 @@ public class OscMessage : IDisposable
     private readonly Action<object> _valueSetter;
     private bool _disposed;
 
+    private string _address;
+    private byte[] _addressBytes;
+
     public string Address
     {
-        get; set;
+        get => _address;
+        set
+        {
+            _address = value;
+            _addressBytes = null;
+        }
     }
+
+    internal ReadOnlySpan<byte> AddressBytes => _addressBytes ??= Encoding.UTF8.GetBytes(_address ?? string.Empty);
 
     public object Value
     {
@@ -60,6 +72,28 @@ public class OscMessage : IDisposable
 
     public static OscMessage TryParseOsc(byte[] bytes, int len, ref int messageIndex) =>
         OscCodec.TryParse(bytes, len, ref messageIndex);
+
+    internal void SetValue<T>(T value) where T : struct
+    {
+        if (Values.Length == 1)
+        {
+            ref var slot = ref Values[0];
+            switch (slot.Type)
+            {
+                case OscValueType.Float when typeof(T) == typeof(float):
+                    slot.FloatValue = Unsafe.As<T, float>(ref value);
+                    return;
+                case OscValueType.Int when typeof(T) == typeof(int):
+                    slot.IntValue = Unsafe.As<T, int>(ref value);
+                    return;
+                case OscValueType.Bool when typeof(T) == typeof(bool):
+                    slot.BoolValue = Unsafe.As<T, bool>(ref value);
+                    return;
+            }
+        }
+
+        Value = value;
+    }
 
     public int Encode(byte[] buffer) => _disposed ? 0 : OscCodec.EncodeMessage(buffer, this);
 

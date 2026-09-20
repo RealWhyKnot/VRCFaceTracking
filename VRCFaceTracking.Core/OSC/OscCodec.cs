@@ -37,6 +37,11 @@ public static class OscCodec
         return pos;
     }
 
+    public static bool AddressMatches(ReadOnlySpan<byte> datagram, ReadOnlySpan<byte> address) =>
+        datagram.Length > address.Length
+        && datagram[address.Length] == 0
+        && datagram[..address.Length].SequenceEqual(address);
+
     public static OscMessage TryParse(byte[] buffer, int length, ref int index)
     {
         length = Math.Min(length, buffer.Length);
@@ -110,7 +115,7 @@ public static class OscCodec
     {
         written = 0;
         var pos = 0;
-        if (!TryWriteString(buffer, ref pos, message.Address))
+        if (!TryWriteBytes(buffer, ref pos, message.AddressBytes))
         {
             return false;
         }
@@ -169,6 +174,20 @@ public static class OscCodec
         }
 
         written = pos;
+        return true;
+    }
+
+    private static bool TryWriteBytes(Span<byte> buffer, ref int pos, ReadOnlySpan<byte> value)
+    {
+        var padded = Pad4(value.Length);
+        if (pos + padded > buffer.Length)
+        {
+            return false;
+        }
+
+        value.CopyTo(buffer[pos..]);
+        buffer.Slice(pos + value.Length, padded - value.Length).Clear();
+        pos += padded;
         return true;
     }
 

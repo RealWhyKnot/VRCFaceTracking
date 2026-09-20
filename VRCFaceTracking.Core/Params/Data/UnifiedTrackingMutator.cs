@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
@@ -52,9 +52,12 @@ public partial class UnifiedTrackingMutator : ObservableObject
 
         lock (_mutationsLock)
         {
-            foreach (var mutator in _mutations.Where(m => m.IsActive))
+            for (var i = 0; i < _mutations.Count; i++)
             {
-                mutator.MutateData(ref _inputBuffer);
+                if (_mutations[i].IsActive)
+                {
+                    _mutations[i].MutateData(ref _inputBuffer);
+                }
             }
         }
 

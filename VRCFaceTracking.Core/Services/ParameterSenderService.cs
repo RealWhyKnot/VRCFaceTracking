@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts;
@@ -11,6 +11,8 @@ public class ParameterSenderService : BackgroundService
 {
     // We probably don't need a queue since we use osc message bundles, but for now, we're keeping it as
     // we might want to allow a way for the user to specify bundle or single message sends in the future
+    private const int TickIntervalMs = 10;
+
     private static readonly ConcurrentQueue<OscMessage> SendQueue = new();
     private readonly List<OscMessage> _batch = new();
 
@@ -34,6 +36,8 @@ public class ParameterSenderService : BackgroundService
             {
                 parameter.ResetParam(Array.Empty<IParameterDefinition>());
             }
+
+            UnifiedTracking.MarkDataUpdated();
         }
     }
 
@@ -49,13 +53,24 @@ public class ParameterSenderService : BackgroundService
 
     protected async override Task ExecuteAsync(CancellationToken cancellationToken)
     {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(TickIntervalMs));
+        var lastDataVersion = -1;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(10, cancellationToken);
+                if (!await timer.WaitForNextTickAsync(cancellationToken))
+                {
+                    break;
+                }
 
-                UnifiedTracking.UpdateData();
+                var dataVersion = UnifiedTracking.DataVersion;
+                if (dataVersion != lastDataVersion)
+                {
+                    lastDataVersion = dataVersion;
+                    UnifiedTracking.UpdateData();
+                }
 
                 if (SendQueue.IsEmpty)
                 {
@@ -69,6 +84,10 @@ public class ParameterSenderService : BackgroundService
                 }
 
                 await _sendService.Send(_batch, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception e)
             {

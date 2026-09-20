@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Params;
+using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
 using VRCFaceTracking.Core.Params.Expressions.Legacy.Eye;
@@ -31,6 +31,18 @@ public class UnifiedTracking
     /// Guards Data against concurrent module merges and sender snapshots.
     /// </summary>
     public static readonly object DataLock = new();
+
+    private static int _dataVersion;
+
+    /// <summary>
+    /// Increments whenever a module merges new tracking data into <see cref="Data"/>.
+    /// </summary>
+    public static int DataVersion => Volatile.Read(ref _dataVersion);
+
+    /// <summary>
+    /// Marks <see cref="Data"/> as carrying values a module has not published yet.
+    /// </summary>
+    public static void MarkDataUpdated() => Interlocked.Increment(ref _dataVersion);
 
     /// <summary>
     /// Container of all features and functions that mutates the incoming expression data into output data suitable for driving Unified Expressions.

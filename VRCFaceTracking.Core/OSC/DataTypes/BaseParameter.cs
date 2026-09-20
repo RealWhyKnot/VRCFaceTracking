@@ -1,4 +1,3 @@
-﻿using System.Text.RegularExpressions;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
@@ -14,7 +13,6 @@ public class BaseParam<T> : Parameter, IDisposable where T : struct
     private readonly Func<UnifiedTrackingData, T> _getValueFunc;
 
     private readonly string _paramName;
-    private readonly Regex _regex;
 
     private bool _relevant;
     private readonly bool _sendOnLoad;
@@ -60,12 +58,12 @@ public class BaseParam<T> : Parameter, IDisposable where T : struct
         get => (T)OscMessage.Value;
         set
         {
-            if (value.Equals(_lastValue))
+            if (_lastValue.HasValue && EqualityComparer<T>.Default.Equals(value, _lastValue.GetValueOrDefault()))
             {
                 return;
             }
 
-            OscMessage.Value = value;
+            OscMessage.SetValue(value);
             _lastValue = value;
             Enqueue();
         }
@@ -78,7 +76,6 @@ public class BaseParam<T> : Parameter, IDisposable where T : struct
     public BaseParam(string name, Func<UnifiedTrackingData, T> getValueFunc, bool sendOnLoad = false)
     {
         _paramName = name;
-        _regex = new Regex(@"(?<!(v\d+))(/" + _paramName + ")$|^(" + _paramName + ")$");
         _getValueFunc = getValueFunc;
         OscMessage = new OscMessage(DefaultPrefix + name, typeof(T));
         _sendOnLoad = sendOnLoad;
@@ -95,8 +92,8 @@ public class BaseParam<T> : Parameter, IDisposable where T : struct
         }
 
         var compatibleParam = newParams.FirstOrDefault(param =>
-            _regex.IsMatch(param.Address)
-            && param.Type == typeof(T));
+            param.Type == typeof(T)
+            && ParamAddressMatcher.Matches(param.Address, _paramName));
 
         if (compatibleParam != null)
         {

@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
@@ -33,6 +33,8 @@ public partial class OscQueryService(
         logger.LogDebug("OSC Service Initializing");
 
         recvService.OnMessageReceived += HandleNewMessage;
+        recvService.HandleAddress("/avatar/change");
+        recvService.HandleAddress("/vrcft/settings/forceRelevant");
 
         await settingsService.Load(oscTarget);
 

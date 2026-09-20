@@ -1,4 +1,4 @@
-﻿using Avalonia.Threading;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using VRCFaceTracking.Contracts;
 using VRCFaceTracking.Core.Contracts;
@@ -62,7 +62,7 @@ public partial class MainViewModel : ObservableRecipient
         _moduleDataService = moduleDataService;
 
         // Message Timer
-        OscRecvService.OnMessageReceived += MessageReceived;
+        OscRecvService.OnMessagesReceived += MessageReceived;
         OscSendService.OnMessagesDispatched += MessageDispatched;
         msgCounterTimer = new DispatcherTimer
         {
@@ -70,11 +70,8 @@ public partial class MainViewModel : ObservableRecipient
         };
         msgCounterTimer.Tick += (_, _) =>
         {
-            MessagesInPerSec = _messagesRecvd;
-            _messagesRecvd = 0;
-
-            MessagesOutPerSec = _messagesSent;
-            _messagesSent = 0;
+            MessagesInPerSec = Interlocked.Exchange(ref _messagesRecvd, 0);
+            MessagesOutPerSec = Interlocked.Exchange(ref _messagesSent, 0);
         };
         msgCounterTimer.Start();
 
@@ -89,6 +86,6 @@ public partial class MainViewModel : ObservableRecipient
         NoModulesInstalled = !installedNewModules.Any() && installedLegacyModules == 0;
     }
 
-    private void MessageReceived(OscMessage msg) => _messagesRecvd++;
-    private void MessageDispatched(int msgCount) => _messagesSent += msgCount;
+    private void MessageReceived(int msgCount) => Interlocked.Add(ref _messagesRecvd, msgCount);
+    private void MessageDispatched(int msgCount) => Interlocked.Add(ref _messagesSent, msgCount);
 }

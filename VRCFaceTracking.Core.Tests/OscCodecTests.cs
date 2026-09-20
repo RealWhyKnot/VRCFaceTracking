@@ -1,3 +1,4 @@
+using System.Text;
 using VRCFaceTracking.Core.OSC;
 
 namespace VRCFaceTracking.Core.Tests;
@@ -225,5 +226,30 @@ public class OscCodecTests
         var length = OscCodec.EncodeBundle(buffer, messages, ref index);
         Assert.Equal(16, length);
         Assert.Equal(0, index);
+    }
+
+    [Theory]
+    [InlineData("/avatar/change", "/avatar/change", true)]
+    [InlineData("/avatar/change", "/avatar/parameters/v2/EyeX", false)]
+    [InlineData("/avatar/change", "/avatar/chang", false)]
+    [InlineData("/avatar/change", "/avatar/changed", false)]
+    [InlineData("/vrcft/settings/forceRelevant", "/vrcft/settings/forceRelevant", true)]
+    [InlineData("/vrcft/settings/forceRelevant", "/vrcft/settings/forceRelevantX", false)]
+    public void AddressMatches_OnlyOnWholeAddress(string handled, string sent, bool expected)
+    {
+        var buffer = new byte[4096];
+        var written = OscCodec.EncodeMessage(buffer, new OscMessage(sent, new[] { F(1f) }));
+        Assert.True(written > 0);
+
+        Assert.Equal(expected, OscCodec.AddressMatches(buffer.AsSpan(0, written), Encoding.UTF8.GetBytes(handled)));
+    }
+
+    [Fact]
+    public void AddressMatches_RejectsDatagramShorterThanAddress()
+    {
+        var address = Encoding.UTF8.GetBytes("/avatar/change");
+        Assert.False(OscCodec.AddressMatches(Encoding.UTF8.GetBytes("/avatar"), address));
+        Assert.False(OscCodec.AddressMatches(ReadOnlySpan<byte>.Empty, address));
+        Assert.False(OscCodec.AddressMatches(address, address));
     }
 }

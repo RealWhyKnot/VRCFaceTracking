@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Text.RegularExpressions;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Params;
@@ -14,7 +14,6 @@ public class BinaryBaseParameter : Parameter
     private int _maxPossibleBinaryInt;
     private readonly string _paramName;
     private readonly Func<UnifiedTrackingData, float> _getValueFunc;
-    private readonly Regex _regex;
 
     private bool ProcessBinary(UnifiedTrackingData data, int binaryIndex)
     {
@@ -62,7 +61,7 @@ public class BinaryBaseParameter : Parameter
         var negativeRelevancy = _negativeParam.ResetParam(newParams);
 
         var boolParams = newParams.Where(p =>
-            p.Type == typeof(bool) && _regex.IsMatch(p.Address));
+            p.Type == typeof(bool) && ParamAddressMatcher.MatchesIndexed(p.Address, _paramName));
 
         var paramsToCreate = new Dictionary<string, int>();
         foreach (var param in boolParams)
@@ -116,7 +115,6 @@ public class BinaryBaseParameter : Parameter
     public BinaryBaseParameter(string paramName, Func<UnifiedTrackingData, float> getValueFunc)
     {
         _paramName = paramName;
-        _regex = new Regex(@"(?<!(v\d+))/" + _paramName + @"\d+$|^" + _paramName + @"\d+$");
         _getValueFunc = getValueFunc;
         _negativeParam =
             new BaseParam<bool>(paramName + "Negative", data => getValueFunc.Invoke(data) < 0, true);
