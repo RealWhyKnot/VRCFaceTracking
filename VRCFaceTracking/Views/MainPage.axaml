@@ -22,7 +22,8 @@
 
             <Border Classes="card" IsVisible="{Binding LibManager.InitProgress.IsInitializing}">
                 <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                    <ui:ProgressRing Width="32" Height="32" IsIndeterminate="True"
+                    <ui:ProgressRing Width="32" Height="32"
+                                     IsIndeterminate="{Binding LibManager.InitProgress.HasPending}"
                                      IsVisible="{Binding LibManager.InitProgress.HasPending}" />
                     <StackPanel Spacing="4" VerticalAlignment="Center">
                         <TextBlock Classes="title" Text="{x:Static s:Resources.ModulesInitializingHeader}" />

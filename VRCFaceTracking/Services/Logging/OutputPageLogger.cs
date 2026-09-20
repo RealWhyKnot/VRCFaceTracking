@@ -42,7 +42,7 @@ public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
 
         Dispatcher.UIThread.Post(() =>
         {
-            _flushTimer = new DispatcherTimer(
+            _flushTimer ??= new DispatcherTimer(
                 TimeSpan.FromMilliseconds(50),
                 DispatcherPriority.Background,
                 Flush);
@@ -55,6 +55,12 @@ public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
         while (_pending.TryDequeue(out var line))
         {
             AllLogs.Add(line);
+        }
+
+        if (_pending.IsEmpty)
+        {
+            _flushTimer?.Stop();
+            Interlocked.Exchange(ref _timerStarted, 0);
         }
     }
 }
