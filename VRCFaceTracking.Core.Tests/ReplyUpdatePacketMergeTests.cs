@@ -5,6 +5,7 @@ using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Tests;
 
+[Collection("UnifiedTrackingState")]
 public class ReplyUpdatePacketMergeTests
 {
     private const float Invalid = 0xFFFFFFFF;

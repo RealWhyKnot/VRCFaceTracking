@@ -48,7 +48,7 @@ public class OscSendServiceTests
     [InlineData(0)]
     [InlineData(5)]
     [InlineData(100)]
-    public async Task Send_OversizedMessage_StillDeliversTheRestOfTheBatch(int oversizedIndex)
+    public void Send_OversizedMessage_StillDeliversTheRestOfTheBatch(int oversizedIndex)
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -69,13 +69,13 @@ public class OscSendServiceTests
                 : Float($"/avatar/parameters/v2/Shape{i:D3}"));
         }
 
-        await service.Send(batch, CancellationToken.None);
+        service.Send(batch);
 
         Assert.Equal(batch.Count, dispatched);
     }
 
     [Fact]
-    public async Task Send_AllMessagesFit_DispatchesEveryMessage()
+    public void Send_AllMessagesFit_DispatchesEveryMessage()
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -94,8 +94,33 @@ public class OscSendServiceTests
             batch.Add(Float($"/avatar/parameters/v2/Shape{i:D3}"));
         }
 
-        await service.Send(batch, CancellationToken.None);
+        service.Send(batch);
 
         Assert.Equal(batch.Count, dispatched);
+    }
+
+    [Fact]
+    public void Send_AfterOutPortChange_ReachesTheNewTarget()
+    {
+        using var first = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        first.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        first.ReceiveTimeout = 1000;
+        using var second = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        second.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        second.ReceiveTimeout = 1000;
+
+        var target = new FakeOscTarget();
+        var service = new OscSendService(NullLogger<OscSendService>.Instance, target);
+        var batch = new List<OscMessage> { Float("/avatar/parameters/v2/JawOpen") };
+        var buffer = new byte[4096];
+
+        target.OutPort = ((IPEndPoint)first.LocalEndPoint).Port;
+        service.Send(batch);
+        Assert.True(first.Receive(buffer) > 0);
+
+        target.OutPort = ((IPEndPoint)second.LocalEndPoint).Port;
+        service.Send(batch);
+        Assert.True(second.Receive(buffer) > 0);
+        Assert.True(target.IsConnected);
     }
 }

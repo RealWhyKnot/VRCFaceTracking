@@ -52,6 +52,8 @@ public class UnifiedTracking
     /// </summary>
     public static long LastDataUpdateTicks => Interlocked.Read(ref _lastDataUpdateTicks);
 
+    internal static readonly AutoResetEvent DataArrived = new(false);
+
     /// <summary>
     /// Marks <see cref="Data"/> as carrying values a module has not published yet.
     /// </summary>
@@ -59,6 +61,7 @@ public class UnifiedTracking
     {
         Interlocked.Increment(ref _dataVersion);
         Interlocked.Exchange(ref _lastDataUpdateTicks, System.Diagnostics.Stopwatch.GetTimestamp());
+        DataArrived.Set();
     }
 
     /// <summary>

@@ -18,7 +18,6 @@ public class OscSendService
     private Socket _sendSocket;
     private readonly byte[] _sendBuffer = new byte[4096];
 
-    private CancellationTokenSource _cts;
     public Action<int> OnMessagesDispatched = _ => { };
 
     public OscSendService(
@@ -27,8 +26,6 @@ public class OscSendService
     )
     {
         _logger = logger;
-        _cts = new CancellationTokenSource();
-
         _oscTarget = oscTarget;
 
         _oscTarget.PropertyChanged += (_, args) =>
@@ -54,25 +51,20 @@ public class OscSendService
 
     private void UpdateTarget(IPEndPoint endpoint)
     {
-        _cts.Cancel();
-        _sendSocket?.Close();
         _oscTarget.IsConnected = false;
 
-        _sendSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
+        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         try
         {
-            _sendSocket.Connect(endpoint);
+            socket.Connect(endpoint);
             _oscTarget.IsConnected = true;
         }
         catch (SocketException ex)
         {
             _logger.LogWarning($"Failed to bind to sender endpoint: {endpoint}. {ex.Message}");
         }
-        finally
-        {
-            _cts = new CancellationTokenSource();
-        }
+
+        Interlocked.Exchange(ref _sendSocket, socket)?.Close();
     }
 
     public async Task Send(OscMessage message, CancellationToken ct)
@@ -93,9 +85,10 @@ public class OscSendService
         OnMessagesDispatched(1);
     }
 
-    public async Task Send(List<OscMessage> messages, CancellationToken ct)
+    public void Send(List<OscMessage> messages)
     {
-        if (_sendSocket == null || messages.Count == 0)
+        var socket = _sendSocket;
+        if (socket == null || messages.Count == 0)
         {
             return;
         }
@@ -118,7 +111,7 @@ public class OscSendService
                 break;
             }
 
-            await _sendSocket.SendAsync(_sendBuffer.AsMemory(0, length), SocketFlags.None, ct);
+            socket.Send(_sendBuffer.AsSpan(0, length), SocketFlags.None);
         }
 
         OnMessagesDispatched(index);

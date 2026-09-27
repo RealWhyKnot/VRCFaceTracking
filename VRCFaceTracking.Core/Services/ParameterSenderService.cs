@@ -14,6 +14,8 @@ public class ParameterSenderService : BackgroundService
     // We probably don't need a queue since we use osc message bundles, but for now, we're keeping it as
     // we might want to allow a way for the user to specify bundle or single message sends in the future
     private const int TickIntervalMs = 10;
+    private const double MinDataIntervalMs = 5;
+    private const double RefreshIntervalMs = 25;
     private const double StallTickGapMs = 50;
     private const double SlowSendMs = 5;
     private const double StaleDataMs = 100;
@@ -91,19 +93,44 @@ public class ParameterSenderService : BackgroundService
     public static void Enqueue(OscMessage message) => SendQueue.Enqueue(message);
     public static void Clear() => SendQueue.Clear();
 
-    protected async override Task ExecuteAsync(CancellationToken cancellationToken)
+    protected override Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(TickIntervalMs));
+        var done = new TaskCompletionSource();
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                Run(cancellationToken);
+            }
+            finally
+            {
+                done.TrySetResult();
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "OSC Send",
+        };
+        thread.Start();
+        return done.Task;
+    }
+
+    private void Run(CancellationToken cancellationToken)
+    {
+        var wakeHandles = new[] { UnifiedTracking.DataArrived, cancellationToken.WaitHandle };
         var lastDataVersion = -1;
         var toMs = 1000.0 / Stopwatch.Frequency;
         var lastTick = Stopwatch.GetTimestamp();
         var lastReport = lastTick;
+        var lastUpdate = lastTick;
+        var lastDataUpdate = 0L;
 
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                if (!await timer.WaitForNextTickAsync(cancellationToken))
+                WaitHandle.WaitAny(wakeHandles, TickIntervalMs);
+                if (cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
@@ -112,15 +139,10 @@ public class ParameterSenderService : BackgroundService
                 var gapMs = (tickNow - lastTick) * toMs;
                 lastTick = tickNow;
 
-                if (_logger.IsEnabled(LogLevel.Debug))
+                var diag = _logger.IsEnabled(LogLevel.Debug);
+                if (diag)
                 {
                     _tickGap.Add(gapMs);
-
-                    var updateTicks = UnifiedTracking.LastDataUpdateTicks;
-                    if (updateTicks != 0)
-                    {
-                        _dataAgeMs.Add((tickNow - updateTicks) * toMs);
-                    }
 
                     var gcPause = GC.GetTotalPauseDuration();
                     var gen0 = GC.CollectionCount(0);
@@ -139,6 +161,7 @@ public class ParameterSenderService : BackgroundService
                     _lastGen1 = gen1;
                     _lastGen2 = gen2;
 
+                    var updateTicks = UnifiedTracking.LastDataUpdateTicks;
                     if (updateTicks != 0)
                     {
                         var ageMs = (tickNow - updateTicks) * toMs;
@@ -161,11 +184,27 @@ public class ParameterSenderService : BackgroundService
                     }
                 }
 
-                var dataVersion = UnifiedTracking.DataVersion;
-                if (dataVersion != lastDataVersion)
+                if (UnifiedTracking.DataVersion != lastDataVersion)
                 {
-                    lastDataVersion = dataVersion;
+                    var sinceDataMs = (Stopwatch.GetTimestamp() - lastDataUpdate) * toMs;
+                    if (sinceDataMs < MinDataIntervalMs)
+                    {
+                        Thread.Sleep(TimeSpan.FromMilliseconds(MinDataIntervalMs - sinceDataMs));
+                    }
+
+                    lastDataVersion = UnifiedTracking.DataVersion;
                     UnifiedTracking.UpdateData();
+                    lastDataUpdate = lastUpdate = Stopwatch.GetTimestamp();
+
+                    if (diag)
+                    {
+                        _dataAgeMs.Add((lastDataUpdate - UnifiedTracking.LastDataUpdateTicks) * toMs);
+                    }
+                }
+                else if ((tickNow - lastUpdate) * toMs >= RefreshIntervalMs)
+                {
+                    UnifiedTracking.UpdateData();
+                    lastUpdate = Stopwatch.GetTimestamp();
                 }
 
                 if (SendQueue.IsEmpty)
@@ -179,10 +218,10 @@ public class ParameterSenderService : BackgroundService
                     _batch.Add(message);
                 }
 
-                if (_logger.IsEnabled(LogLevel.Debug))
+                if (diag)
                 {
                     var sendStart = Stopwatch.GetTimestamp();
-                    await _sendService.Send(_batch, cancellationToken);
+                    _sendService.Send(_batch);
                     var sendMs = (Stopwatch.GetTimestamp() - sendStart) * toMs;
 
                     _sendMs.Add(sendMs);
@@ -196,12 +235,8 @@ public class ParameterSenderService : BackgroundService
                 }
                 else
                 {
-                    await _sendService.Send(_batch, cancellationToken);
+                    _sendService.Send(_batch);
                 }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                break;
             }
             catch (Exception e)
             {
