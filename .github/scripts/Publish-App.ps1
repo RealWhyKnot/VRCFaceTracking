@@ -13,11 +13,11 @@ Push-Location (Resolve-Path -LiteralPath $RepoRoot).Path
 try {
   if (Test-Path -LiteralPath $OutDir) { Remove-Item -LiteralPath $OutDir -Recurse -Force }
 
-  & dotnet publish VRCFaceTracking/VRCFaceTracking.csproj -c Release -r $Rid --self-contained true `
+  & dotnet publish VRCFaceTracking/VRCFaceTracking.csproj -c Release -r $Rid --self-contained true -p:PublishReadyToRun=true `
     "-p:VftBuildChannel=$Channel" "-p:VftVersion=$Version" -o $OutDir
   if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
 
-  & dotnet publish VRCFaceTracking.ModuleProcess/VRCFaceTracking.ModuleProcess.csproj -c Release -r $Rid --self-contained true `
+  & dotnet publish VRCFaceTracking.ModuleProcess/VRCFaceTracking.ModuleProcess.csproj -c Release -r $Rid --self-contained true -p:PublishReadyToRun=true `
     "-p:VftBuildChannel=$Channel" "-p:VftVersion=$Version" -o $OutDir
   if ($LASTEXITCODE -ne 0) { throw "dotnet publish (ModuleProcess) failed ($LASTEXITCODE)" }
 
