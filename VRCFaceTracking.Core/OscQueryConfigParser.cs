@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using VRCFaceTracking.Core.Contracts;
@@ -66,5 +67,11 @@ public class OscQueryConfigParser(
             parserLogger.LogError(e, "Failed to parse OSCQuery avatar config from {Endpoint}", multicastDnsService.VrchatClientEndpoint);
             return null;
         }
+    }
+
+    public async Task<string?> GetAvatarId(IPEndPoint endpoint, CancellationToken ct)
+    {
+        var json = await _httpClient.GetStringAsync("http://" + endpoint + "/avatar/change", ct);
+        return JsonConvert.DeserializeObject<OscQueryNode>(json)?.Value?.FirstOrDefault() as string;
     }
 }

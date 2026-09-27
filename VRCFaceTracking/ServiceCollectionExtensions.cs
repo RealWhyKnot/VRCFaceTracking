@@ -66,6 +66,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHostedService<ParameterSenderService>(provider => provider.GetService<ParameterSenderService>());
         services.AddHostedService<OscRecvService>(provider => provider.GetService<OscRecvService>());
+        services.AddHostedService<OscQueryService>(provider => provider.GetService<OscQueryService>());
 
         services.Configure<LocalSettingsOptions>(context.Configuration.GetSection(nameof(LocalSettingsOptions)));
     }

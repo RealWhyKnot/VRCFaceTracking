@@ -70,10 +70,7 @@ public class HttpHandler(IOscTarget oscTarget, ILogger<HttpHandler> logger) : ID
                     return; // Not properly implementing oscquery protocol because I'm unemployed and not being paid to
                 }
 
-                var rootNode = new OscQueryRoot();
-                rootNode.AddNode(new OscQueryNode("/avatar/change", AccessValues.WriteOnly, "s"));
-
-                respStr = rootNode.ToString();
+                respStr = new OscQueryRoot().ToString();
             }
 
             // Send Response

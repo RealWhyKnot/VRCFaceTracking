@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
@@ -23,10 +24,15 @@ public partial class OscQueryService(
     ILocalSettingsService settingsService,
     HttpHandler httpHandler,
     IDispatcherService dispatcherService)
-    : ObservableObject
+    : ObservableObject, IHostedService
 {
+    private static readonly TimeSpan AvatarPollInterval = TimeSpan.FromSeconds(1);
+
     [ObservableProperty] private IAvatarInfo _avatarInfo = new NullAvatarDef("Loading...", "Loading...");
     [ObservableProperty] private List<Parameter> _avatarParameters;
+
+    private readonly CancellationTokenSource _stopAvatarPoll = new();
+    private Task _avatarPoll = Task.CompletedTask;
 
     public async Task InitializeAsync()
     {
@@ -92,12 +98,6 @@ public partial class OscQueryService(
 
     private async void HandleNewAvatar(string newId = null)
     {
-        if (newId != null && string.Equals(newId, _loadedAvatarId, StringComparison.Ordinal))
-        {
-            logger.LogDebug("diag.avatar skipping reload, {Id} is already loaded", newId);
-            return;
-        }
-
         if (newId == null)
         {
             if (!await _avatarParseLock.WaitAsync(0))
@@ -112,6 +112,12 @@ public partial class OscQueryService(
 
         try
         {
+            if (newId != null && string.Equals(newId, _loadedAvatarId, StringComparison.Ordinal))
+            {
+                logger.LogDebug("diag.avatar skipping reload, {Id} is already loaded", newId);
+                return;
+            }
+
             (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? newAvatar;
             if (multicastDnsService.VrchatClientEndpoint != null)
             {
@@ -148,6 +154,74 @@ public partial class OscQueryService(
     }
 
     private void HandleNewAvatarWrapper() => HandleNewAvatar(); // Helper func used in callbacks
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _avatarPoll = PollAvatarId(
+            () => multicastDnsService.VrchatClientEndpoint,
+            oscQueryConfigParser.GetAvatarId,
+            () => _loadedAvatarId,
+            HandleNewAvatar,
+            AvatarPollInterval,
+            logger,
+            _stopAvatarPoll.Token);
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _stopAvatarPoll.Cancel();
+        return _avatarPoll;
+    }
+
+    internal static async Task PollAvatarId(
+        Func<IPEndPoint?> endpoint,
+        Func<IPEndPoint, CancellationToken, Task<string?>> fetchId,
+        Func<string?> loadedId,
+        Action<string> load,
+        TimeSpan interval,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var failing = false;
+        try
+        {
+            using var timer = new PeriodicTimer(interval);
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                if (endpoint() is not { } target)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var id = await fetchId(target, ct);
+                    if (failing)
+                    {
+                        failing = false;
+                        logger.LogDebug("diag.avatar poll of {Endpoint} recovered", target);
+                    }
+
+                    if (id != null && id != loadedId())
+                    {
+                        load(id);
+                    }
+                }
+                catch (Exception e) when (!ct.IsCancellationRequested)
+                {
+                    if (!failing)
+                    {
+                        failing = true;
+                        logger.LogDebug("diag.avatar poll of {Endpoint} failed: {Message}", target, e.Message);
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
 
 
     private void HandleNewMessage(OscMessage msg)
