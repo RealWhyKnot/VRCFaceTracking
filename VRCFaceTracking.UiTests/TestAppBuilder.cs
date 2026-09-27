@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Headless;
 using VRCFaceTracking;
+using VRCFaceTracking.Services;
 using VRCFaceTracking.UiTests;
 
 [assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]
@@ -22,6 +23,7 @@ public static class TestAppBuilder
     {
         App.StartServices = false;
         App.EnableMotion = false;
+        OpenVRService.Enabled = false;
         return AppBuilder.Configure<App>()
             .UseSkia()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });

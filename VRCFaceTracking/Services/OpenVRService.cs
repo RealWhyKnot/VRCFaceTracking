@@ -20,6 +20,8 @@ public class OpenVRService
     private Task? _reconnectLoop;
     private bool _nativeMissing;
 
+    public static bool Enabled = true;
+
     public static bool IsSupported => !OperatingSystem.IsMacOS();
 
     public event Action? QuitRequested;
@@ -44,7 +46,7 @@ public class OpenVRService
                 return true;
             }
 
-            if (!IsSupported || _nativeMissing)
+            if (!Enabled || !IsSupported || _nativeMissing)
             {
                 return false;
             }
