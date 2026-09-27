@@ -9,6 +9,8 @@ using CommunityToolkit.Mvvm.DependencyInjection;
 using FluentAvalonia.Styling;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Logging.Debug;
 using VRCFaceTracking.Contracts.Services;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts.Services;
@@ -119,6 +121,8 @@ public partial class App : Application
                     logging.ClearProviders();
                     logging.AddDebug();
                     logging.AddConsole();
+                    logging.AddFilter<DebugLoggerProvider>(LogGate.IsEnabled);
+                    logging.AddFilter<ConsoleLoggerProvider>(LogGate.IsEnabled);
                     logging.AddProvider(new Services.Logging.OutputPageLogProvider(LogGate));
                     logging.AddProvider(FileLog);
                 })

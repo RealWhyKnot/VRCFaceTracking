@@ -11,7 +11,7 @@ public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
 {
     public static readonly BoundedObservableCollection<LogLine> AllLogs = new(10000);
 
-    private static readonly ConcurrentQueue<LogLine> _pending = new();
+    internal static readonly ConcurrentQueue<LogLine> Pending = new();
     private static DispatcherTimer? _flushTimer;
     private static int _timerStarted;
 
@@ -26,12 +26,15 @@ public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
         Exception? exception,
         Func<TState, Exception?, string> formatter)
     {
+        if (!IsEnabled(logLevel))
+            return;
+
         var line = categoryName == "\0VRCFT\0"
             // Log events from sub-processes have the unique category name "\0VRCFT\0", so skip category name
             ? new LogLine($"{formatter(state, exception)}", logLevel)
             : new LogLine($"[{categoryName}] {logLevel}: {formatter(state, exception)}", logLevel);
 
-        _pending.Enqueue(line);
+        Pending.Enqueue(line);
         EnsureFlushTimer();
     }
 
@@ -52,12 +55,12 @@ public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
 
     private static void Flush(object? sender, EventArgs e)
     {
-        while (_pending.TryDequeue(out var line))
+        while (Pending.TryDequeue(out var line))
         {
             AllLogs.Add(line);
         }
 
-        if (_pending.IsEmpty)
+        if (Pending.IsEmpty)
         {
             _flushTimer?.Stop();
             Interlocked.Exchange(ref _timerStarted, 0);

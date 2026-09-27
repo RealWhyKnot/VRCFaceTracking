@@ -73,4 +73,7 @@
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="VRCFaceTracking.UiTests" />
+  </ItemGroup>
 </Project>
