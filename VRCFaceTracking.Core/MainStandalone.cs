@@ -86,13 +86,13 @@ public class MainStandalone : IMainService
 
         if (isWindows)
         {
-            if (Utils.AlwaysHonorTimerResolution(out var error))
+            if (Utils.OptOutOfPowerThrottling(out var mask, out var error))
             {
-                _logger.LogDebug("Timer resolution requests will be honored while the window is occluded");
+                _logger.LogDebug("Opted out of power throttling mask 0x{Mask:X}, {State}", mask, Utils.DescribePowerThrottling());
             }
             else
             {
-                _logger.LogWarning("Could not opt out of timer resolution throttling (error {Error}); update rate drops to 64 Hz while the window is covered", error);
+                _logger.LogWarning("Could not opt out of power throttling (error {Error}); update rate drops to 64 Hz while the window is covered", error);
             }
             Utils.TimeBeginPeriod(1);
             var priority = Process.GetCurrentProcess().PriorityClass;

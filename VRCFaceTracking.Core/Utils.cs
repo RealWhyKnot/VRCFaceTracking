@@ -31,6 +31,7 @@ public static class Utils
 
     private const int ProcessPowerThrottling = 4;
     private const uint ProcessPowerThrottlingCurrentVersion = 1;
+    private const uint ProcessPowerThrottlingExecutionSpeed = 0x1;
     private const uint ProcessPowerThrottlingIgnoreTimerResolution = 0x4;
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -42,31 +43,36 @@ public static class Utils
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetCurrentProcess();
 
-    public static bool AlwaysHonorTimerResolution(out int error)
+    public static bool OptOutOfPowerThrottling(out uint mask, out int error)
     {
         error = 0;
-        var state = new ProcessPowerThrottlingState
-        {
-            Version = ProcessPowerThrottlingCurrentVersion,
-            ControlMask = ProcessPowerThrottlingIgnoreTimerResolution,
-            StateMask = 0,
-        };
         var size = Marshal.SizeOf<ProcessPowerThrottlingState>();
-        if (!SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, ref state, size))
+        foreach (var candidate in new[] { ProcessPowerThrottlingExecutionSpeed | ProcessPowerThrottlingIgnoreTimerResolution, ProcessPowerThrottlingExecutionSpeed })
         {
+            var state = new ProcessPowerThrottlingState
+            {
+                Version = ProcessPowerThrottlingCurrentVersion,
+                ControlMask = candidate,
+                StateMask = 0,
+            };
+            if (SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, ref state, size))
+            {
+                mask = candidate;
+                return true;
+            }
             error = Marshal.GetLastWin32Error();
-            return false;
         }
 
-        var readBack = new ProcessPowerThrottlingState { Version = ProcessPowerThrottlingCurrentVersion };
-        if (!GetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, ref readBack, size))
-        {
-            error = Marshal.GetLastWin32Error();
-            return false;
-        }
+        mask = 0;
+        return false;
+    }
 
-        return (readBack.ControlMask & ProcessPowerThrottlingIgnoreTimerResolution) != 0
-            && (readBack.StateMask & ProcessPowerThrottlingIgnoreTimerResolution) == 0;
+    public static string DescribePowerThrottling()
+    {
+        var state = new ProcessPowerThrottlingState { Version = ProcessPowerThrottlingCurrentVersion };
+        return GetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, ref state, Marshal.SizeOf<ProcessPowerThrottlingState>())
+            ? $"control=0x{state.ControlMask:X} state=0x{state.StateMask:X}"
+            : $"read-back unavailable (error {Marshal.GetLastWin32Error()})";
     }
 
     // Proc memory read helpers

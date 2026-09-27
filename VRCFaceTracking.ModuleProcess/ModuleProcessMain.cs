@@ -72,9 +72,13 @@ public class ModuleProcessMain
         var moduleName = Path.GetFileNameWithoutExtension(modulePathArg ?? "module");
         Gate.Set(args.Contains("--verbose") || BuildInfo.VerboseForced);
 
-        _raisedTimerResolution = OperatingSystem.IsWindows() && Core.Utils.TimeBeginPeriod(1) == 0;
+        var throttling = "n/a";
         if (OperatingSystem.IsWindows())
         {
+            throttling = Core.Utils.OptOutOfPowerThrottling(out var mask, out var error)
+                ? $"0x{mask:X} {Core.Utils.DescribePowerThrottling()}"
+                : $"failed (error {error})";
+            _raisedTimerResolution = Core.Utils.TimeBeginPeriod(1) == 0;
             try
             {
                 Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
@@ -84,7 +88,7 @@ public class ModuleProcessMain
             }
         }
         _fileLogger = new FileLoggerProvider(Core.Utils.LogDirectory, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}"), Gate);
-        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass}");
+        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass} throttling={throttling} timer1ms={_raisedTimerResolution}");
 
         var serviceProvider = new ServiceCollection()
             .AddLogging(loggingBuilder => loggingBuilder
