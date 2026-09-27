@@ -259,6 +259,36 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
+    public void UpdateGlobalState_SentinelHead_KeepsHeadFromAnotherModule()
+    {
+        var withHead = CapturePacket(FillEverything);
+        var withoutHead = CapturePacket(data =>
+        {
+            FillEverything(data);
+            data.Head = new UnifiedHeadData
+            {
+                HeadYaw = Invalid,
+                HeadPitch = Invalid,
+                HeadRoll = Invalid,
+                HeadPosX = Invalid,
+                HeadPosY = Invalid,
+                HeadPosZ = Invalid
+            };
+        });
+
+        withHead.UpdateGlobalState(TrackingCapability.Head);
+        withoutHead.UpdateGlobalState(TrackingCapability.Head);
+
+        var head = UnifiedTracking.Data.Head;
+        Assert.Equal(0.31f, head.HeadYaw);
+        Assert.Equal(0.32f, head.HeadPitch);
+        Assert.Equal(0.33f, head.HeadRoll);
+        Assert.Equal(0.41f, head.HeadPosX);
+        Assert.Equal(0.42f, head.HeadPosY);
+        Assert.Equal(0.43f, head.HeadPosZ);
+    }
+
+    [Fact]
     public void UpdateGlobalState_AdvancesDataVersion()
     {
         var packet = CapturePacket(FillEverything);
