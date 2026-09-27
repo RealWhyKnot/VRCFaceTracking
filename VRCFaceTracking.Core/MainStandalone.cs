@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Runtime;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
@@ -83,6 +84,7 @@ public class MainStandalone : IMainService
 
         // Begin main OSC update loop
         _logger.LogDebug("Starting OSC update loop...");
+        _logger.LogDebug("GC latency mode is {Mode}", GCSettings.LatencyMode);
 
         if (isWindows)
         {

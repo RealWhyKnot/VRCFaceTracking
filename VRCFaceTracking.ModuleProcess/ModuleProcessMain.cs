@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
@@ -70,6 +71,7 @@ public class ModuleProcessMain
     {
         var modulePathArg = args.SkipWhile(a => a != "--module-path").Skip(1).FirstOrDefault();
         var moduleName = Path.GetFileNameWithoutExtension(modulePathArg ?? "module");
+        GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
         Gate.Set(args.Contains("--verbose") || BuildInfo.VerboseForced);
 
         var throttling = "n/a";
@@ -88,7 +90,7 @@ public class ModuleProcessMain
             }
         }
         _fileLogger = new FileLoggerProvider(Core.Utils.LogDirectory, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}"), Gate);
-        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass} throttling={throttling} timer1ms={_raisedTimerResolution}");
+        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass} throttling={throttling} timer1ms={_raisedTimerResolution} gc={GCSettings.LatencyMode}");
 
         var serviceProvider = new ServiceCollection()
             .AddLogging(loggingBuilder => loggingBuilder

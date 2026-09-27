@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime;
 using Avalonia;
 
 namespace VRCFaceTracking;
@@ -8,6 +9,7 @@ internal class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
         if (OperatingSystem.IsWindows())
         {
             try
