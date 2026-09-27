@@ -36,7 +36,8 @@ public class ParameterSenderService : BackgroundService
 
     private readonly OscSendService _sendService;
     private readonly ILogger<ParameterSenderService> _logger;
-    private readonly UnifiedTrackingMutator _mutator; // We don't use this but we do want DI to run its constructor
+    private readonly UnifiedTrackingMutator _mutator;
+    private readonly EyeLidMonitor _eyeLids;
 
     public static bool AllParametersRelevantStatic
     {
@@ -64,6 +65,7 @@ public class ParameterSenderService : BackgroundService
         _sendService = sendService;
         _logger = logger;
         _mutator = mutator;
+        _eyeLids = new EyeLidMonitor(logger);
     }
 
     private void ReportDiagnostics()
@@ -199,6 +201,8 @@ public class ParameterSenderService : BackgroundService
                     if (diag)
                     {
                         _sampleAgeMs.Add((lastDataUpdate - UnifiedTracking.LastSampleTicks) * toMs);
+                        var eye = _mutator.LastEyeOpenness;
+                        _eyeLids.Observe(lastDataUpdate, eye.RawLeft, eye.RawRight, eye.OutLeft, eye.OutRight);
                     }
                 }
                 else if ((tickNow - lastUpdate) * toMs >= RefreshIntervalMs)

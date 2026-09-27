@@ -45,23 +45,30 @@ public partial class UnifiedTrackingMutator : ObservableObject
             _inputBuffer.CopyPropertiesOf(input);
         }
 
-        if (!Enabled)
-        {
-            return _inputBuffer;
-        }
+        var rawLeft = _inputBuffer.Eye.Left.Openness;
+        var rawRight = _inputBuffer.Eye.Right.Openness;
 
-        lock (_mutationsLock)
+        if (Enabled)
         {
-            for (var i = 0; i < _mutations.Count; i++)
+            lock (_mutationsLock)
             {
-                if (_mutations[i].IsActive)
+                for (var i = 0; i < _mutations.Count; i++)
                 {
-                    _mutations[i].MutateData(ref _inputBuffer);
+                    if (_mutations[i].IsActive)
+                    {
+                        _mutations[i].MutateData(ref _inputBuffer);
+                    }
                 }
             }
         }
 
+        LastEyeOpenness = (rawLeft, rawRight, _inputBuffer.Eye.Left.Openness, _inputBuffer.Eye.Right.Openness);
         return _inputBuffer;
+    }
+
+    public (float RawLeft, float RawRight, float OutLeft, float OutRight) LastEyeOpenness
+    {
+        get; private set;
     }
 
     public async Task Save()
