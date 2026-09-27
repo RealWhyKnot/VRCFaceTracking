@@ -11,8 +11,12 @@ namespace VRCFaceTracking.UiTests;
 public static class TestAppBuilder
 {
     [ModuleInitializer]
-    internal static void RedirectLogs() =>
-        Environment.SetEnvironmentVariable(Core.Utils.LogDirectoryEnvironmentVariable, Directory.CreateTempSubdirectory("vrcft-uitests-").FullName);
+    internal static void RedirectUserFolders()
+    {
+        var root = Directory.CreateTempSubdirectory("vrcft-uitests-").FullName;
+        Environment.SetEnvironmentVariable(Core.Utils.LogDirectoryEnvironmentVariable, root);
+        Environment.SetEnvironmentVariable(Core.Utils.DataDirectoryEnvironmentVariable, Path.Combine(root, "data"));
+    }
 
     public static AppBuilder BuildAvaloniaApp()
     {
