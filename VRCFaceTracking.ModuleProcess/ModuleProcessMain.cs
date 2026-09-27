@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -33,8 +34,9 @@ public class ModuleProcessMain
     private static Thread? _updateThread;
 
     private static readonly AutoResetEvent _wakeup = new(false);
+    private static ReplyUpdatePacket? _latest;
     private static volatile bool _imageStreamEnabled;
-    private const int ImageFrameIntervalMs = 100;
+    private const int ImageFrameIntervalMs = 90;
     private static readonly System.Diagnostics.Stopwatch _eyeFrameTimer = System.Diagnostics.Stopwatch.StartNew();
     private static readonly System.Diagnostics.Stopwatch _lipFrameTimer = System.Diagnostics.Stopwatch.StartNew();
 
@@ -318,12 +320,14 @@ public class ModuleProcessMain
                         {
                             try
                             {
-                                VRCFaceTracking.UnifiedTracking.ModuleSnapshot ??= new UnifiedTrackingData();
+                                var snapshot = new UnifiedTrackingData();
+                                var scratch = new byte[ReplyUpdatePacket.PayloadSize];
 
                                 var diag = Logger.IsEnabled(LogLevel.Debug);
                                 var updateMs = new DiagStat();
-                                var copyMs = new DiagStat();
+                                var captureMs = new DiagStat();
                                 var loopGapMs = new DiagStat();
+                                var pushes = 0;
                                 var toMs = 1000.0 / Stopwatch.Frequency;
                                 var lastLoop = Stopwatch.GetTimestamp();
                                 var lastReport = lastLoop;
@@ -336,14 +340,28 @@ public class ModuleProcessMain
 
                                     lock (VRCFaceTracking.UnifiedTracking.DataLock)
                                     {
-                                        VRCFaceTracking.UnifiedTracking.ModuleSnapshot.CopyPropertiesOf(VRCFaceTracking.UnifiedTracking.Data);
+                                        snapshot.CopyPropertiesOf(VRCFaceTracking.UnifiedTracking.Data);
+                                    }
+
+                                    var changed = ReplyUpdatePacket.CaptureIfChanged(snapshot, t1, scratch, _latest);
+                                    if (changed != null)
+                                    {
+                                        try
+                                        {
+                                            Client.SendData(changed);
+                                        }
+                                        catch (SocketException)
+                                        {
+                                        }
+                                        Volatile.Write(ref _latest, changed);
+                                        pushes++;
                                     }
 
                                     if (diag)
                                     {
                                         var t2 = Stopwatch.GetTimestamp();
                                         updateMs.Add((t1 - t0) * toMs);
-                                        copyMs.Add((t2 - t1) * toMs);
+                                        captureMs.Add((t2 - t1) * toMs);
                                         loopGapMs.Add((t0 - lastLoop) * toMs);
                                         lastLoop = t0;
 
@@ -351,15 +369,16 @@ public class ModuleProcessMain
                                         {
                                             lastReport = t2;
                                             var (uP50, uP99) = updateMs.Percentiles();
-                                            var (cP50, cP99) = copyMs.Percentiles();
+                                            var (cP50, cP99) = captureMs.Percentiles();
                                             var (gP50, gP99) = loopGapMs.Percentiles();
                                             Logger.LogDebug(
-                                                "diag.module updates={N} rate={Rate:N0}/s | Update p50={UP50:N2} p99={UP99:N2} max={UMax:N2}ms | snapshotCopy p50={CP50:N3} p99={CP99:N3} max={CMax:N3}ms | loopGap p50={GP50:N2} p99={GP99:N2} max={GMax:N2}ms",
-                                                updateMs.Count, updateMs.Count, uP50, uP99, updateMs.Max,
-                                                cP50, cP99, copyMs.Max, gP50, gP99, loopGapMs.Max);
+                                                "diag.module updates={N} pushes={P} rate={Rate:N0}/s | Update p50={UP50:N2} p99={UP99:N2} max={UMax:N2}ms | capture p50={CP50:N3} p99={CP99:N3} max={CMax:N3}ms | loopGap p50={GP50:N2} p99={GP99:N2} max={GMax:N2}ms",
+                                                updateMs.Count, pushes, updateMs.Count, uP50, uP99, updateMs.Max,
+                                                cP50, cP99, captureMs.Max, gP50, gP99, loopGapMs.Max);
                                             updateMs.Reset();
-                                            copyMs.Reset();
+                                            captureMs.Reset();
                                             loopGapMs.Reset();
+                                            pushes = 0;
                                         }
                                     }
 
@@ -416,13 +435,12 @@ public class ModuleProcessMain
 
                 case IpcPacket.PacketType.EventUpdate:
                     {
-                        var pkt = new ReplyUpdatePacket
+                        var latest = Volatile.Read(ref _latest);
+                        if (latest != null)
                         {
-                            PokeSentTicks = ((EventUpdatePacket)packet).SentTicks,
-                            PokeReceivedTicks = Stopwatch.GetTimestamp(),
-                        };
-                        _packetsToSend.Enqueue(pkt);
-                        _wakeup.Set();
+                            _packetsToSend.Enqueue(latest);
+                            _wakeup.Set();
+                        }
                         if (_imageStreamEnabled)
                         {
                             TryEnqueueImageFrame(UnifiedTracking.EyeImageData, ImageFrameUpdatePacket.EyeKind, _eyeFrameTimer);

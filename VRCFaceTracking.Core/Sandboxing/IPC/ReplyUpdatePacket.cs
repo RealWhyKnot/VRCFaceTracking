@@ -43,94 +43,93 @@ public class ReplyUpdatePacket : IpcPacket
         internal float[] Expression_Shapes;
     }
 
+    private const int ScalarCount = 16;
+    public const int PayloadSize = (ScalarCount + EXPRESSION_COUNT) * sizeof(float);
+
     private readonly UpdateDataContiguous _contiguousUnifiedData = new()
     {
         Expression_Shapes = new float[EXPRESSION_COUNT]
     };
 
-    private const int StampCount = 3;
-    public long PokeSentTicks;
-    public long PokeReceivedTicks;
+    private readonly byte[]? _payload;
+
+    private const int StampCount = 2;
+    public long SampleTicks;
     public long ReplySentTicks;
+
+    internal static long NonFiniteRejected;
+
+    public ReplyUpdatePacket()
+    {
+    }
+
+    private ReplyUpdatePacket(byte[] payload, long sampleTicks)
+    {
+        _payload = payload;
+        SampleTicks = sampleTicks;
+    }
 
     public override PacketType GetPacketType() => PacketType.ReplyUpdate;
 
-    // We send a challenge to the vrcft host, and if we receive a reply with the same data, we consider the connection successfully ACKed.
-    // In other words, this packet is the handshake begin and ACK packet.
+    public static ReplyUpdatePacket Capture(UnifiedTrackingData source, long sampleTicks)
+    {
+        var payload = new byte[PayloadSize];
+        WritePayload(source, payload);
+        return new ReplyUpdatePacket(payload, sampleTicks);
+    }
+
+    public static ReplyUpdatePacket? CaptureIfChanged(UnifiedTrackingData source, long sampleTicks, byte[] scratch, ReplyUpdatePacket? previous)
+    {
+        WritePayload(source, scratch);
+        if (previous?._payload != null && scratch.AsSpan(0, PayloadSize).SequenceEqual(previous._payload))
+        {
+            return null;
+        }
+        return new ReplyUpdatePacket(scratch.AsSpan(0, PayloadSize).ToArray(), sampleTicks);
+    }
+
+    private static void WritePayload(UnifiedTrackingData source, byte[] destination)
+    {
+        var values = MemoryMarshal.Cast<byte, float>(destination.AsSpan(0, PayloadSize));
+        values[0] = source.Eye._maxDilation;
+        values[1] = source.Eye._minDilation;
+        values[2] = source.Eye.Left.Gaze.x;
+        values[3] = source.Eye.Left.Gaze.y;
+        values[4] = source.Eye.Left.PupilDiameter_MM;
+        values[5] = source.Eye.Left.Openness;
+        values[6] = source.Eye.Right.Gaze.x;
+        values[7] = source.Eye.Right.Gaze.y;
+        values[8] = source.Eye.Right.PupilDiameter_MM;
+        values[9] = source.Eye.Right.Openness;
+        values[10] = source.Head.HeadYaw;
+        values[11] = source.Head.HeadPitch;
+        values[12] = source.Head.HeadRoll;
+        values[13] = source.Head.HeadPosX;
+        values[14] = source.Head.HeadPosY;
+        values[15] = source.Head.HeadPosZ;
+        for (var i = 0; i < EXPRESSION_COUNT; i++)
+        {
+            values[ScalarCount + i] = source.Shapes[i].Weight;
+        }
+    }
 
     public override byte[] GetBytes()
     {
-        // Build handshake packet
-
-        var packetTypeBytes = BitConverter.GetBytes((uint)GetPacketType());
-
-        var packetSize = SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE;
-
-        var source = UnifiedTracking.ModuleSnapshot ?? UnifiedTracking.Data;
-        lock (UnifiedTracking.DataLock)
+        if (_payload == null)
         {
-            // Update the internal data structure to match the current state of unified tracking
-            _contiguousUnifiedData.Eye_Left_GazeX = source.Eye.Left.Gaze.x;
-            _contiguousUnifiedData.Eye_Left_GazeY = source.Eye.Left.Gaze.y;
-            _contiguousUnifiedData.Eye_Left_PupilDiameter_MM = source.Eye.Left.PupilDiameter_MM;
-            _contiguousUnifiedData.Eye_Left_Openness = source.Eye.Left.Openness;
-
-            _contiguousUnifiedData.Eye_Right_GazeX = source.Eye.Right.Gaze.x;
-            _contiguousUnifiedData.Eye_Right_GazeY = source.Eye.Right.Gaze.y;
-            _contiguousUnifiedData.Eye_Right_PupilDiameter_MM = source.Eye.Right.PupilDiameter_MM;
-            _contiguousUnifiedData.Eye_Right_Openness = source.Eye.Right.Openness;
-
-            _contiguousUnifiedData.Eye_MaxDilation = source.Eye._maxDilation;
-            _contiguousUnifiedData.Eye_MinDilation = source.Eye._minDilation;
-
-            _contiguousUnifiedData.Head_Yaw = source.Head.HeadYaw;
-            _contiguousUnifiedData.Head_Pitch = source.Head.HeadPitch;
-            _contiguousUnifiedData.Head_Roll = source.Head.HeadRoll;
-
-            _contiguousUnifiedData.Head_PosX = source.Head.HeadPosX;
-            _contiguousUnifiedData.Head_PosY = source.Head.HeadPosY;
-            _contiguousUnifiedData.Head_PosZ = source.Head.HeadPosZ;
-
-            // Copy face tracking
-            for (var i = 0; i < _contiguousUnifiedData.Expression_Shapes.Length; i++)
-            {
-                _contiguousUnifiedData.Expression_Shapes[i] = source.Shapes[i].Weight;
-            }
+            throw new InvalidOperationException("No tracking data was captured into this packet");
         }
 
-        // Convert _contiguousUnifiedData to bytes
-        var sizeStruct = Marshal.SizeOf<UpdateDataContiguous>();
-        var sizeStructBytes = BitConverter.GetBytes(sizeStruct);
-        var arr = new byte[sizeStruct];
+        var bytes = new byte[SIZE_PACKET_MAGIC + SIZE_PACKET_TYPE + sizeof(int) + _payload.Length + StampCount * sizeof(long)];
+        Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, bytes, 0, SIZE_PACKET_MAGIC);
+        BitConverter.TryWriteBytes(bytes.AsSpan(4), (uint)GetPacketType());
+        BitConverter.TryWriteBytes(bytes.AsSpan(8), _payload.Length);
+        Buffer.BlockCopy(_payload, 0, bytes, 12, _payload.Length);
 
-        var ptr = IntPtr.Zero;
-        try
-        {
-            ptr = Marshal.AllocHGlobal(sizeStruct);
-            Marshal.StructureToPtr(_contiguousUnifiedData, ptr, false);
-            Marshal.Copy(ptr, arr, 0, sizeStruct);
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(ptr);
-        }
-
-        packetSize = packetSize + sizeof(int) + sizeStruct + StampCount * sizeof(long);
-
-        // Prepare buffer
-        var finalDataStream = new byte[packetSize];
-        Buffer.BlockCopy(HANDSHAKE_MAGIC, 0, finalDataStream, 0, SIZE_PACKET_MAGIC);     // Magic
-        Buffer.BlockCopy(packetTypeBytes, 0, finalDataStream, 4, SIZE_PACKET_TYPE);      // Packet Type
-        Buffer.BlockCopy(sizeStructBytes, 0, finalDataStream, 8, sizeof(int));           // Struct.Length
-        Buffer.BlockCopy(arr, 0, finalDataStream, 12, sizeStruct);            // Data
-
-        ReplySentTicks = System.Diagnostics.Stopwatch.GetTimestamp();
-        var stamps = finalDataStream.AsSpan(12 + sizeStruct);
-        BitConverter.TryWriteBytes(stamps, PokeSentTicks);
-        BitConverter.TryWriteBytes(stamps.Slice(8), PokeReceivedTicks);
-        BitConverter.TryWriteBytes(stamps.Slice(16), ReplySentTicks);
-
-        return finalDataStream;
+        var stamps = bytes.AsSpan(12 + _payload.Length);
+        BitConverter.TryWriteBytes(stamps, SampleTicks);
+        BitConverter.TryWriteBytes(stamps.Slice(8), System.Diagnostics.Stopwatch.GetTimestamp());
+        return bytes;
     }
 
     public override void Decode(in byte[] data)
@@ -161,17 +160,28 @@ public class ReplyUpdatePacket : IpcPacket
         var stampsOffset = 12 + structSize;
         if (data.Length >= stampsOffset + StampCount * sizeof(long))
         {
-            PokeSentTicks = BitConverter.ToInt64(data, stampsOffset);
-            PokeReceivedTicks = BitConverter.ToInt64(data, stampsOffset + 8);
-            ReplySentTicks = BitConverter.ToInt64(data, stampsOffset + 16);
+            SampleTicks = BitConverter.ToInt64(data, stampsOffset);
+            ReplySentTicks = BitConverter.ToInt64(data, stampsOffset + 8);
         }
         else
         {
-            PokeSentTicks = PokeReceivedTicks = ReplySentTicks = 0;
+            SampleTicks = ReplySentTicks = 0;
         }
     }
 
-    internal static bool IsValid(float value) => value != INVALID_FLOAT && float.IsFinite(value);
+    internal static bool IsValid(float value)
+    {
+        if (value == INVALID_FLOAT)
+        {
+            return false;
+        }
+        if (float.IsFinite(value))
+        {
+            return true;
+        }
+        Interlocked.Increment(ref NonFiniteRejected);
+        return false;
+    }
 
     public void UpdateGlobalState(TrackingCapability allowed)
     {
@@ -199,7 +209,7 @@ public class ReplyUpdatePacket : IpcPacket
             }
         }
 
-        UnifiedTracking.MarkDataUpdated();
+        UnifiedTracking.MarkDataUpdated(SampleTicks);
     }
 
     private void UpdateEyeState()

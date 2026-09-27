@@ -114,11 +114,11 @@ public class OscSendServiceTests
         var batch = new List<OscMessage> { Float("/avatar/parameters/v2/JawOpen") };
         var buffer = new byte[4096];
 
-        target.OutPort = ((IPEndPoint)first.LocalEndPoint).Port;
+        target.OutPort = ((IPEndPoint)first.LocalEndPoint!).Port;
         service.Send(batch);
         Assert.True(first.Receive(buffer) > 0);
 
-        target.OutPort = ((IPEndPoint)second.LocalEndPoint).Port;
+        target.OutPort = ((IPEndPoint)second.LocalEndPoint!).Port;
         service.Send(batch);
         Assert.True(second.Receive(buffer) > 0);
         Assert.True(target.IsConnected);

@@ -19,7 +19,7 @@ public class ParameterSenderServiceTests
 
     private sealed class FakeOscTarget : IOscTarget
     {
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private int _outPort;
 
@@ -46,7 +46,7 @@ public class ParameterSenderServiceTests
 
     private sealed class NullSettings : ILocalSettingsService
     {
-        public Task<T> ReadSettingAsync<T>(string key, T defaultValue = default, bool forceLocal = false) => Task.FromResult(defaultValue);
+        public Task<T> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false) => Task.FromResult(defaultValue!);
         public Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false) => Task.CompletedTask;
         public Task Save(object target) => Task.CompletedTask;
         public Task Load(object target) => Task.CompletedTask;
@@ -70,7 +70,7 @@ public class ParameterSenderServiceTests
             Listener.ReceiveTimeout = 1000;
             var target = new FakeOscTarget();
             var send = new OscSendService(NullLogger<OscSendService>.Instance, target);
-            target.OutPort = ((IPEndPoint)Listener.LocalEndPoint).Port;
+            target.OutPort = ((IPEndPoint)Listener.LocalEndPoint!).Port;
             var mutator = new UnifiedTrackingMutator(NullLogger<UnifiedTrackingMutator>.Instance, new NullSettings(), new InlineDispatcher());
             Sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance);
             _handler = handler;

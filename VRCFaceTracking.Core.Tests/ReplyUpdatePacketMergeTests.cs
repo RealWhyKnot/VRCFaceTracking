@@ -17,16 +17,8 @@ public class ReplyUpdatePacketMergeTests
     {
         var data = new UnifiedTrackingData();
         fill(data);
-        UnifiedTracking.Data = data;
-        byte[] bytes;
-        try
-        {
-            bytes = new ReplyUpdatePacket().GetBytes();
-        }
-        finally
-        {
-            UnifiedTracking.Data = new UnifiedTrackingData();
-        }
+        var bytes = ReplyUpdatePacket.Capture(data, 1).GetBytes();
+        UnifiedTracking.Data = new UnifiedTrackingData();
 
         var packet = new ReplyUpdatePacket();
         packet.Decode(bytes);
@@ -130,23 +122,12 @@ public class ReplyUpdatePacketMergeTests
     [Fact]
     public void Stamps_RoundTrip()
     {
-        var data = new UnifiedTrackingData();
-        UnifiedTracking.Data = data;
-        byte[] bytes;
-        try
-        {
-            bytes = new ReplyUpdatePacket { PokeSentTicks = 100, PokeReceivedTicks = 200 }.GetBytes();
-        }
-        finally
-        {
-            UnifiedTracking.Data = new UnifiedTrackingData();
-        }
+        var bytes = ReplyUpdatePacket.Capture(new UnifiedTrackingData(), 100).GetBytes();
 
         var packet = new ReplyUpdatePacket();
         packet.Decode(bytes);
-        Assert.Equal(100, packet.PokeSentTicks);
-        Assert.Equal(200, packet.PokeReceivedTicks);
-        Assert.True(packet.ReplySentTicks > 0);
+        Assert.Equal(100, packet.SampleTicks);
+        Assert.True(packet.ReplySentTicks > 100);
     }
 
     [Fact]
@@ -154,23 +135,14 @@ public class ReplyUpdatePacketMergeTests
     {
         var data = new UnifiedTrackingData();
         FillEverything(data);
-        UnifiedTracking.Data = data;
-        byte[] full;
-        try
-        {
-            full = new ReplyUpdatePacket().GetBytes();
-        }
-        finally
-        {
-            UnifiedTracking.Data = new UnifiedTrackingData();
-        }
+        var full = ReplyUpdatePacket.Capture(data, 5).GetBytes();
+        UnifiedTracking.Data = new UnifiedTrackingData();
         var structSize = BitConverter.ToInt32(full, 8);
         var truncated = full.Take(12 + structSize).ToArray();
 
-        var received = new ReplyUpdatePacket { PokeSentTicks = 5, PokeReceivedTicks = 6, ReplySentTicks = 7 };
+        var received = new ReplyUpdatePacket { SampleTicks = 5, ReplySentTicks = 7 };
         received.Decode(truncated);
-        Assert.Equal(0, received.PokeSentTicks);
-        Assert.Equal(0, received.PokeReceivedTicks);
+        Assert.Equal(0, received.SampleTicks);
         Assert.Equal(0, received.ReplySentTicks);
 
         received.UpdateGlobalState(TrackingCapability.Eyes);

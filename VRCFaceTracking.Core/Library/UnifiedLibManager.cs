@@ -77,16 +77,17 @@ public class UnifiedLibManager : ILibManager
     #endregion
 
     #region IPC latency diagnostics
-    private const double PokeGapWarnMs = 50;
-    private const double SlowRoundTripMs = 50;
+    private const int HeartbeatIntervalMs = 50;
+    private const double PokeGapWarnMs = HeartbeatIntervalMs + 50;
+    private const double SlowSampleMs = 50;
     private const double MaxPlausibleLegMs = 10_000;
-    private readonly DiagStat _ipcPokeToModule = new();
-    private readonly DiagStat _ipcModuleWait = new();
-    private readonly DiagStat _ipcModuleToHost = new();
+    private readonly DiagStat _ipcModule = new();
+    private readonly DiagStat _ipcTransit = new();
     private long _ipcLastReport;
     private long _ipcUnstamped;
+    private long _ipcKeyframes;
 
-    private void RecordIpcLatency(ReplyUpdatePacket reply)
+    private void RecordIpcLatency(ReplyUpdatePacket reply, bool accepted)
     {
         var now = Stopwatch.GetTimestamp();
         var toMs = 1000.0 / Stopwatch.Frequency;
@@ -95,26 +96,26 @@ public class UnifiedLibManager : ILibManager
             _ipcLastReport = now;
         }
 
-        if (reply.PokeSentTicks == 0 || reply.PokeReceivedTicks == 0 || reply.ReplySentTicks == 0)
+        if (!accepted)
+        {
+            _ipcKeyframes++;
+        }
+        else if (reply.SampleTicks == 0 || reply.ReplySentTicks == 0)
         {
             _ipcUnstamped++;
         }
         else
         {
-            var pokeToModule = (reply.PokeReceivedTicks - reply.PokeSentTicks) * toMs;
-            var moduleWait = (reply.ReplySentTicks - reply.PokeReceivedTicks) * toMs;
-            var moduleToHost = (now - reply.ReplySentTicks) * toMs;
-            var plausible = pokeToModule >= 0 && moduleWait >= 0 && moduleToHost >= 0
-                && pokeToModule + moduleWait + moduleToHost < MaxPlausibleLegMs;
-            if (plausible)
+            var moduleMs = (reply.ReplySentTicks - reply.SampleTicks) * toMs;
+            var transitMs = (now - reply.ReplySentTicks) * toMs;
+            if (moduleMs >= 0 && transitMs >= 0 && moduleMs + transitMs < MaxPlausibleLegMs)
             {
-                _ipcPokeToModule.Add(pokeToModule);
-                _ipcModuleWait.Add(moduleWait);
-                _ipcModuleToHost.Add(moduleToHost);
-                if (pokeToModule + moduleWait + moduleToHost > SlowRoundTripMs)
+                _ipcModule.Add(moduleMs);
+                _ipcTransit.Add(transitMs);
+                if (moduleMs + transitMs > SlowSampleMs)
                 {
-                    _logger.LogDebug("diag.ipc SLOW round trip {Total:N1}ms: poke->module {A:N1} moduleWait {B:N1} module->host {C:N1}",
-                        pokeToModule + moduleWait + moduleToHost, pokeToModule, moduleWait, moduleToHost);
+                    _logger.LogDebug("diag.ipc SLOW sample {Total:N1}ms: module {A:N1} transit {B:N1}",
+                        moduleMs + transitMs, moduleMs, transitMs);
                 }
             }
             else
@@ -129,19 +130,17 @@ public class UnifiedLibManager : ILibManager
         }
 
         _ipcLastReport = now;
-        var (aP50, aP99) = _ipcPokeToModule.Percentiles();
-        var (bP50, bP99) = _ipcModuleWait.Percentiles();
-        var (cP50, cP99) = _ipcModuleToHost.Percentiles();
+        var (aP50, aP99) = _ipcModule.Percentiles();
+        var (bP50, bP99) = _ipcTransit.Percentiles();
         _logger.LogDebug(
-            "diag.ipc replies={N} unstamped={U} | poke->module p50={AP50:N2} p99={AP99:N2} max={AMax:N2}ms | moduleWait p50={BP50:N2} p99={BP99:N2} max={BMax:N2}ms | module->host p50={CP50:N2} p99={CP99:N2} max={CMax:N2}ms",
-            _ipcPokeToModule.Count, _ipcUnstamped,
-            aP50, aP99, _ipcPokeToModule.Max,
-            bP50, bP99, _ipcModuleWait.Max,
-            cP50, cP99, _ipcModuleToHost.Max);
-        _ipcPokeToModule.Reset();
-        _ipcModuleWait.Reset();
-        _ipcModuleToHost.Reset();
+            "diag.ipc samples={N} keyframes={K} unstamped={U} nonFinite={F} | module p50={AP50:N2} p99={AP99:N2} max={AMax:N2}ms | transit p50={BP50:N2} p99={BP99:N2} max={BMax:N2}ms",
+            _ipcModule.Count, _ipcKeyframes, _ipcUnstamped, Interlocked.Exchange(ref ReplyUpdatePacket.NonFiniteRejected, 0),
+            aP50, aP99, _ipcModule.Max,
+            bP50, bP99, _ipcTransit.Max);
+        _ipcModule.Reset();
+        _ipcTransit.Reset();
         _ipcUnstamped = 0;
+        _ipcKeyframes = 0;
     }
     #endregion
 
@@ -459,15 +458,20 @@ public class UnifiedLibManager : ILibManager
 
                             if (module.Status == ModuleState.Active && module.ModuleInformation.Active)
                             {
-                                lock (UnifiedTracking.DataLock)
+                                var capabilities = module.ModuleInformation.EffectiveCapabilities;
+                                var accepted = module.TryAcceptSample(replyUpdatePacket.SampleTicks, capabilities);
+                                if (accepted)
                                 {
-                                    replyUpdatePacket.UpdateGlobalState(module.ModuleInformation.EffectiveCapabilities);
+                                    lock (UnifiedTracking.DataLock)
+                                    {
+                                        replyUpdatePacket.UpdateGlobalState(capabilities);
+                                    }
                                 }
-                            }
 
-                            if (_logger.IsEnabled(LogLevel.Debug))
-                            {
-                                RecordIpcLatency(replyUpdatePacket);
+                                if (_logger.IsEnabled(LogLevel.Debug))
+                                {
+                                    RecordIpcLatency(replyUpdatePacket, accepted);
+                                }
                             }
 
                             break;
@@ -931,9 +935,9 @@ public class UnifiedLibManager : ILibManager
             var lastPoke = Stopwatch.GetTimestamp();
             while (!cts.IsCancellationRequested)
             {
-                Thread.Sleep(10); // Wait 10ms => 100Hz
                 try
                 {
+                    Thread.Sleep(HeartbeatIntervalMs);
                     var now = Stopwatch.GetTimestamp();
                     var gapMs = (now - lastPoke) * toMs;
                     lastPoke = now;
@@ -943,6 +947,10 @@ public class UnifiedLibManager : ILibManager
                     }
                     updatePacket.SentTicks = now;
                     _sandboxServer?.SendData(updatePacket, port);
+                }
+                catch (ThreadInterruptedException)
+                {
+                    break;
                 }
                 catch (ObjectDisposedException)
                 {

@@ -18,15 +18,15 @@ public class ParameterSenderService : BackgroundService
     private const double RefreshIntervalMs = 25;
     private const double StallTickGapMs = 50;
     private const double SlowSendMs = 5;
-    private const double StaleDataMs = 100;
+    private const double StaleDataMs = 250;
 
     private readonly DiagStat _tickGap = new();
     private readonly DiagStat _sendMs = new();
     private readonly DiagStat _batchSize = new();
-    private readonly DiagStat _dataAgeMs = new();
+    private readonly DiagStat _sampleAgeMs = new();
     private long _diagStalls;
     private long _diagMessages;
-    private bool _staleReported;
+    private long _staleSinceTicks;
     private TimeSpan _lastGcPause;
     private TimeSpan _lastReportGcPause;
     private int _lastGen0, _lastGen1, _lastGen2;
@@ -71,22 +71,22 @@ public class ParameterSenderService : BackgroundService
         var (gapP50, gapP99) = _tickGap.Percentiles();
         var (sendP50, sendP99) = _sendMs.Percentiles();
         var (batchP50, _) = _batchSize.Percentiles();
-        var (ageP50, ageP99) = _dataAgeMs.Percentiles();
+        var (ageP50, ageP99) = _sampleAgeMs.Percentiles();
 
         var gcPause = GC.GetTotalPauseDuration();
         _logger.LogDebug(
-            "diag.send ticks={Ticks} gap p50={GapP50:N1} p99={GapP99:N1} max={GapMax:N1}ms | batch p50={BatchP50:N0} max={BatchMax:N0} msgs={Msgs} | send p50={SendP50:N2} p99={SendP99:N2} max={SendMax:N2}ms | dataAge p50={AgeP50:N1} p99={AgeP99:N1} max={AgeMax:N1}ms | queue={Queue} stalls={Stalls} gcPause={GcPause:N1}ms",
+            "diag.send ticks={Ticks} gap p50={GapP50:N1} p99={GapP99:N1} max={GapMax:N1}ms | batch p50={BatchP50:N0} max={BatchMax:N0} msgs={Msgs} | send p50={SendP50:N2} p99={SendP99:N2} max={SendMax:N2}ms | sampleAge p50={AgeP50:N1} p99={AgeP99:N1} max={AgeMax:N1}ms | queue={Queue} stalls={Stalls} gcPause={GcPause:N1}ms",
             _tickGap.Count, gapP50, gapP99, _tickGap.Max,
             batchP50, _batchSize.Max, _diagMessages,
             sendP50, sendP99, _sendMs.Max,
-            ageP50, ageP99, _dataAgeMs.Max,
+            ageP50, ageP99, _sampleAgeMs.Max,
             SendQueue.Count, _diagStalls, (gcPause - _lastReportGcPause).TotalMilliseconds);
         _lastReportGcPause = gcPause;
 
         _tickGap.Reset();
         _sendMs.Reset();
         _batchSize.Reset();
-        _dataAgeMs.Reset();
+        _sampleAgeMs.Reset();
         _diagMessages = 0;
     }
 
@@ -165,15 +165,15 @@ public class ParameterSenderService : BackgroundService
                     if (updateTicks != 0)
                     {
                         var ageMs = (tickNow - updateTicks) * toMs;
-                        if (ageMs > StaleDataMs && !_staleReported)
+                        if (ageMs > StaleDataMs && _staleSinceTicks == 0)
                         {
-                            _staleReported = true;
-                            _logger.LogDebug("diag.send tracking data is {Age:N0}ms old, no module update since", ageMs);
+                            _staleSinceTicks = updateTicks;
+                            _logger.LogDebug("diag.send no new tracking data for {Age:N0}ms", ageMs);
                         }
-                        else if (ageMs <= StaleDataMs && _staleReported)
+                        else if (ageMs <= StaleDataMs && _staleSinceTicks != 0)
                         {
-                            _staleReported = false;
-                            _logger.LogDebug("diag.send module updates resumed");
+                            _logger.LogDebug("diag.send tracking data resumed after {Gap:N0}ms", (updateTicks - _staleSinceTicks) * toMs);
+                            _staleSinceTicks = 0;
                         }
                     }
 
@@ -198,7 +198,7 @@ public class ParameterSenderService : BackgroundService
 
                     if (diag)
                     {
-                        _dataAgeMs.Add((lastDataUpdate - UnifiedTracking.LastDataUpdateTicks) * toMs);
+                        _sampleAgeMs.Add((lastDataUpdate - UnifiedTracking.LastSampleTicks) * toMs);
                     }
                 }
                 else if ((tickNow - lastUpdate) * toMs >= RefreshIntervalMs)

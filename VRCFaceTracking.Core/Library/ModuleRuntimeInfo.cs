@@ -63,6 +63,21 @@ public class ModuleRuntimeInfo
     /// Queue of packets to send
     /// </summary>
     public Queue<QueuedPacket> EventBus;
+
+    private long _lastSampleTicks;
+    private TrackingCapability _lastSampleCapabilities;
+
+    public bool TryAcceptSample(long sampleTicks, TrackingCapability capabilities)
+    {
+        if (sampleTicks != 0 && (sampleTicks < _lastSampleTicks || (sampleTicks == _lastSampleTicks && capabilities == _lastSampleCapabilities)))
+        {
+            return false;
+        }
+
+        _lastSampleTicks = sampleTicks;
+        _lastSampleCapabilities = capabilities;
+        return true;
+    }
 }
 
 public struct QueuedPacket

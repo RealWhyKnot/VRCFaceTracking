@@ -32,12 +32,6 @@ public class UnifiedTracking
     /// </summary>
     public static readonly object DataLock = new();
 
-    /// <summary>
-    /// Coherent copy of <see cref="Data"/> taken by the module process after each module update.
-    /// Null in the host, where <see cref="Data"/> is already the merged result.
-    /// </summary>
-    public static UnifiedTrackingData ModuleSnapshot;
-
     private static int _dataVersion;
 
     /// <summary>
@@ -52,15 +46,23 @@ public class UnifiedTracking
     /// </summary>
     public static long LastDataUpdateTicks => Interlocked.Read(ref _lastDataUpdateTicks);
 
+    private static long _lastSampleTicks;
+
+    public static long LastSampleTicks => Interlocked.Read(ref _lastSampleTicks);
+
     internal static readonly AutoResetEvent DataArrived = new(false);
 
     /// <summary>
     /// Marks <see cref="Data"/> as carrying values a module has not published yet.
     /// </summary>
-    public static void MarkDataUpdated()
+    public static void MarkDataUpdated() => MarkDataUpdated(0);
+
+    public static void MarkDataUpdated(long sampleTicks)
     {
+        var now = System.Diagnostics.Stopwatch.GetTimestamp();
         Interlocked.Increment(ref _dataVersion);
-        Interlocked.Exchange(ref _lastDataUpdateTicks, System.Diagnostics.Stopwatch.GetTimestamp());
+        Interlocked.Exchange(ref _lastDataUpdateTicks, now);
+        Interlocked.Exchange(ref _lastSampleTicks, sampleTicks != 0 ? sampleTicks : now);
         DataArrived.Set();
     }
 
