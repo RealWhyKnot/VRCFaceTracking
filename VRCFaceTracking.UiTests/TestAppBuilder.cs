@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Headless;
 using VRCFaceTracking;
@@ -9,6 +10,10 @@ namespace VRCFaceTracking.UiTests;
 
 public static class TestAppBuilder
 {
+    [ModuleInitializer]
+    internal static void RedirectLogs() =>
+        Environment.SetEnvironmentVariable(Core.Utils.LogDirectoryEnvironmentVariable, Directory.CreateTempSubdirectory("vrcft-uitests-").FullName);
+
     public static AppBuilder BuildAvaloniaApp()
     {
         App.StartServices = false;

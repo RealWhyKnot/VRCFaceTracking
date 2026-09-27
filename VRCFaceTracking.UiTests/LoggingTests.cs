@@ -44,4 +44,11 @@ public class LoggingTests
             gate.Set(false);
         }
     }
+
+    [AvaloniaFact]
+    public void FileLogWritesToTheTestLogDirectory()
+    {
+        var path = App.GetService<FileLoggerProvider>().FilePath;
+        Assert.Equal(Environment.GetEnvironmentVariable(Core.Utils.LogDirectoryEnvironmentVariable), Path.GetDirectoryName(path));
+    }
 }

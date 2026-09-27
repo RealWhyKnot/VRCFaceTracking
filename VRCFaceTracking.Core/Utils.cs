@@ -97,11 +97,18 @@ public static class Utils
     public static readonly string PersistentDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify), "VRCFaceTracking");
     public static readonly string CustomLibsDirectory = Path.Combine(PersistentDataDirectory, "CustomLibs");
     public const string LogDirectorySettingKey = "LogDirectory";
+    public const string LogDirectoryEnvironmentVariable = "VRCFT_LOG_DIRECTORY";
     public static readonly string DefaultLogDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "VRCFaceTracking", "logs");
     public static readonly string LogDirectory = ResolveLogDirectory();
 
     private static string ResolveLogDirectory()
     {
+        var fromEnvironment = Environment.GetEnvironmentVariable(LogDirectoryEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(fromEnvironment))
+        {
+            return fromEnvironment;
+        }
+
         try
         {
             var settingsPath = Path.Combine(PersistentDataDirectory, "VRCFaceTracking", "ApplicationData", "LocalSettings.json");
