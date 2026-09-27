@@ -26,4 +26,22 @@ public class LoggingTests
         Assert.Contains(queued, message => message.Contains(info));
         Assert.Contains(queued, message => message.Contains(verbose));
     }
+
+    [AvaloniaFact]
+    public void HostDebugFollowsVerbose()
+    {
+        var gate = App.GetService<LogLevelGate>();
+        var logger = App.GetService<ILoggerFactory>().CreateLogger(nameof(LoggingTests));
+        try
+        {
+            gate.Set(false);
+            Assert.False(logger.IsEnabled(LogLevel.Debug));
+            gate.Set(true);
+            Assert.True(logger.IsEnabled(LogLevel.Debug));
+        }
+        finally
+        {
+            gate.Set(false);
+        }
+    }
 }
