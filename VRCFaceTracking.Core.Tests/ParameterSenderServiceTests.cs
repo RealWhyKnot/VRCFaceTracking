@@ -64,7 +64,7 @@ public class ParameterSenderServiceTests
         public readonly ParameterSenderService Sender;
         private readonly Action<UnifiedTrackingData> _handler;
 
-        public Harness(Action<UnifiedTrackingData> handler)
+        public Harness(Action<UnifiedTrackingData> handler, TimerResolutionHold? timerResolution = null)
         {
             Listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
             Listener.ReceiveTimeout = 1000;
@@ -72,7 +72,7 @@ public class ParameterSenderServiceTests
             var send = new OscSendService(NullLogger<OscSendService>.Instance, target);
             target.OutPort = ((IPEndPoint)Listener.LocalEndPoint!).Port;
             var mutator = new UnifiedTrackingMutator(NullLogger<UnifiedTrackingMutator>.Instance, new NullSettings(), new InlineDispatcher());
-            Sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance);
+            Sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance, timerResolution ?? new TimerResolutionHold(NullLogger.Instance));
             _handler = handler;
             UnifiedTracking.OnUnifiedDataUpdated += _handler;
         }
@@ -207,6 +207,28 @@ public class ParameterSenderServiceTests
         UnifiedTracking.MarkDataUpdated();
 
         Assert.True(harness.WaitForPing(out _, start));
+    }
+
+    [Fact]
+    public async Task Stop_ReleasesTheTimerResolutionItRaised()
+    {
+        var raises = 0;
+        var releases = 0;
+        var hold = new TimerResolutionHold(NullLogger.Instance, () =>
+        {
+            Interlocked.Increment(ref raises);
+            return true;
+        }, () => Interlocked.Increment(ref releases));
+        var harness = new Harness(_ => { }, hold);
+        await harness.Sender.StartAsync(CancellationToken.None);
+
+        UnifiedTracking.MarkDataUpdated();
+        await Task.Delay(100);
+        Assert.Equal(1, Volatile.Read(ref raises));
+        Assert.Equal(0, Volatile.Read(ref releases));
+
+        await harness.DisposeAsync();
+        Assert.Equal(1, Volatile.Read(ref releases));
     }
 
     [Fact]

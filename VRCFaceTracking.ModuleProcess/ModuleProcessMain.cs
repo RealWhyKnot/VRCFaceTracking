@@ -67,7 +67,6 @@ public class ModuleProcessMain
         });
         _wakeup.Set();
     }
-    private static bool _raisedTimerResolution;
 
     public static int Main(string[] args)
     {
@@ -82,7 +81,6 @@ public class ModuleProcessMain
             throttling = Core.Utils.OptOutOfPowerThrottling(out var mask, out var error)
                 ? $"0x{mask:X} {Core.Utils.DescribePowerThrottling()}"
                 : $"failed (error {error})";
-            _raisedTimerResolution = Core.Utils.TimeBeginPeriod(1) == 0;
             try
             {
                 Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
@@ -92,7 +90,7 @@ public class ModuleProcessMain
             }
         }
         _fileLogger = new FileLoggerProvider(Core.Utils.LogDirectory, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}"), Gate);
-        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass} throttling={throttling} timer1ms={_raisedTimerResolution} gc={GCSettings.LatencyMode}");
+        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass} throttling={throttling} gc={GCSettings.LatencyMode}");
 
         var serviceProvider = new ServiceCollection()
             .AddLogging(loggingBuilder => loggingBuilder
@@ -322,6 +320,7 @@ public class ModuleProcessMain
                             {
                                 var snapshot = new UnifiedTrackingData();
                                 var scratch = new byte[ReplyUpdatePacket.PayloadSize];
+                                var timerResolution = new TimerResolutionHold(Logger);
 
                                 var diag = Logger.IsEnabled(LogLevel.Debug);
                                 var updateMs = new DiagStat();
@@ -356,6 +355,7 @@ public class ModuleProcessMain
                                         Volatile.Write(ref _latest, changed);
                                         pushes++;
                                     }
+                                    timerResolution.Observe(t1, changed != null);
 
                                     if (diag)
                                     {
@@ -384,6 +384,8 @@ public class ModuleProcessMain
 
                                     Thread.Sleep(1);
                                 }
+
+                                timerResolution.Release();
                             }
                             catch (Exception e)
                             {
@@ -504,11 +506,6 @@ public class ModuleProcessMain
         DefModuleAssembly._updateCts?.Cancel();
         _updateThread?.Join(TimeSpan.FromSeconds(2));
         _connectionTimer?.Dispose();
-
-        if (_raisedTimerResolution)
-        {
-            Core.Utils.TimeEndPeriod(1);
-        }
 
         _fileLogger?.Flush();
         Environment.Exit(ModuleProcessExitCodes.OK);

@@ -38,6 +38,7 @@ public class ParameterSenderService : BackgroundService
     private readonly ILogger<ParameterSenderService> _logger;
     private readonly UnifiedTrackingMutator _mutator;
     private readonly EyeLidMonitor _eyeLids;
+    private readonly TimerResolutionHold _timerResolution;
 
     public static bool AllParametersRelevantStatic
     {
@@ -61,11 +62,17 @@ public class ParameterSenderService : BackgroundService
     }
 
     public ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger)
+        : this(sendService, mutator, logger, new TimerResolutionHold(logger))
+    {
+    }
+
+    internal ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger, TimerResolutionHold timerResolution)
     {
         _sendService = sendService;
         _logger = logger;
         _mutator = mutator;
         _eyeLids = new EyeLidMonitor(logger);
+        _timerResolution = timerResolution;
     }
 
     private void ReportDiagnostics()
@@ -186,7 +193,9 @@ public class ParameterSenderService : BackgroundService
                     }
                 }
 
-                if (UnifiedTracking.DataVersion != lastDataVersion)
+                var dataChanged = UnifiedTracking.DataVersion != lastDataVersion;
+                _timerResolution.Observe(tickNow, dataChanged);
+                if (dataChanged)
                 {
                     var sinceDataMs = (Stopwatch.GetTimestamp() - lastDataUpdate) * toMs;
                     if (sinceDataMs < MinDataIntervalMs)
@@ -247,5 +256,7 @@ public class ParameterSenderService : BackgroundService
                 _logger.LogError(e, "Failed to send {Count} queued OSC messages", _batch.Count);
             }
         }
+
+        _timerResolution.Release();
     }
 }

@@ -38,16 +38,6 @@ public class MainStandalone : IMainService
 
         _libManager.TeardownAllAndReset();
 
-        if (OperatingSystem.IsWindows())
-        {
-            _logger.LogDebug("Resetting our time end period...");
-            var timeEndRes = Utils.TimeEndPeriod(1);
-            if (timeEndRes != 0)
-            {
-                _logger.LogWarning($"TimeEndPeriod failed with HRESULT {timeEndRes}");
-            }
-        }
-
         _logger.LogDebug("Teardown complete. Awaiting exit...");
     }
 
@@ -96,7 +86,6 @@ public class MainStandalone : IMainService
             {
                 _logger.LogWarning("Could not opt out of power throttling (error {Error}); update rate drops to 64 Hz while the window is covered", error);
             }
-            Utils.TimeBeginPeriod(1);
             var priority = Process.GetCurrentProcess().PriorityClass;
             if (priority == ProcessPriorityClass.AboveNormal)
             {
