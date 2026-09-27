@@ -33,8 +33,9 @@ public class Correctors : TrackingMutation
 
     private void BlendOpposingParams(ref float leftParam, ref float rightParam)
     {
-        leftParam = BlendParam(leftParam, rightParam);
-        rightParam = BlendParam(rightParam, leftParam);
+        var left = leftParam;
+        leftParam = BlendParam(left, rightParam);
+        rightParam = BlendParam(rightParam, left);
     }
 
     private void BlendUnifiedExpressionParams(ref UnifiedTrackingData data, UnifiedExpressions leftExpression, UnifiedExpressions rightExpression) => BlendOpposingParams(ref data.Shapes[(int)leftExpression].Weight, ref data.Shapes[(int)rightExpression].Weight);
