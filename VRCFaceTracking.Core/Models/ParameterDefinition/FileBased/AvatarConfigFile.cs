@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Models.Osc.FileBased;
 

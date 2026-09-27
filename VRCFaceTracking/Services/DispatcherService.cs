@@ -1,4 +1,4 @@
-﻿using Avalonia.Threading;
+using Avalonia.Threading;
 using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Services;

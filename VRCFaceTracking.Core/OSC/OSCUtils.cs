@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.OSC;
 using VRCFaceTracking.Core.Types;
 
 namespace VRCFaceTracking.OSC;

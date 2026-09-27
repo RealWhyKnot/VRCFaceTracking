@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.Helpers;
+namespace VRCFaceTracking.Core.Helpers;
 
 // Yoinked from https://gist.github.com/Davidblkx/e12ab0bb2aff7fd8072632b396538560
 public static class LevenshteinDistance

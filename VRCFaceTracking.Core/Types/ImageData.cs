@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.Types;
+namespace VRCFaceTracking.Core.Types;
 
 /// <summary>Structure that holds all necessary information for an image</summary>
 public class Image

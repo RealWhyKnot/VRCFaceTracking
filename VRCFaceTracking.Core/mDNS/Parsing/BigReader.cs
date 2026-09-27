@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.OSC.Query.mDNS;
+namespace VRCFaceTracking.Core.OSC.Query.mDNS;
 
 // Big endian reader
 public class BigReader : BinaryReader

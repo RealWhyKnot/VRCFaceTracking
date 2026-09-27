@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking.Core.Contracts.Services;

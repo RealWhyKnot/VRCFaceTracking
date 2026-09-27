@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using VRCFaceTracking.OSC;
 
 namespace VRCFaceTracking.Core.Models.Osc.FileBased;

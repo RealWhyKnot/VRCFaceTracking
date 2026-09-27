@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.OSC.DataTypes;
+using VRCFaceTracking.Core.OSC.DataTypes;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.DataTypes;
 

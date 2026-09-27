@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.Models;
+namespace VRCFaceTracking.Core.Models;
 
 public struct MutationConfig
 {

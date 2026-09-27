@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
   <PropertyGroup>
     <VftTargetFramework>net10.0</VftTargetFramework>
     <LangVersion>latest</LangVersion>

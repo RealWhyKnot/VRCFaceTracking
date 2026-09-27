@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.Contracts;
+namespace VRCFaceTracking.Core.Contracts;
 
 public interface IAvatarInfo
 {

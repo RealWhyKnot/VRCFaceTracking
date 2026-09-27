@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Logging;

@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Contracts;
+using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.OSC;
 
 namespace VRCFaceTracking.Core.OSC.Query;

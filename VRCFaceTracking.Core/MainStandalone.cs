@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Runtime;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;

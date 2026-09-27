@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using VRCFaceTracking.Core.Sandboxing;
 using VRCFaceTracking.Core.Sandboxing.IPC;

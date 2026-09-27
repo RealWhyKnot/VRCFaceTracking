@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Models;
+namespace VRCFaceTracking.Models;
 
 public class GithubContributor
 {

@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Contracts;
+using VRCFaceTracking.Core.Contracts;
 
 namespace VRCFaceTracking.Core.Models.ParameterDefinition;
 

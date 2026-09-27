@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.OSC.Query;
+namespace VRCFaceTracking.Core.OSC.Query;
 
 public class OscQueryRoot : OscQueryNode
 {

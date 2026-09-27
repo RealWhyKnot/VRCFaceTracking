@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Params.DataTypes;
+using VRCFaceTracking.Core.Params.DataTypes;
 
 namespace VRCFaceTracking.Core.Params.Expressions;
 

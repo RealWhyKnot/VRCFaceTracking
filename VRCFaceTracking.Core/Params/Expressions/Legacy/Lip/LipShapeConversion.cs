@@ -1,4 +1,4 @@
-﻿using VRCFaceTracking.Core.Params.Data;
+using VRCFaceTracking.Core.Params.Data;
 
 namespace VRCFaceTracking.Core.Params.Expressions.Legacy.Lip;
 

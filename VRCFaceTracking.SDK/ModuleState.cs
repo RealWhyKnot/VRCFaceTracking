@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.Library;
+namespace VRCFaceTracking.Core.Library;
 
 public enum ModuleState
 {

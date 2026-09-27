@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking;

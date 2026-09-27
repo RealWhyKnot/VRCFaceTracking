@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Logging;
 
 namespace VRCFaceTracking.ModuleProcess;

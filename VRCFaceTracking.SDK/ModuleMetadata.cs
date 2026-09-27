@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking;
+namespace VRCFaceTracking;
 
 public struct ModuleMetadata
 {

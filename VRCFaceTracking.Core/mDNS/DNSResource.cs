@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.OSC.Query.mDNS;
+namespace VRCFaceTracking.Core.OSC.Query.mDNS;
 
 public class DnsResource : DnsQuestion
 {

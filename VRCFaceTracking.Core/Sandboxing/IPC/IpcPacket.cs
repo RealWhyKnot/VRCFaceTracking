@@ -1,4 +1,4 @@
-﻿namespace VRCFaceTracking.Core.Sandboxing.IPC;
+namespace VRCFaceTracking.Core.Sandboxing.IPC;
 
 public class IpcPacket
 {
