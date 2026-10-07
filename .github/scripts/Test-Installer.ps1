@@ -95,7 +95,10 @@ $shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\VRCFac
 $dataDir = Join-Path $env:APPDATA 'VRCFaceTracking'
 $localDir = Join-Path $env:LOCALAPPDATA 'VRCFaceTracking'
 $vrPaths = Join-Path $env:LOCALAPPDATA 'openvr\openvrpaths.vrpath'
-$root = Join-Path $env:TEMP 'VRCFT Setup Smoke'
+Add-Type -Namespace InstallerTest -Name Native -MemberDefinition '[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern uint GetLongPathName(string shortPath, System.Text.StringBuilder longPath, uint size);'
+$longTemp = New-Object System.Text.StringBuilder 1024
+if ([InstallerTest.Native]::GetLongPathName($env:TEMP, $longTemp, 1024) -eq 0) { throw "GetLongPathName failed for $env:TEMP" }
+$root = Join-Path $longTemp.ToString() 'VRCFT Setup Smoke'
 $first = Join-Path $root 'first'
 $second = Join-Path $root 'second'
 $rival = Join-Path $root 'rival'
