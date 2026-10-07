@@ -8,6 +8,7 @@ param(
 	[string]$Configuration = "Debug",
 	[switch]$SkipTests,
 	[switch]$Publish,
+	[switch]$Installer,
 	[switch]$Format
 )
 
@@ -54,9 +55,12 @@ if (-not $SkipTests) {
 	if ($LASTEXITCODE -ne 0) { throw "ui tests failed (exit $LASTEXITCODE)" }
 }
 
-if ($Publish) {
+if ($Publish -or $Installer) {
 	& (Join-Path $PSScriptRoot ".github/scripts/Publish-App.ps1") -Channel $Channel -Version $Version -Rid win-x64 -OutDir "build/publish"
 	if ($LASTEXITCODE -ne 0) { throw "publish failed (exit $LASTEXITCODE)" }
+	if ($Installer) {
+		& (Join-Path $PSScriptRoot ".github/scripts/Build-Installer.ps1") -PublishDir "build/publish" -Version $Version -OutDir "build/installer"
+	}
 } else {
 	$exe = Join-Path $PSScriptRoot "VRCFaceTracking\bin\x64\$Configuration\net10.0\VRCFaceTracking.exe"
 	Write-Host "built $exe"
