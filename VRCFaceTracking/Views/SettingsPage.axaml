@@ -47,7 +47,7 @@
                                 Watermark="127.0.0.1"
                                 MinWidth="140"
                                 ToolTip.Tip="{x:Static s:Resources.OscAddressTooltip}"
-                                Text="{Binding OscTarget.DestinationAddress, Mode=TwoWay}" />
+                                Text="{Binding OscTarget.DestinationAddress, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                         </StackPanel>
                         <StackPanel Classes="field">
                             <TextBlock Classes="caption" Text="{x:Static s:Resources.OscOutPortLabel}" />
