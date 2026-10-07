@@ -108,6 +108,24 @@ public class UpdateAssetsTests
         Assert.Equal($"VRCFaceTracking-2026.9.1.0-beta-{suffix}{ext}", UpdateAssets.ArchiveName("v2026.9.1.0-beta"));
         Assert.Equal($"VRCFaceTracking-2026.9.1.0-{suffix}.integrity.tsv", UpdateAssets.IntegrityName("v2026.9.1.0"));
         Assert.Equal(OperatingSystem.IsWindows() ? "VRCFaceTracking.exe" : "VRCFaceTracking", UpdateAssets.ExeName);
+        Assert.Equal("VRCFaceTracking-Setup-2026.9.1.0-beta.exe", UpdateAssets.SetupName("v2026.9.1.0-beta"));
+        Assert.Equal("VRCFaceTracking-Setup-2026.9.1.0.integrity.tsv", UpdateAssets.SetupIntegrityName("v2026.9.1.0"));
+    }
+
+    [Fact]
+    public void InstalledOnlyWithUninstallerOnWindows()
+    {
+        var root = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            Assert.False(UpdateAssets.IsInstalled(root));
+            File.WriteAllText(Path.Combine(root, UpdateAssets.UninstallerName), "");
+            Assert.Equal(OperatingSystem.IsWindows(), UpdateAssets.IsInstalled(root));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     private const string Hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -167,6 +185,21 @@ public class UpdateHelperScriptTests
         Assert.All(script, c => Assert.True(c < 128));
         Assert.DoesNotContain("??", script);
         Assert.DoesNotContain("&&", script);
+    }
+
+    [Fact]
+    public void SetupScriptRunsSilentSetupThenRelaunches()
+    {
+        var script = UpdateHelperScript.BuildSetup(4242, @"C:\stage\VRCFaceTracking-Setup-2026.10.7.0.exe", @"C:\stage", @"C:\Tom's Apps\VRCFT", @"C:\Tom's Apps\VRCFT\VRCFaceTracking.exe", @"C:\logs\update.log");
+        var setup = script.IndexOf(@"Start-Process -FilePath 'C:\stage\VRCFaceTracking-Setup-2026.10.7.0.exe' -ArgumentList '/S /D=C:\Tom''s Apps\VRCFT' -Wait -PassThru", StringComparison.Ordinal);
+        var relaunch = script.IndexOf(@"Start-Process -FilePath 'C:\Tom''s Apps\VRCFT\VRCFaceTracking.exe'", StringComparison.Ordinal);
+        Assert.Contains("Wait-Process -Id 4242", script);
+        Assert.Contains("Get-Process -Name 'VRCFaceTracking.ModuleProcess'", script);
+        Assert.Contains("$setup.ExitCode -ne 0", script);
+        Assert.True(setup > 0 && setup < relaunch);
+        Assert.True(relaunch < script.IndexOf("Remove-Item", StringComparison.Ordinal));
+        Assert.DoesNotContain("\n", script.Replace("\r\n", ""));
+        Assert.All(script, c => Assert.True(c < 128));
     }
 
     [Fact]

@@ -20,6 +20,8 @@ public class UpdateService
 {
     private const string ReleasesUrl = "https://api.github.com/repos/RealWhyKnot/VRCFaceTracking/releases?per_page=20";
     private static readonly string StagingDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "VRCFaceTracking", "update");
+    private static readonly string InstallDir = AppContext.BaseDirectory.TrimEnd('\\', '/');
+    private static readonly bool Installed = UpdateAssets.IsInstalled(InstallDir);
 
     private readonly ILogger<UpdateService> _logger;
     private readonly UpdateSettings _settings;
@@ -78,9 +80,10 @@ public class UpdateService
                 return;
             }
 
-            if (!release.Assets.Any(a => a.Name == UpdateAssets.ArchiveName(release.TagName)))
+            var assetName = Installed ? UpdateAssets.SetupName(release.TagName) : UpdateAssets.ArchiveName(release.TagName);
+            if (!release.Assets.Any(a => a.Name == assetName))
             {
-                _logger.LogInformation("Release {tag} has no asset {archive}; treating as no update", release.TagName, UpdateAssets.ArchiveName(release.TagName));
+                _logger.LogInformation("Release {tag} has no asset {archive}; treating as no update", release.TagName, assetName);
                 if (manual)
                 {
                     await ShowMessageAsync(Resources.UpdateUpToDateTitle, string.Format(Resources.UpdateUpToDateContent, BuildInfo.ChannelName));
@@ -146,8 +149,8 @@ public class UpdateService
 
     private async Task InstallAsync(GithubRelease release)
     {
-        var archiveName = UpdateAssets.ArchiveName(release.TagName);
-        var integrityName = UpdateAssets.IntegrityName(release.TagName);
+        var archiveName = Installed ? UpdateAssets.SetupName(release.TagName) : UpdateAssets.ArchiveName(release.TagName);
+        var integrityName = Installed ? UpdateAssets.SetupIntegrityName(release.TagName) : UpdateAssets.IntegrityName(release.TagName);
         var archiveAsset = release.Assets.FirstOrDefault(a => a.Name == archiveName)
             ?? throw new InvalidDataException($"Release {release.TagName} has no asset {archiveName}");
         var integrityAsset = release.Assets.FirstOrDefault(a => a.Name == integrityName)
@@ -202,6 +205,19 @@ public class UpdateService
             }
 
             OnUi(() => bar!.IsIndeterminate = true);
+            var logPath = Path.Combine(Core.Utils.LogDirectory, "update.log");
+            var exePath = Path.Combine(InstallDir, UpdateAssets.ExeName);
+            if (Installed)
+            {
+                var setupScript = Path.Combine(StagingDir, "apply.ps1");
+                File.WriteAllText(setupScript, UpdateHelperScript.BuildSetup(Environment.ProcessId, archivePath, StagingDir, InstallDir, exePath, logPath));
+                Process.Start(PowerShell(setupScript));
+                _logger.LogInformation("Update helper started for {tag} with {setup}; closing to apply", release.TagName, archiveName);
+                OnUi(() => _ = App.MainWindow!.CloseAfterTeardown());
+                OnUi(() => progress?.Hide());
+                return;
+            }
+
             var extracted = Path.Combine(StagingDir, "extracted");
             await Task.Run(() =>
             {
@@ -218,34 +234,23 @@ public class UpdateService
                 }
             });
             var payloadRoot = UpdateAssets.ResolvePayloadRoot(extracted);
-            var installDir = AppContext.BaseDirectory.TrimEnd('\\', '/');
-            var logPath = Path.Combine(Core.Utils.LogDirectory, "update.log");
-            var exePath = Path.Combine(installDir, UpdateAssets.ExeName);
 
             ProcessStartInfo psi;
             if (OperatingSystem.IsWindows())
             {
                 var scriptPath = Path.Combine(StagingDir, "apply.ps1");
-                File.WriteAllText(scriptPath, UpdateHelperScript.Build(Environment.ProcessId, payloadRoot, StagingDir, installDir, exePath, logPath));
-                psi = new ProcessStartInfo("powershell.exe")
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    WorkingDirectory = installDir,
-                };
-                foreach (var arg in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptPath })
-                {
-                    psi.ArgumentList.Add(arg);
-                }
+                File.WriteAllText(scriptPath, UpdateHelperScript.Build(Environment.ProcessId, payloadRoot, StagingDir, InstallDir, exePath, logPath));
+                psi = PowerShell(scriptPath);
+                psi.WorkingDirectory = InstallDir;
             }
             else
             {
                 var scriptPath = Path.Combine(StagingDir, "apply.sh");
-                File.WriteAllText(scriptPath, UpdateHelperScript.BuildSh(Environment.ProcessId, payloadRoot, StagingDir, installDir, exePath, logPath));
+                File.WriteAllText(scriptPath, UpdateHelperScript.BuildSh(Environment.ProcessId, payloadRoot, StagingDir, InstallDir, exePath, logPath));
                 psi = new ProcessStartInfo("/bin/sh")
                 {
                     UseShellExecute = false,
-                    WorkingDirectory = installDir,
+                    WorkingDirectory = InstallDir,
                 };
                 psi.ArgumentList.Add(scriptPath);
             }
@@ -263,6 +268,22 @@ public class UpdateService
         }
 
         OnUi(() => progress?.Hide());
+    }
+
+    private static ProcessStartInfo PowerShell(string scriptPath)
+    {
+        var psi = new ProcessStartInfo("powershell.exe")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = Path.GetTempPath(),
+        };
+        foreach (var arg in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptPath })
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        return psi;
     }
 
     private static async Task DownloadAsync(HttpClient client, string url, string path, long expectedSize, Action<double> progress)

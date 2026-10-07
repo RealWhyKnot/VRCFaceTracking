@@ -39,6 +39,33 @@ public static class UpdateHelperScript
         return sb.ToString();
     }
 
+    public static string BuildSetup(int processId, string setupPath, string stagingDir, string installDir, string exePath, string logPath)
+    {
+        var sb = new StringBuilder();
+        void Line(string text) => sb.Append(text).Append("\r\n");
+
+        Line("$ErrorActionPreference = 'Stop'");
+        Line("$applied = $false");
+        Line("try {");
+        Line($"    Wait-Process -Id {processId} -Timeout 300 -ErrorAction SilentlyContinue");
+        Line("    Get-Process -Name 'VRCFaceTracking.ModuleProcess' -ErrorAction SilentlyContinue | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue");
+        Line($"    $setup = Start-Process -FilePath {Quote(setupPath)} -ArgumentList {Quote("/S /D=" + installDir)} -Wait -PassThru");
+        Line("    if ($setup.ExitCode -ne 0) { throw \"setup exited with code $($setup.ExitCode)\" }");
+        Line("    $applied = $true");
+        Line("} catch {");
+        Line($"    'update setup FAILED' | Add-Content -LiteralPath {Quote(logPath)}");
+        Line($"    $_ | Out-String | Add-Content -LiteralPath {Quote(logPath)}");
+        Line("}");
+        Line("try {");
+        Line($"    Start-Process -FilePath {Quote(exePath)} -WorkingDirectory {Quote(installDir)}");
+        Line("} catch {");
+        Line($"    $_ | Out-String | Add-Content -LiteralPath {Quote(logPath)}");
+        Line("}");
+        Line($"Remove-Item -LiteralPath {Quote(stagingDir)} -Recurse -Force -ErrorAction SilentlyContinue");
+        Line("if (-not $applied) { exit 1 }");
+        return sb.ToString();
+    }
+
     private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
 
     public static string BuildSh(int processId, string payloadRoot, string stagingDir, string installDir, string exePath, string logPath)

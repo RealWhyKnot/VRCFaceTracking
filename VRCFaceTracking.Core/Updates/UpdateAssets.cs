@@ -10,15 +10,21 @@ public static class UpdateAssets
 
     public static readonly string ExeName = OperatingSystem.IsWindows() ? "VRCFaceTracking.exe" : "VRCFaceTracking";
 
-    public static string BaseName(string tag)
-    {
-        var version = tag.StartsWith('v') || tag.StartsWith('V') ? tag[1..] : tag;
-        return $"VRCFaceTracking-{version}-{RidSuffix}";
-    }
+    public const string UninstallerName = "Uninstall.exe";
+
+    public static string BaseName(string tag) => $"VRCFaceTracking-{Version(tag)}-{RidSuffix}";
 
     public static string ArchiveName(string tag) => BaseName(tag) + (OperatingSystem.IsWindows() ? ".zip" : ".tar.gz");
 
     public static string IntegrityName(string tag) => BaseName(tag) + ".integrity.tsv";
+
+    public static string SetupName(string tag) => $"VRCFaceTracking-Setup-{Version(tag)}.exe";
+
+    public static string SetupIntegrityName(string tag) => $"VRCFaceTracking-Setup-{Version(tag)}.integrity.tsv";
+
+    public static bool IsInstalled(string installDir) => OperatingSystem.IsWindows() && File.Exists(Path.Combine(installDir, UninstallerName));
+
+    private static string Version(string tag) => tag.StartsWith('v') || tag.StartsWith('V') ? tag[1..] : tag;
 
     public static (string Sha256, long Size) ParseArchiveEntry(string integrityTsv, string archiveName)
     {
