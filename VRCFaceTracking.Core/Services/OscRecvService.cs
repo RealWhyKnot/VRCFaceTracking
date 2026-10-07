@@ -97,10 +97,16 @@ public class OscRecvService : BackgroundService
 
     public IPEndPoint UpdateTarget(IPEndPoint endpoint)
     {
-        if (!Equals(endpoint.Address, IPAddress.Loopback))
+        if (!IPAddress.IsLoopback(endpoint.Address))
         {
-            _logger.LogError("Cannot bind to non-loopback IP");
-            return null;
+            var local = LocalAddressFor(endpoint.Address);
+            if (local == null)
+            {
+                _logger.LogWarning("No local address can reach {Address}; keeping the current recv target", endpoint.Address);
+                return null;
+            }
+
+            endpoint = new IPEndPoint(local, endpoint.Port);
         }
 
         _logger.LogInformation($"Updating osc recv target to {endpoint}");
@@ -139,6 +145,20 @@ public class OscRecvService : BackgroundService
         }
 
         return null;
+    }
+
+    private static IPAddress LocalAddressFor(IPAddress destination)
+    {
+        try
+        {
+            using var probe = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            probe.Connect(destination, 9);
+            return ((IPEndPoint)probe.LocalEndPoint).Address;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

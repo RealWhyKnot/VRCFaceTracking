@@ -88,7 +88,7 @@ public partial class OscQueryService(
 
         // Advertise our OSC JSON and OSC endpoints (OSC JSON to display the silly lil popup in-game)
         multicastDnsService.Advertise("_oscjson._tcp", new AdvertisedService("VRCFT-" + randomServiceSuffix, httpPort, IPAddress.Loopback));
-        multicastDnsService.Advertise("_osc._udp", new AdvertisedService("VRCFT-" + randomServiceSuffix, recvEndpoint.Port, IPAddress.Loopback));
+        multicastDnsService.Advertise("_osc._udp", new AdvertisedService("VRCFT-" + randomServiceSuffix, recvEndpoint.Port, recvEndpoint.Address));
 
         HandleNewAvatar();
     }
