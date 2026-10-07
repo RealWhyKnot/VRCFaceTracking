@@ -75,7 +75,8 @@ internal static class SteamVrCommand
 
     private static int Unregister(string manifest)
     {
-        if (!SteamVrManifests.Registered(SteamVrManifests.OpenVrPathsFile).Any(p => SteamVrManifests.SamePath(p, manifest)))
+        var registered = SteamVrManifests.Registered(SteamVrManifests.OpenVrPathsFile).FirstOrDefault(p => SteamVrManifests.SamePath(p, manifest));
+        if (registered == null)
         {
             Console.Out.WriteLine($"{manifest} is not registered with SteamVR");
             return Ok;
@@ -89,8 +90,8 @@ internal static class SteamVrCommand
 
         return WithOpenVr(applications =>
         {
-            var result = applications.RemoveApplicationManifest(manifest);
-            Console.Out.WriteLine($"Unregistering {manifest}: {result}");
+            var result = applications.RemoveApplicationManifest(registered);
+            Console.Out.WriteLine($"Unregistering {registered}: {result}");
             return result == EVRApplicationError.None ? Ok : Failed;
         });
     }

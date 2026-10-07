@@ -87,4 +87,29 @@ public class SteamVrManifestsTests : IDisposable
         Assert.Equal(OperatingSystem.IsWindows(), SteamVrManifests.SamePath(path, path.ToUpperInvariant()));
         Assert.False(SteamVrManifests.SamePath(path, Path.Combine(_root, "other", "app.vrmanifest")));
     }
+
+    [Fact]
+    public void SamePathExpandsShortNames()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var manifest = Manifest("a folder with a long name", "x");
+        var buffer = new System.Text.StringBuilder(1024);
+        var length = GetShortPathName(manifest, buffer, (uint)buffer.Capacity);
+        Assert.True(length > 0);
+        var shortPath = buffer.ToString();
+        if (shortPath == manifest)
+        {
+            return;
+        }
+
+        Assert.True(SteamVrManifests.SamePath(manifest, shortPath));
+        Assert.True(SteamVrManifests.SamePath(shortPath, manifest));
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern uint GetShortPathName(string longPath, System.Text.StringBuilder shortPath, uint size);
 }

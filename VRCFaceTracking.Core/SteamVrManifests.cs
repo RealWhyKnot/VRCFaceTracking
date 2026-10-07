@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 
 namespace VRCFaceTracking.Core;
@@ -76,16 +78,29 @@ public static class SteamVrManifests
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         try
         {
-            return string.Equals(
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(a)),
-                Path.TrimEndingDirectorySeparator(Path.GetFullPath(b)),
-                comparison);
+            return string.Equals(LongPath(a), LongPath(b), comparison);
         }
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
         {
             return string.Equals(a, b, comparison);
         }
     }
+
+    private static string LongPath(string path)
+    {
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        if (!OperatingSystem.IsWindows() || !full.Contains('~'))
+        {
+            return full;
+        }
+
+        var buffer = new StringBuilder(1024);
+        var length = GetLongPathName(full, buffer, (uint)buffer.Capacity);
+        return length > 0 && length < buffer.Capacity ? buffer.ToString() : full;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint GetLongPathName(string shortPath, StringBuilder longPath, uint size);
 
     private static IEnumerable<string> ReadStrings(string file, string property)
     {
