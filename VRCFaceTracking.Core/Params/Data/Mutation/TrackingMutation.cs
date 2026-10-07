@@ -52,6 +52,25 @@ public abstract partial class TrackingMutation
     }
 
     [JsonIgnore]
+    public bool ActiveSwitch
+    {
+        get => IsActive;
+        set
+        {
+            if (IsActive == value)
+            {
+                return;
+            }
+
+            IsActive = value;
+            if (LocalSettingsService != null)
+            {
+                _ = Save();
+            }
+        }
+    }
+
+    [JsonIgnore]
     public ILogger Logger
     {
         get; set;

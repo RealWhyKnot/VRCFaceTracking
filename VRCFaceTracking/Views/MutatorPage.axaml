@@ -17,7 +17,7 @@
                             <Grid ColumnDefinitions="Auto,*" Margin="0,4">
                                 <ToggleSwitch
                                     Grid.Column="0"
-                                    IsChecked="{Binding IsActive, Mode=TwoWay}"
+                                    IsChecked="{Binding ActiveSwitch, Mode=TwoWay}"
                                     OffContent="{x:Static s:Resources.MutationToggleOff}"
                                     OnContent="{x:Static s:Resources.MutationToggleOn}"
                                     ToolTip.Tip="{x:Static s:Resources.MutationActiveToggleTooltip}"
