@@ -131,6 +131,7 @@ public partial class UnifiedTrackingMutator : ObservableObject
             mutation.Logger = _logger;
             mutation.LocalSettingsService = _localSettingsService;
             mutation.CreateProperties();
+            _logger.LogInformation("{Name} settings {Settings}", mutation.Name, mutation.DescribeSettings());
             _dispatcherService.Run(() =>
             {
                 lock (_mutationsLock)

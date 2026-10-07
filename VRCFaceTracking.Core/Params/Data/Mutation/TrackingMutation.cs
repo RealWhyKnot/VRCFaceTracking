@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -90,4 +91,20 @@ public abstract partial class TrackingMutation
     {
         await LocalSettingsService.SaveSettingAsync(Name, this, true);
     }
+
+    public string DescribeSettings()
+    {
+        var settings = GetType()
+            .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+            .Where(field => field.GetCustomAttribute<MutationPropertyAttribute>() != null)
+            .Select(field => $"{field.Name}={FormatSetting(field.GetValue(this))}");
+        return $"active={IsActive} {string.Join(' ', settings)}";
+    }
+
+    private static string FormatSetting(object value) => value switch
+    {
+        ValueTuple<float, float> range => string.Create(CultureInfo.InvariantCulture, $"{range.Item1}..{range.Item2}"),
+        IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+        _ => value?.ToString() ?? "null",
+    };
 }
