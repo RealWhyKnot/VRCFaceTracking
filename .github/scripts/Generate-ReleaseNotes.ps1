@@ -92,10 +92,13 @@ try {
       $matching = @($archives | Where-Object { $_.Name -like $installSections[$name] })
       if ($matching.Count -eq 0) { continue }
       $sectionTokens['{zip-name}'] = (($matching | ForEach-Object { '`' + $_.Name + '`' }) -join ' or ')
+      $setups = @($archives | Where-Object { $_.Name -like 'VRCFaceTracking-Setup-*.exe' })
+      if ($setups.Count -gt 0) { $sectionTokens['{setup-name}'] = '`' + $setups[0].Name + '`' }
     }
     $text = (Get-Content -LiteralPath $path -Raw -Encoding UTF8).Trim()
     if (-not $text) { continue }
     foreach ($key in $sectionTokens.Keys) { $text = $text.Replace($key, [string]$sectionTokens[$key]) }
+    if ($text.Contains('{setup-name}')) { throw "$name.md names {setup-name} but the release has no VRCFaceTracking-Setup-*.exe asset." }
     $lines.Add("") | Out-Null
     $lines.Add($text) | Out-Null
   }

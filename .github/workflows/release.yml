@@ -172,6 +172,19 @@ jobs:
           dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
 
+      - name: Install NSIS
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $want = 'v3.12'
+          $have = ''
+          $exe = 'C:\Program Files (x86)\NSIS\makensis.exe'
+          if (Test-Path -LiteralPath $exe) { $have = (& $exe /VERSION) }
+          if ($have -ne $want) {
+            choco install nsis --version 3.12.0 --force -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed ($LASTEXITCODE)" }
+          }
+
       - name: Package
         shell: pwsh
         run: |
@@ -193,11 +206,23 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "tar failed ($LASTEXITCODE)" }
             }
           }
+          if ('${{ matrix.os }}' -eq 'windows') {
+            ./.github/scripts/Build-Installer.ps1 -PublishDir "build/VRCFaceTracking-$version-win-x64" -Version $version -OutDir build
+          }
+
+      - name: Test installer
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_VERSION
+          ./.github/scripts/Test-Installer.ps1 -Setup "build/VRCFaceTracking-Setup-$version.exe" -PublishDir "build/VRCFaceTracking-$version-win-x64" -Version $version
 
       - name: Checksums
         uses: RealWhyKnot/workflows/checksums@v1
         with:
-          archives: build/*.${{ matrix.ext }}
+          archives: |
+            build/*.${{ matrix.ext }}
+            ${{ matrix.os == 'windows' && 'build/VRCFaceTracking-Setup-*.exe' || '' }}
 
       - name: Upload
         shell: pwsh

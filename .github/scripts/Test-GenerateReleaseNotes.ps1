@@ -60,10 +60,13 @@ try {
     "$zipHash`t64`tVRCFaceTracking-2026.9.2.0-beta-win-x64.zip`n$('c' * 64)`t8`tVRCFaceTracking.exe`n")
   [System.IO.File]::WriteAllText((Join-Path $assetsDir "VRCFaceTracking-2026.9.2.0-beta-linux-x64.integrity.tsv"),
     "$tarHash`t128`tVRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz`n")
+  $setupHash = 'd' * 64
+  [System.IO.File]::WriteAllText((Join-Path $assetsDir "VRCFaceTracking-Setup-2026.9.2.0-beta.integrity.tsv"),
+    "$setupHash`t256`tVRCFaceTracking-Setup-2026.9.2.0-beta.exe`n")
 
   $templateDir = Join-Path $root ".github/release-template"
   New-Item -ItemType Directory -Path $templateDir -Force | Out-Null
-  [System.IO.File]::WriteAllText((Join-Path $templateDir "install-windows.md"), "## Install on Windows`n`nDownload {zip-name} from this release.`n")
+  [System.IO.File]::WriteAllText((Join-Path $templateDir "install-windows.md"), "## Install on Windows`n`nRun {setup-name}, or download {zip-name} from this release.`n")
   [System.IO.File]::WriteAllText((Join-Path $templateDir "install-linux.md"), "## Install on Linux`n`nDownload {zip-name} from this release.`n")
   [System.IO.File]::WriteAllText((Join-Path $templateDir "install-macos.md"), "## Install on macOS`n`nDownload {zip-name} from this release.`n")
   $out = Join-Path $root "notes.md"
@@ -86,10 +89,16 @@ try {
   Assert-NotContains -Text $text -Expected "VRCFaceTracking.exe`` |" -Message "Per-file rows must not reach the table."
   Assert-Contains -Text $text -Expected ".integrity.tsv" -Message "Integrity companion note missing."
   Assert-Contains -Text $text -Expected "## Install on Windows" -Message "Windows install section missing."
-  Assert-Contains -Text $text -Expected "Download ``VRCFaceTracking-2026.9.2.0-beta-win-x64.zip`` from this release." -Message "Windows zip name not substituted."
+  Assert-Contains -Text $text -Expected "Run ``VRCFaceTracking-Setup-2026.9.2.0-beta.exe``, or download ``VRCFaceTracking-2026.9.2.0-beta-win-x64.zip`` from this release." -Message "Windows setup and zip names not substituted."
+  Assert-Contains -Text $text -Expected "| ``VRCFaceTracking-Setup-2026.9.2.0-beta.exe`` | 0.00 | ``$setupHash`` |" -Message "Setup table row missing."
   Assert-Contains -Text $text -Expected "Download ``VRCFaceTracking-2026.9.2.0-beta-linux-x64.tar.gz`` from this release." -Message "Linux archive name not substituted."
   Assert-NotContains -Text $text -Expected "## Install on macOS" -Message "macOS section must be skipped when no osx asset exists."
   if (-not (Test-Path -LiteralPath $out)) { throw "OutFile not written." }
+
+  Remove-Item -LiteralPath (Join-Path $assetsDir "VRCFaceTracking-Setup-2026.9.2.0-beta.integrity.tsv")
+  $threw = $false
+  try { & $generate -Tag "v2026.9.2.0-beta" -RepoRoot $root -ChangelogPath $changelog -AssetsDir $assetsDir | Out-Null } catch { $threw = $true }
+  if (-not $threw) { throw "A Windows section naming {setup-name} must throw when the release has no setup asset." }
 
   $missing = Join-Path $root "nope.md"
   $threw = $false

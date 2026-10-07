@@ -128,6 +128,26 @@ jobs:
           ./.github/scripts/Publish-App.ps1 -Channel ${{ matrix.channel }} -Version 0.0.0.0-CI -Rid ${{ matrix.extra_rid }} -OutDir build/publish-extra
           if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
 
+      - name: Install NSIS
+        if: matrix.channel == 'release' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $want = 'v3.12'
+          $have = ''
+          $exe = 'C:\Program Files (x86)\NSIS\makensis.exe'
+          if (Test-Path -LiteralPath $exe) { $have = (& $exe /VERSION) }
+          if ($have -ne $want) {
+            choco install nsis --version 3.12.0 --force -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed ($LASTEXITCODE)" }
+          }
+
+      - name: Installer
+        if: matrix.channel == 'release' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./.github/scripts/Build-Installer.ps1 -PublishDir build/publish -Version 0.0.0.0-CI -OutDir build/installer
+          ./.github/scripts/Test-Installer.ps1 -Setup build/installer/VRCFaceTracking-Setup-0.0.0.0-CI.exe -PublishDir build/publish -Version 0.0.0.0-CI
+
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
