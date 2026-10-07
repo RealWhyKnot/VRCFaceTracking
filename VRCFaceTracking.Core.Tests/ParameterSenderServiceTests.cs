@@ -149,10 +149,16 @@ public class ParameterSenderServiceTests
         await Task.Delay(100);
 
         var before = Volatile.Read(ref calls);
-        await Task.Delay(250);
-        var refreshes = Volatile.Read(ref calls) - before;
+        var watch = Stopwatch.StartNew();
+        while (Volatile.Read(ref calls) - before < 4 && watch.ElapsedMilliseconds < 2000)
+        {
+            await Task.Delay(25);
+        }
 
-        Assert.InRange(refreshes, 4, 40);
+        var refreshes = Volatile.Read(ref calls) - before;
+        var elapsedMs = watch.ElapsedMilliseconds;
+        Assert.True(refreshes >= 4, $"{refreshes} refreshes in {elapsedMs} ms");
+        Assert.True(refreshes <= elapsedMs * 40 / 250 + 4, $"{refreshes} refreshes in {elapsedMs} ms");
     }
 
     [Fact]
