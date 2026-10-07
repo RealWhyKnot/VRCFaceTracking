@@ -15,6 +15,7 @@ public class OscSendServiceTests
         public event PropertyChangedEventHandler PropertyChanged;
 
         private int _outPort;
+        private string _destinationAddress = "127.0.0.1";
 
         public bool IsConnected
         {
@@ -24,7 +25,16 @@ public class OscSendServiceTests
         {
             get; set;
         }
-        public string DestinationAddress { get; set; } = "127.0.0.1";
+
+        public string DestinationAddress
+        {
+            get => _destinationAddress;
+            set
+            {
+                _destinationAddress = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationAddress)));
+            }
+        }
 
         public int OutPort
         {
@@ -122,5 +132,65 @@ public class OscSendServiceTests
         service.Send(batch);
         Assert.True(second.Receive(buffer) > 0);
         Assert.True(target.IsConnected);
+    }
+
+    [Fact]
+    public void Send_AfterDestinationAddressChange_ReachesTheNewAddress()
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        listener.ReceiveTimeout = 1000;
+
+        var target = new FakeOscTarget { DestinationAddress = "192.0.2.10" };
+        var service = new OscSendService(NullLogger<OscSendService>.Instance, target);
+        var batch = new List<OscMessage> { Float("/avatar/parameters/v2/JawOpen") };
+
+        target.OutPort = ((IPEndPoint)listener.LocalEndPoint!).Port;
+        target.DestinationAddress = "127.0.0.1";
+        service.Send(batch);
+
+        Assert.True(listener.Receive(new byte[4096]) > 0);
+    }
+
+    [Fact]
+    public void OutPort_BeforeAddressIsLoaded_WaitsForTheAddress()
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        listener.ReceiveTimeout = 1000;
+
+        var target = new FakeOscTarget { DestinationAddress = null };
+        var service = new OscSendService(NullLogger<OscSendService>.Instance, target);
+        var batch = new List<OscMessage> { Float("/avatar/parameters/v2/JawOpen") };
+
+        target.OutPort = ((IPEndPoint)listener.LocalEndPoint!).Port;
+        Assert.Null(target.DestinationAddress);
+        Assert.False(target.IsConnected);
+
+        target.DestinationAddress = "127.0.0.1";
+        service.Send(batch);
+
+        Assert.True(listener.Receive(new byte[4096]) > 0);
+    }
+
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("192.168.1.300")]
+    [InlineData("::1")]
+    public void DestinationAddress_Unusable_KeepsThePreviousTarget(string address)
+    {
+        using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        listener.ReceiveTimeout = 1000;
+
+        var target = new FakeOscTarget();
+        var service = new OscSendService(NullLogger<OscSendService>.Instance, target);
+        var batch = new List<OscMessage> { Float("/avatar/parameters/v2/JawOpen") };
+
+        target.OutPort = ((IPEndPoint)listener.LocalEndPoint!).Port;
+        target.DestinationAddress = address;
+        service.Send(batch);
+
+        Assert.True(listener.Receive(new byte[4096]) > 0);
     }
 }
