@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using VRCFaceTracking.OSC;
 
@@ -9,6 +10,7 @@ public class OscMessage : IDisposable
 {
     internal readonly OscValue[] Values;
     private readonly Action<object> _valueSetter;
+    private readonly int[]? _floatFieldSlots;
     private bool _disposed;
 
     private string _address;
@@ -60,6 +62,13 @@ public class OscMessage : IDisposable
                     Values[j].Value = fields[j].GetValue(value);
                 }
             };
+
+            if (type.IsLayoutSequential
+                && fields.All(field => field.FieldType == typeof(float))
+                && Marshal.SizeOf(type) == fields.Length * sizeof(float))
+            {
+                _floatFieldSlots = fields.Select(field => (int)Marshal.OffsetOf(type, field.Name) / sizeof(float)).ToArray();
+            }
         }
     }
 
@@ -90,6 +99,16 @@ public class OscMessage : IDisposable
                     slot.BoolValue = Unsafe.As<T, bool>(ref value);
                     return;
             }
+        }
+
+        if (_floatFieldSlots != null && Unsafe.SizeOf<T>() == _floatFieldSlots.Length * sizeof(float))
+        {
+            ref var first = ref Unsafe.As<T, float>(ref value);
+            for (var j = 0; j < _floatFieldSlots.Length; j++)
+            {
+                Values[j].FloatValue = Unsafe.Add(ref first, _floatFieldSlots[j]);
+            }
+            return;
         }
 
         Value = value;
