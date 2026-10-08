@@ -238,6 +238,36 @@ public class ParameterSenderServiceTests
     }
 
     [Fact]
+    public async Task StartWithoutData_DoesNotRaiseTheTimerResolution()
+    {
+        var raises = 0;
+        var hold = new TimerResolutionHold(NullLogger.Instance, () =>
+        {
+            Interlocked.Increment(ref raises);
+            return true;
+        }, () => { });
+        await using var harness = new Harness(_ => { }, hold);
+        await harness.Sender.StartAsync(CancellationToken.None);
+
+        await Task.Delay(400);
+
+        Assert.Equal(0, Volatile.Read(ref raises));
+    }
+
+    [Fact]
+    public async Task NoNewData_SenderSleepsBetweenRefreshes()
+    {
+        await using var harness = new Harness(_ => { });
+        await harness.Sender.StartAsync(CancellationToken.None);
+        await Task.Delay(200);
+
+        var wakes = harness.Sender.Wakes;
+        await Task.Delay(1000);
+
+        Assert.InRange(harness.Sender.Wakes - wakes, 1, 8);
+    }
+
+    [Fact]
     public async Task StopAsync_ReturnsPromptly()
     {
         var harness = new Harness(_ => { });

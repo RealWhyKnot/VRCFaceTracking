@@ -13,10 +13,11 @@ public class ParameterSenderService : BackgroundService
 {
     // We probably don't need a queue since we use osc message bundles, but for now, we're keeping it as
     // we might want to allow a way for the user to specify bundle or single message sends in the future
-    private const int TickIntervalMs = 10;
     private const double MinDataIntervalMs = 5;
     private const double RefreshIntervalMs = 25;
-    private const double StallTickGapMs = 50;
+    private const double IdleRefreshIntervalMs = 250;
+    private const double IdleAfterMs = 1000;
+    private const double StallLateMs = 40;
     private const double SlowSendMs = 5;
     private const double StaleDataMs = 250;
 
@@ -25,6 +26,7 @@ public class ParameterSenderService : BackgroundService
     private readonly DiagStat _batchSize = new();
     private readonly DiagStat _sampleAgeMs = new();
     private long _diagStalls;
+    private int _wakes;
     private long _diagMessages;
     private long _staleSinceTicks;
     private TimeSpan _lastGcPause;
@@ -39,6 +41,7 @@ public class ParameterSenderService : BackgroundService
     private readonly UnifiedTrackingMutator _mutator;
     private readonly EyeLidMonitor _eyeLids;
     private readonly TimerResolutionHold _timerResolution;
+    private readonly int _createdAtVersion;
 
     public static bool AllParametersRelevantStatic
     {
@@ -73,6 +76,7 @@ public class ParameterSenderService : BackgroundService
         _mutator = mutator;
         _eyeLids = new EyeLidMonitor(logger);
         _timerResolution = timerResolution;
+        _createdAtVersion = UnifiedTracking.DataVersion;
     }
 
     private void ReportDiagnostics()
@@ -102,6 +106,23 @@ public class ParameterSenderService : BackgroundService
     public static void Enqueue(OscMessage message) => SendQueue.Enqueue(message);
     public static void Clear() => SendQueue.Clear();
 
+    internal int Wakes => Volatile.Read(ref _wakes);
+
+    internal int SendQueued()
+    {
+        _batch.Clear();
+        while (SendQueue.TryDequeue(out var message))
+        {
+            _batch.Add(message);
+        }
+
+        if (_batch.Count > 0)
+        {
+            _sendService.Send(_batch);
+        }
+        return _batch.Count;
+    }
+
     protected override Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var done = new TaskCompletionSource();
@@ -127,7 +148,7 @@ public class ParameterSenderService : BackgroundService
     private void Run(CancellationToken cancellationToken)
     {
         var wakeHandles = new[] { UnifiedTracking.DataArrived, cancellationToken.WaitHandle };
-        var lastDataVersion = -1;
+        var lastDataVersion = _createdAtVersion;
         var toMs = 1000.0 / Stopwatch.Frequency;
         var lastTick = Stopwatch.GetTimestamp();
         var lastReport = lastTick;
@@ -138,11 +159,15 @@ public class ParameterSenderService : BackgroundService
         {
             try
             {
-                WaitHandle.WaitAny(wakeHandles, TickIntervalMs);
+                var waitStart = Stopwatch.GetTimestamp();
+                var refreshMs = (waitStart - lastDataUpdate) * toMs >= IdleAfterMs ? IdleRefreshIntervalMs : RefreshIntervalMs;
+                var waitMs = (int)Math.Ceiling(Math.Max(0, refreshMs - (waitStart - lastUpdate) * toMs));
+                WaitHandle.WaitAny(wakeHandles, waitMs);
                 if (cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
+                Interlocked.Increment(ref _wakes);
 
                 var tickNow = Stopwatch.GetTimestamp();
                 var gapMs = (tickNow - lastTick) * toMs;
@@ -157,11 +182,11 @@ public class ParameterSenderService : BackgroundService
                     var gen0 = GC.CollectionCount(0);
                     var gen1 = GC.CollectionCount(1);
                     var gen2 = GC.CollectionCount(2);
-                    if (gapMs > StallTickGapMs)
+                    if (gapMs - waitMs > StallLateMs)
                     {
                         _diagStalls++;
                         _logger.LogDebug("diag.send STALL tick gap {Gap:N1}ms (expected {Expected}ms), queue {Queue} | gcPause {GcPause:N1}ms gcs {Gen0}/{Gen1}/{Gen2} | threadPool pending {Pending} threads {Threads}",
-                            gapMs, TickIntervalMs, SendQueue.Count,
+                            gapMs, waitMs, SendQueue.Count,
                             (gcPause - _lastGcPause).TotalMilliseconds, gen0 - _lastGen0, gen1 - _lastGen1, gen2 - _lastGen2,
                             ThreadPool.PendingWorkItemCount, ThreadPool.ThreadCount);
                     }
@@ -225,30 +250,24 @@ public class ParameterSenderService : BackgroundService
                     continue;
                 }
 
-                _batch.Clear();
-                while (SendQueue.TryDequeue(out var message))
-                {
-                    _batch.Add(message);
-                }
-
                 if (diag)
                 {
                     var sendStart = Stopwatch.GetTimestamp();
-                    _sendService.Send(_batch);
+                    var sent = SendQueued();
                     var sendMs = (Stopwatch.GetTimestamp() - sendStart) * toMs;
 
                     _sendMs.Add(sendMs);
-                    _batchSize.Add(_batch.Count);
-                    _diagMessages += _batch.Count;
+                    _batchSize.Add(sent);
+                    _diagMessages += sent;
 
                     if (sendMs > SlowSendMs)
                     {
-                        _logger.LogDebug("diag.send SLOW send {Ms:N2}ms for {Count} messages", sendMs, _batch.Count);
+                        _logger.LogDebug("diag.send SLOW send {Ms:N2}ms for {Count} messages", sendMs, sent);
                     }
                 }
                 else
                 {
-                    _sendService.Send(_batch);
+                    SendQueued();
                 }
             }
             catch (Exception e)
