@@ -34,6 +34,7 @@ public class ModuleProcessMain
     private static Thread? _updateThread;
 
     private static readonly AutoResetEvent _wakeup = new(false);
+    private const int SendLoopFallbackWakeMs = 1000;
     private static ReplyUpdatePacket? _latest;
     private static volatile bool _imageStreamEnabled;
     private const int ImageFrameIntervalMs = 90;
@@ -112,6 +113,7 @@ public class ModuleProcessMain
             WaitForPackets = false;
             DefModuleAssembly?._updateCts?.Cancel();
             cts.Cancel();
+            _wakeup.Set();
             _updateThread?.Join(TimeSpan.FromSeconds(5));
             _fileLogger.Flush();
         };
@@ -499,7 +501,7 @@ public class ModuleProcessMain
 
             if (_packetsToSend.Count == 0)
             {
-                _wakeup.WaitOne(20);
+                _wakeup.WaitOne(SendLoopFallbackWakeMs);
             }
         }
 
