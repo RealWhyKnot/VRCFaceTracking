@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
@@ -41,8 +40,31 @@ public class ReplyUpdatePacketCaptureTests
         packet.GetBytes().AsSpan(12, ReplyUpdatePacket.PayloadSize).ToArray();
 
     [Fact]
-    public void PayloadSize_MatchesTheDecodedStruct() =>
-        Assert.Equal(ReplyUpdatePacket.PayloadSize, Marshal.SizeOf<ReplyUpdatePacket.UpdateDataContiguous>());
+    public void Wire_CarriesEveryScalarAndShapeThenTheStamps()
+    {
+        var bytes = ReplyUpdatePacket.Capture(new UnifiedTrackingData(), 1).GetBytes();
+
+        Assert.Equal((16 + ShapeCount) * sizeof(float), ReplyUpdatePacket.PayloadSize);
+        Assert.Equal(ReplyUpdatePacket.PayloadSize, BitConverter.ToInt32(bytes, 8));
+        Assert.Equal(12 + ReplyUpdatePacket.PayloadSize + 2 * sizeof(long), bytes.Length);
+    }
+
+    [Fact]
+    public void MalformedPacket_LeavesTrackingDataAlone()
+    {
+        var bytes = ReplyUpdatePacket.Capture(Sample(), 7).GetBytes();
+        BitConverter.TryWriteBytes(bytes.AsSpan(8), ReplyUpdatePacket.PayloadSize - 4);
+        var packet = new ReplyUpdatePacket();
+        packet.Decode(bytes);
+
+        UnifiedTracking.Data = new UnifiedTrackingData();
+        UnifiedTracking.Data.Shapes[3].Weight = 0.75f;
+        var version = UnifiedTracking.DataVersion;
+        packet.UpdateGlobalState(TrackingCapability.All);
+
+        Assert.Equal(0.75f, UnifiedTracking.Data.Shapes[3].Weight);
+        Assert.Equal(version, UnifiedTracking.DataVersion);
+    }
 
     [Fact]
     public void Capture_RoundTripsEveryMergedField()
