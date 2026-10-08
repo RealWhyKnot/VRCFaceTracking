@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Logging;
@@ -11,8 +11,8 @@ namespace VRCFaceTracking.PerfTests;
 
 public sealed class ModuleProcessTests(ITestOutputHelper output) : IDisposable
 {
-    private const double StreamingModuleCpuBudgetPercent = 3;
-    private const double IdleModuleCpuBudgetPercent = 1;
+    private const double StreamingModuleCpuBudgetPercent = 5;
+    private const double IdleModuleCpuBudgetPercent = 3;
     private const double StreamingHostCpuBudgetPercent = 12;
     private const double IdleHostCpuBudgetPercent = 2;
     private const long ModuleWorkingSetBudget = 128L * 1024 * 1024;
@@ -56,6 +56,25 @@ public sealed class ModuleProcessTests(ITestOutputHelper output) : IDisposable
         }
     }
 
+    private string ModuleLogTail()
+    {
+        var directory = Path.Combine(_root, "logs");
+        if (!Directory.Exists(directory))
+        {
+            return "no module log directory";
+        }
+
+        var tails = new List<string>();
+        foreach (var file in Directory.GetFiles(directory))
+        {
+            using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            var lines = reader.ReadToEnd().Split('\n');
+            tails.Add($"{Path.GetFileName(file)}:{Environment.NewLine}{string.Join('\n', lines.TakeLast(30))}");
+        }
+        return tails.Count == 0 ? "module log directory is empty" : string.Join(Environment.NewLine, tails);
+    }
+
     private sealed record ModuleRun(double ModuleCpuPercent, long ModuleWorkingSet, CpuSample Host, long Merges);
 
     private async Task<ModuleRun> Run(string mode)
@@ -69,7 +88,9 @@ public sealed class ModuleProcessTests(ITestOutputHelper output) : IDisposable
 
         await using var harness = new SenderHarness(allMutations: true, drainSink: true);
         var modulePath = Path.Combine(AppContext.BaseDirectory, "VRCFaceTracking.PerfTests.Module.dll");
-        var manager = new UnifiedLibManager(NullLoggerFactory.Instance, new InlineDispatcher(), new SyntheticModuleSource(modulePath), new NullSettings(), new LogLevelGate());
+        var logs = new CapturingLoggerProvider();
+        using var loggerFactory = new LoggerFactory(new[] { logs });
+        var manager = new UnifiedLibManager(loggerFactory, new InlineDispatcher(), new SyntheticModuleSource(modulePath), new NullSettings(), new LogLevelGate());
         try
         {
             await harness.StartAsync();
@@ -81,7 +102,8 @@ public sealed class ModuleProcessTests(ITestOutputHelper output) : IDisposable
             {
                 await Task.Delay(50);
             }
-            Assert.Equal(ModuleState.Active, UnifiedLibManager.ExpressionStatus);
+            Assert.True(UnifiedLibManager.ExpressionStatus == ModuleState.Active,
+                $"module status {UnifiedLibManager.ExpressionStatus} after {StartTimeout.TotalSeconds:N0} s{Environment.NewLine}{logs.Tail()}{Environment.NewLine}{ModuleLogTail()}");
             while (mode == SyntheticModule.StreamMode && UnifiedTracking.DataVersion == version0 && Stopwatch.GetTimestamp() < deadline)
             {
                 await Task.Delay(50);

@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts;
@@ -49,6 +51,34 @@ internal sealed class FakeOscTarget : IOscTarget
         {
             _outPort = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OutPort)));
+        }
+    }
+}
+
+internal sealed class CapturingLoggerProvider : ILoggerProvider
+{
+    private readonly ConcurrentQueue<string> _lines = new();
+
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(this, categoryName.Replace("\0", ""));
+
+    public string Tail(int count = 40) => string.Join(Environment.NewLine, _lines.TakeLast(count));
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class CapturingLogger(CapturingLoggerProvider owner, string category) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel))
+            {
+                owner._lines.Enqueue($"{logLevel} {category}: {formatter(state, exception)} {exception?.Message}".TrimEnd());
+            }
         }
     }
 }
