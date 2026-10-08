@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="VRCFaceTracking.Core.Tests" />
+    <InternalsVisibleTo Include="VRCFaceTracking.PerfTests" />
   </ItemGroup>
 </Project>

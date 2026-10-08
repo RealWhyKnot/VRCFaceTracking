@@ -115,6 +115,12 @@ jobs:
           dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=ui.trx"
           if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
 
+      - name: Performance and memory tests
+        shell: pwsh
+        run: |
+          dotnet test VRCFaceTracking.PerfTests/VRCFaceTracking.PerfTests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=perf.trx" --logger "console;verbosity=detailed"
+          if ($LASTEXITCODE -ne 0) { throw "performance tests failed ($LASTEXITCODE)" }
+
       - name: Publish
         shell: pwsh
         run: |

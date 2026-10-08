@@ -171,6 +171,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
           dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
+          dotnet test VRCFaceTracking.PerfTests/VRCFaceTracking.PerfTests.csproj -c Release @plat --no-build
+          if ($LASTEXITCODE -ne 0) { throw "performance tests failed ($LASTEXITCODE)" }
 
       - name: Install NSIS
         if: matrix.os == 'windows'
