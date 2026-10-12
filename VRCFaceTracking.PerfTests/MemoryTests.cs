@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging.Abstractions;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts;
@@ -46,31 +47,34 @@ public sealed class MemoryTests(ITestOutputHelper output)
         Assert.True(ms < AvatarChangeBudgetMs, $"{ms:N1} ms per avatar change");
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int CycleAvatar(IParameterDefinition[] definitions)
+    {
+        ApplyAvatar(definitions);
+        var avatarSubscribers = Tracking.Subscribers();
+        ApplyAvatar(Array.Empty<IParameterDefinition>());
+        ParameterSenderService.Clear();
+        return avatarSubscribers;
+    }
+
     [Fact]
     public void AvatarChange_Repeated_DoesNotLeakSubscribersOrHeap()
     {
         ParameterSenderService.AllParametersRelevantStatic = false;
         var definitions = Tracking.AvatarDefinitions().ToArray();
-        ApplyAvatar(definitions);
-        ApplyAvatar(Array.Empty<IParameterDefinition>());
-        ParameterSenderService.Clear();
+        CycleAvatar(definitions);
         var baseSubscribers = Tracking.Subscribers();
 
-        ApplyAvatar(definitions);
-        var avatarSubscribers = Tracking.Subscribers();
-        ApplyAvatar(Array.Empty<IParameterDefinition>());
-        ParameterSenderService.Clear();
+        var avatarSubscribers = CycleAvatar(definitions);
         var heapBefore = Measure.LiveHeapBytes();
 
         for (var i = 0; i < 50; i++)
         {
-            ApplyAvatar(definitions);
-            Assert.Equal(avatarSubscribers, Tracking.Subscribers());
-            ApplyAvatar(Array.Empty<IParameterDefinition>());
-            ParameterSenderService.Clear();
+            Assert.Equal(avatarSubscribers, CycleAvatar(definitions));
         }
 
         var growth = Measure.LiveHeapBytes() - heapBefore;
+        GC.KeepAlive(definitions);
         output.Report("avatar cycles", $"{baseSubscribers} -> {avatarSubscribers} subscribers, heap growth {growth / 1024.0:N1} KB over 50 cycles, budget {AvatarCycleHeapGrowthBudgetBytes / 1024} KB");
         Assert.Equal(baseSubscribers, Tracking.Subscribers());
         Assert.True(growth < AvatarCycleHeapGrowthBudgetBytes, $"live heap grew {growth} B over 50 avatar changes");
