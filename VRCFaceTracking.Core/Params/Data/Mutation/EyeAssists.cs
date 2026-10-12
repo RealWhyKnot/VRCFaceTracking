@@ -7,7 +7,7 @@ namespace VRCFaceTracking.Core.Params.Data.Mutation;
 public class EyeAssists : TrackingMutation
 {
     public override string Name => "Eye Assists";
-    public override string Description => "Gaze convergence fix, eye close assist, eyelid sync with wink preservation, and force eyes closed.";
+    public override string Description => "Gaze convergence fix, eye range limit, eye close assist, eyelid sync with wink preservation, and force eyes closed.";
     public override MutationPriority Step => MutationPriority.Postprocessor;
     public override int Order => 10;
     public override bool IsActive { get; set; } = false;
@@ -16,6 +16,13 @@ public class EyeAssists : TrackingMutation
     public bool convergenceFix = false;
     [MutationProperty("Convergence Strength", true)]
     public float convergenceStrength = 0.6f;
+
+    [MutationProperty("Limit Eye Range", true)]
+    public bool limitEyeRange = false;
+    [MutationProperty("Max Horizontal", true)]
+    public float maxHorizontal = 0.35f;
+    [MutationProperty("Max Vertical", true)]
+    public float maxVertical = 0.35f;
 
     [MutationProperty("Eye Close Assist", true)]
     public bool closeAssist = false;
@@ -34,6 +41,9 @@ public class EyeAssists : TrackingMutation
     [MutationProperty("Force Eyes Closed", true)]
     public bool forceEyesClosed = false;
 
+    private const double FullRangeRadians = Math.PI / 4;
+    private const double RangeKneeShare = 0.75;
+
     internal Func<double> NowSeconds = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
     private double _lastTime = -1;
     private double _winkStart = -1;
@@ -50,6 +60,14 @@ public class EyeAssists : TrackingMutation
         if (convergenceFix)
         {
             ApplyConvergence(ref data);
+        }
+
+        if (limitEyeRange)
+        {
+            data.Eye.Left.Gaze.x = LimitAxis(data.Eye.Left.Gaze.x, maxHorizontal);
+            data.Eye.Left.Gaze.y = LimitAxis(data.Eye.Left.Gaze.y, maxVertical);
+            data.Eye.Right.Gaze.x = LimitAxis(data.Eye.Right.Gaze.x, maxHorizontal);
+            data.Eye.Right.Gaze.y = LimitAxis(data.Eye.Right.Gaze.y, maxVertical);
         }
 
         if (closeAssist)
@@ -86,6 +104,31 @@ public class EyeAssists : TrackingMutation
         }
         data.Eye.Left.Gaze.x = mean + vergence;
         data.Eye.Right.Gaze.x = mean - vergence;
+    }
+
+    private static float LimitAxis(float gaze, float max)
+    {
+        var limit = Math.Clamp(max, 0f, 1f);
+        if (limit >= 1f)
+        {
+            return gaze;
+        }
+        if (limit <= 0f)
+        {
+            return 0f;
+        }
+
+        var share = Math.Atan(gaze) / FullRangeRadians;
+        var knee = RangeKneeShare * limit;
+        var magnitude = Math.Abs(share);
+        if (magnitude <= knee)
+        {
+            return gaze;
+        }
+
+        var span = limit - knee;
+        var eased = knee + span * Math.Tanh((magnitude - knee) / span);
+        return (float)Math.Tan(Math.CopySign(eased, share) * FullRangeRadians);
     }
 
     private float CloseKnee(float openness)
