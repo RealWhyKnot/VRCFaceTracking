@@ -173,11 +173,11 @@ public class ReplyUpdatePacket : IpcPacket
             return;
         }
 
-        if (Allows(allowed, TrackingCapability.Eyes))
+        if (allowed.Allows(TrackingCapability.Eyes))
         {
             UpdateEyeState(values);
         }
-        if (Allows(allowed, TrackingCapability.Head))
+        if (allowed.Allows(TrackingCapability.Head))
         {
             UpdateHeadState(values);
         }
@@ -185,7 +185,7 @@ public class ReplyUpdatePacket : IpcPacket
         var shapes = values.Slice(ScalarCount);
         foreach (var (capability, start, endInclusive) in TrackingCapabilities.ShapeRanges)
         {
-            if (!Allows(allowed, capability))
+            if (!allowed.Allows(capability))
             {
                 continue;
             }
@@ -200,9 +200,6 @@ public class ReplyUpdatePacket : IpcPacket
 
         UnifiedTracking.MarkDataUpdated(SampleTicks);
     }
-
-    private static bool Allows(TrackingCapability allowed, TrackingCapability capability) =>
-        (allowed & capability) == capability;
 
     private static void UpdateEyeState(ReadOnlySpan<float> values)
     {

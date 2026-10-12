@@ -497,11 +497,11 @@ public class UnifiedLibManager : ILibManager
                                 SupportsImage = true,
                             };
                             var capabilities = module.ModuleInformation.EffectiveCapabilities;
-                            if (framePacket.Kind == ImageFrameUpdatePacket.EyeKind && capabilities.HasFlag(TrackingCapability.Eyes))
+                            if (framePacket.Kind == ImageFrameUpdatePacket.EyeKind && capabilities.Allows(TrackingCapability.Eyes))
                             {
                                 UnifiedTracking.EyeImageData = frame;
                             }
-                            else if (framePacket.Kind == ImageFrameUpdatePacket.LipKind && capabilities.HasFlag(TrackingCapability.Mouth))
+                            else if (framePacket.Kind == ImageFrameUpdatePacket.LipKind && capabilities.Allows(TrackingCapability.Mouth))
                             {
                                 UnifiedTracking.LipImageData = frame;
                             }

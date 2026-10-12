@@ -27,4 +27,7 @@ public static class TrackingCapabilities
         (TrackingCapability.Tongue, (int)UnifiedExpressions.TongueOut, (int)UnifiedExpressions.TongueTwistLeft),
         (TrackingCapability.Mouth, (int)UnifiedExpressions.SoftPalateClose, (int)UnifiedExpressions.NeckFlexLeft),
     };
+
+    public static bool Allows(this TrackingCapability allowed, TrackingCapability capability) =>
+        (allowed & capability) == capability;
 }

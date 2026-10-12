@@ -26,12 +26,12 @@ public static class CapabilityAssigner
             for (var i = 0; i < modules.Count; i++)
             {
                 var candidate = modules[i];
-                if (!candidate.Allowed.HasFlag(group))
+                if (!candidate.Allowed.Allows(group))
                 {
                     continue;
                 }
 
-                var inDefaultHalf = TrackingCapabilities.EyeHalf.HasFlag(group)
+                var inDefaultHalf = TrackingCapabilities.EyeHalf.Allows(group)
                     ? candidate.EyeInitialized
                     : candidate.ExpressionInitialized;
                 if (inDefaultHalf && defaultHalfOwner < 0)
@@ -53,7 +53,7 @@ public static class CapabilityAssigner
 
         for (var i = 0; i < modules.Count; i++)
         {
-            if (modules[i].AnyInitialized && modules[i].Allowed.HasFlag(TrackingCapability.Head))
+            if (modules[i].AnyInitialized && modules[i].Allowed.Allows(TrackingCapability.Head))
             {
                 assigned[i] |= TrackingCapability.Head;
             }

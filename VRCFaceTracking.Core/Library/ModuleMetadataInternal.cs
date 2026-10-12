@@ -141,7 +141,7 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
 
     public void ResetCapabilitiesToAutomatic() => AllowedCapabilities = null;
 
-    private bool GetAllowed(TrackingCapability flag) => (_allowedCapabilities ?? TrackingCapability.All).HasFlag(flag);
+    private bool GetAllowed(TrackingCapability flag) => (_allowedCapabilities ?? TrackingCapability.All).Allows(flag);
 
     private void SetAllowed(TrackingCapability flag, bool value)
     {
