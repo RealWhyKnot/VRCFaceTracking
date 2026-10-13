@@ -20,25 +20,10 @@ public class Correctors : TrackingMutation
     [MutationProperty("LipSuck Limiter", true)]
     public bool lipSuckFix = true;
 
-    // How much "influence" the opposite eye has on openness
-    [MutationProperty("EyeLid Blend", true)]
-    public float eyeLidBlend = 0.0f;    // 0.00f meaning zero influence, 1.00f meaning the value of each eyelid is the median of both
-
     // For ppl with hardware that provides unpredictable eyeL/R movement
     [MutationProperty("EyeLook Symmetrize", true)]
     public bool eyeLookSymmetrize = false;
 
-
-    private float BlendParam(float currentValue, float influencerValue) => Math.Clamp(currentValue * (1.0f - eyeLidBlend * 0.5f) + influencerValue * (eyeLidBlend * 0.5f), 0.0f, 1.0f);
-
-    private void BlendOpposingParams(ref float leftParam, ref float rightParam)
-    {
-        var left = leftParam;
-        leftParam = BlendParam(left, rightParam);
-        rightParam = BlendParam(rightParam, left);
-    }
-
-    private void BlendUnifiedExpressionParams(ref UnifiedTrackingData data, UnifiedExpressions leftExpression, UnifiedExpressions rightExpression) => BlendOpposingParams(ref data.Shapes[(int)leftExpression].Weight, ref data.Shapes[(int)rightExpression].Weight);
 
     public override void MutateData(ref UnifiedTrackingData data)
     {
@@ -57,20 +42,6 @@ public class Correctors : TrackingMutation
             data.Shapes[(int)UnifiedExpressions.LipSuckLowerRight].Weight *= (1f - data.Shapes[(int)UnifiedExpressions.MouthLowerDownRight].Weight);
             data.Shapes[(int)UnifiedExpressions.LipSuckUpperLeft].Weight *= (1f - data.Shapes[(int)UnifiedExpressions.MouthUpperUpLeft].Weight);
             data.Shapes[(int)UnifiedExpressions.LipSuckUpperRight].Weight *= (1f - data.Shapes[(int)UnifiedExpressions.MouthUpperUpRight].Weight);
-        }
-
-        if (eyeLidBlend > 0.00f)
-        {
-            BlendOpposingParams(ref data.Eye.Left.Openness, ref data.Eye.Right.Openness);
-            BlendUnifiedExpressionParams(ref data, UnifiedExpressions.EyeWideLeft, UnifiedExpressions.EyeWideRight);
-
-            // Thx to Hash for suggesting the rest of these
-            BlendUnifiedExpressionParams(ref data, UnifiedExpressions.EyeSquintLeft, UnifiedExpressions.EyeSquintRight);
-            BlendOpposingParams(ref data.Eye.Left.PupilDiameter_MM, ref data.Eye.Right.PupilDiameter_MM);
-            BlendUnifiedExpressionParams(ref data, UnifiedExpressions.BrowPinchLeft, UnifiedExpressions.BrowPinchRight);
-            BlendUnifiedExpressionParams(ref data, UnifiedExpressions.BrowLowererLeft, UnifiedExpressions.BrowLowererRight);
-            BlendUnifiedExpressionParams(ref data, UnifiedExpressions.BrowInnerUpLeft, UnifiedExpressions.BrowInnerUpRight);
-            BlendUnifiedExpressionParams(ref data, UnifiedExpressions.BrowOuterUpLeft, UnifiedExpressions.BrowOuterUpRight);
         }
 
         if (eyeLookSymmetrize)

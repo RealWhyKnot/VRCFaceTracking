@@ -1,10 +1,11 @@
+using VRCFaceTracking.Core.Helpers;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class CorrectorsTests
+public class EyelidBlendTests
 {
     private static UnifiedTrackingData Blend(float blend, float left, float right)
     {
@@ -13,7 +14,7 @@ public class CorrectorsTests
         data.Eye.Right.Openness = right;
         data.Shapes[(int)UnifiedExpressions.EyeWideLeft].Weight = left;
         data.Shapes[(int)UnifiedExpressions.EyeWideRight].Weight = right;
-        new Correctors { eyeLidBlend = blend }.MutateData(ref data);
+        new EyeAssists { eyeLidBlend = blend }.MutateData(ref data);
         return data;
     }
 
@@ -44,5 +45,42 @@ public class CorrectorsTests
 
         Assert.Equal(0.2f, data.Eye.Left.Openness);
         Assert.Equal(0.8f, data.Eye.Right.Openness);
+    }
+
+    [Fact]
+    public void FullBlend_AveragesPupilsInMillimetres()
+    {
+        var data = new UnifiedTrackingData();
+        data.Eye.Left.PupilDiameter_MM = 3f;
+        data.Eye.Right.PupilDiameter_MM = 5f;
+
+        new EyeAssists { eyeLidBlend = 1f }.MutateData(ref data);
+
+        Assert.Equal(4f, data.Eye.Left.PupilDiameter_MM, 5);
+        Assert.Equal(4f, data.Eye.Right.PupilDiameter_MM, 5);
+    }
+
+    [Fact]
+    public void Correctors_NoLongerTouchEyelids()
+    {
+        var data = new UnifiedTrackingData();
+        data.Eye.Left.Openness = 0f;
+        data.Eye.Right.Openness = 1f;
+
+        new Correctors().MutateData(ref data);
+
+        Assert.Equal(0f, data.Eye.Left.Openness);
+        Assert.Equal(1f, data.Eye.Right.Openness);
+    }
+
+    [Fact]
+    public async Task OldCorrectorsSave_WithEyelidBlend_StillLoads()
+    {
+        const string saved = "{\"mouthClosedFix\":false,\"lipSuckFix\":true,\"eyeLidBlend\":1.0,\"eyeLookSymmetrize\":false,\"Name\":\"Unified Correctors\",\"Step\":2,\"IsActive\":true,\"IsSaved\":false}";
+
+        var loaded = await Json.ToObjectAsync<Correctors>(saved);
+
+        Assert.False(loaded.mouthClosedFix);
+        Assert.True(loaded.IsActive);
     }
 }
