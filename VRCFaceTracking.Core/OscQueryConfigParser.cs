@@ -24,18 +24,8 @@ public class OscQueryConfigParser(
                 return null;
             }
 
-            // Request on the endpoint + /avatar/parameters
-            var httpEndpoint = "http://" + multicastDnsService.VrchatClientEndpoint + "/avatar";
-
-            // Get the response
-            var response = await _httpClient.GetAsync(httpEndpoint);
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
-
-            var avatarConfig =
-                JsonConvert.DeserializeObject<OscQueryNode>(await response.Content.ReadAsStringAsync());
+            var httpEndpoint = new Uri("http://" + multicastDnsService.VrchatClientEndpoint + "/avatar");
+            var avatarConfig = await OscQueryAvatarReader.ReadAsync(_httpClient, httpEndpoint);
             parserLogger.LogDebug(avatarConfig.ToString());
             var avatarInfo = new OscQueryAvatarInfo(avatarConfig);
 

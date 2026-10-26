@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Newtonsoft.Json;
@@ -179,6 +180,90 @@ public class OscQueryTests
 
         Assert.Equal("/", root!.FullPath);
         Assert.Null(root.Contents);
+    }
+
+    [Fact]
+    public async Task AvatarReader_ReadsAnAvatarWithAUnicodeName()
+    {
+        const string id = "avtr_00000000-0000-0000-0000-000000000002";
+        const string name = "ネコ Jürgen ✨";
+        var change = "{\"FULL_PATH\":\"/avatar/change\",\"ACCESS\":3,\"TYPE\":\"s\",\"VALUE\":[\"" + id + "\"]}";
+        var parameters = "{\"FULL_PATH\":\"/avatar/parameters\",\"ACCESS\":0,\"CONTENTS\":{\"FT\":{\"FULL_PATH\":\"/avatar/parameters/FT\",\"ACCESS\":0,\"CONTENTS\":{\"v2\":{\"FULL_PATH\":\"/avatar/parameters/FT/v2\",\"ACCESS\":0,\"CONTENTS\":{\"JawOpen\":{\"FULL_PATH\":\"/avatar/parameters/FT/v2/JawOpen\",\"ACCESS\":3,\"TYPE\":\"f\",\"VALUE\":[0.0]}}}}}}}";
+        var nameNode = "{\"FULL_PATH\":\"/avatar/name\",\"ACCESS\":1,\"TYPE\":\"s\",\"VALUE\":[\"" + name + "\"]}";
+        var bodies = new Dictionary<string, string>
+        {
+            ["/avatar"] = "{\"FULL_PATH\":\"/avatar\",\"ACCESS\":0,\"CONTENTS\":{\"change\":" + change + ",\"name\":" + nameNode + ",\"parameters\":" + parameters + "}}",
+            ["/avatar/change"] = change,
+            ["/avatar/parameters"] = parameters,
+        };
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var cts = new CancellationTokenSource(Timeout);
+        var server = ServeWithCharCountLength(listener, bodies, cts.Token);
+        try
+        {
+            using var http = new HttpClient { Timeout = Timeout };
+            var avatarUri = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/avatar");
+
+            await Assert.ThrowsAnyAsync<JsonException>(async () => JsonConvert.DeserializeObject<OscQueryNode>(await http.GetStringAsync(avatarUri)));
+
+            var info = new OscQueryAvatarInfo(await OscQueryAvatarReader.ReadAsync(http, avatarUri));
+
+            Assert.Equal(id, info.Id);
+            Assert.Equal("/avatar/parameters/FT/v2/JawOpen", Assert.Single(info.Parameters).Address);
+        }
+        finally
+        {
+            cts.Cancel();
+            listener.Stop();
+            await server.WaitAsync(Timeout);
+        }
+    }
+
+    private static async Task ServeWithCharCountLength(TcpListener listener, IReadOnlyDictionary<string, string> bodies, CancellationToken ct)
+    {
+        var connections = new List<Task>();
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var client = await listener.AcceptTcpClientAsync(ct);
+                connections.Add(Task.Run(async () =>
+                {
+                    using (client)
+                    {
+                        var stream = client.GetStream();
+                        using var reader = new StreamReader(stream, Encoding.ASCII, false, 1024, true);
+                        try
+                        {
+                            while (await reader.ReadLineAsync(ct) is { Length: > 0 } requestLine)
+                            {
+                                while (!string.IsNullOrEmpty(await reader.ReadLineAsync(ct)))
+                                {
+                                }
+
+                                var head = bodies.TryGetValue(requestLine.Split(' ')[1], out var body)
+                                    ? $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\n\r\n"
+                                    : "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                                await stream.WriteAsync(Encoding.ASCII.GetBytes(head), ct);
+                                if (body != null)
+                                {
+                                    await stream.WriteAsync(Encoding.UTF8.GetBytes(body), ct);
+                                }
+                            }
+                        }
+                        catch (Exception e) when (e is OperationCanceledException or IOException)
+                        {
+                        }
+                    }
+                }, CancellationToken.None));
+            }
+        }
+        catch (Exception e) when (e is OperationCanceledException or SocketException or ObjectDisposedException)
+        {
+        }
+
+        await Task.WhenAll(connections);
     }
 
     private static async Task<string> ServeOnce(HttpListener listener, string body)

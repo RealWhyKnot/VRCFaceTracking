@@ -13,14 +13,20 @@ namespace VRCFaceTracking.Core.Services;
 public class ModuleInstaller
 {
     private readonly ILogger<ModuleInstaller> _logger;
+    private readonly string _customLibsDirectory;
 
-    public ModuleInstaller(ILogger<ModuleInstaller> logger)
+    public ModuleInstaller(ILogger<ModuleInstaller> logger) : this(logger, Utils.CustomLibsDirectory)
+    {
+    }
+
+    internal ModuleInstaller(ILogger<ModuleInstaller> logger, string customLibsDirectory)
     {
         _logger = logger;
+        _customLibsDirectory = customLibsDirectory;
 
-        if (!Directory.Exists(Utils.CustomLibsDirectory))
+        if (!Directory.Exists(_customLibsDirectory))
         {
-            Directory.CreateDirectory(Utils.CustomLibsDirectory);
+            Directory.CreateDirectory(_customLibsDirectory);
         }
     }
 
@@ -138,7 +144,7 @@ public class ModuleInstaller
     {
         // First, we copy the zip to our custom libs directory
         var fileName = Path.GetFileName(zipPath);
-        var newZipPath = Path.Combine(Utils.CustomLibsDirectory, fileName);
+        var newZipPath = Path.Combine(_customLibsDirectory, fileName);
         File.Copy(zipPath, newZipPath, true);
 
         // Second, we unzip it 
@@ -170,7 +176,7 @@ public class ModuleInstaller
         moduleMetadata.IsLocal = true;
 
         // Now we move to a directory named after the module id and delete the temp directory
-        var moduleDirectory = Path.Combine(Utils.CustomLibsDirectory, moduleMetadata.ModuleId.ToString());
+        var moduleDirectory = Path.Combine(_customLibsDirectory, moduleMetadata.ModuleId.ToString());
         if (Directory.Exists(moduleDirectory))
         {
             Directory.Delete(moduleDirectory, true);
@@ -195,136 +201,201 @@ public class ModuleInstaller
 
     public async Task<string> InstallRemoteModule(TrackingModuleMetadata moduleMetadata)
     {
-        // If our download type is not a .dll, we'll download to a temp directory and then extract to the modules directory
-        // The module will be contained within a directory corresponding to the module's id which will contain the root of the zip, or the .dll directly
-        // as well as a module.json file containing the metadata for the module so we can identify the currently installed version, as well as
-        // still support unofficial modules.
+        var moduleDirectory = Path.Combine(_customLibsDirectory, moduleMetadata.ModuleId.ToString());
+        var stagingDirectory = Path.Combine(_customLibsDirectory, ".staging-" + Path.GetRandomFileName());
+        var stagedModuleDirectory = Path.Combine(stagingDirectory, "module");
+        var previousDirectory = Path.Combine(stagingDirectory, "previous");
+        string? tempDirectory = null;
 
-        // First we need to create the directory for the module. If it already exists, we'll delete it and start fresh.
-        var moduleDirectory = Path.Combine(Utils.CustomLibsDirectory, moduleMetadata.ModuleId.ToString());
-        UninstallModule(moduleMetadata);
-
-        // Time to download the main files
-        var downloadExtension = Path.GetExtension(moduleMetadata.DownloadUrl);
-        if (downloadExtension != ".dll")
+        try
         {
-            // Create the temp directory for the .zip
-            _logger.LogDebug($"Provisioning temp download dir for {moduleMetadata.ModuleName}");
-            string tempDirectory;
             try
             {
-                tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-                if (Directory.Exists(tempDirectory))
+                Directory.CreateDirectory(stagedModuleDirectory);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to provision staging dir for {module}", moduleMetadata.ModuleName);
+                return null;
+            }
+
+            var downloadExtension = Path.GetExtension(moduleMetadata.DownloadUrl);
+            if (downloadExtension != ".dll")
+            {
+                _logger.LogDebug($"Provisioning temp download dir for {moduleMetadata.ModuleName}");
+                try
                 {
-                    Directory.Delete(tempDirectory, true);
+                    tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+                    if (Directory.Exists(tempDirectory))
+                    {
+                        Directory.Delete(tempDirectory, true);
+                    }
+
+                    Directory.CreateDirectory(tempDirectory);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError($"Failed to provision download dir for {moduleMetadata.ModuleName}. {e}");
+                    return null;
                 }
 
-                Directory.CreateDirectory(tempDirectory);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"Failed to provision download dir for {moduleMetadata.ModuleName}. {e}");
-                return null;
-            }
-
-            // Download the zip into the tempDirectory and save as module.zip
-            _logger.LogInformation($"Downloading {moduleMetadata.ModuleName} to temp dir {tempDirectory}");
-            string tempZipPath;
-            try
-            {
-                tempZipPath = Path.Combine(tempDirectory, "module.zip");
-                await DownloadModuleToFile(moduleMetadata, tempZipPath, moduleMetadata.FileHash);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"Failed to download module data for {moduleMetadata.ModuleName}. {e}");
-                return null;
-            }
-
-            // Extract the zip to the temp directory and delete the zip afterwards
-            _logger.LogInformation($"Extracting zip to {tempDirectory}");
-            try
-            {
-                ZipFile.ExtractToDirectory(tempZipPath, tempDirectory);
-                File.Delete(tempZipPath);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"Failed to extract {moduleMetadata.ModuleName}. {e}");
-                return null;
-            }
-
-            // Move the contents of this directory to our newly made module directory
-            _logger.LogInformation($"Moving extracted files for {moduleMetadata.ModuleName} from {tempDirectory} to {moduleDirectory}");
-            try
-            {
-                MoveDirectory(tempDirectory, moduleDirectory);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"Failed to move files for {moduleMetadata.ModuleName}. {e}");
-                return null;
-            }
-
-            // Remove zone identifiers (unblock dlls) on Windows
-            if (OperatingSystem.IsWindows())
-            {
-                foreach (var dll in Directory.GetFiles(moduleDirectory, "*.dll", SearchOption.AllDirectories))
+                _logger.LogInformation($"Downloading {moduleMetadata.ModuleName} to temp dir {tempDirectory}");
+                string tempZipPath;
+                try
                 {
-                    RemoveZoneIdentifier(dll);
+                    tempZipPath = Path.Combine(tempDirectory, "module.zip");
+                    await DownloadModuleToFile(moduleMetadata, tempZipPath, moduleMetadata.FileHash);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError($"Failed to download module data for {moduleMetadata.ModuleName}. {e}");
+                    return null;
+                }
+
+                _logger.LogInformation($"Extracting zip to {tempDirectory}");
+                try
+                {
+                    ZipFile.ExtractToDirectory(tempZipPath, tempDirectory);
+                    File.Delete(tempZipPath);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError($"Failed to extract {moduleMetadata.ModuleName}. {e}");
+                    return null;
+                }
+
+                _logger.LogInformation($"Moving extracted files for {moduleMetadata.ModuleName} from {tempDirectory} to {stagedModuleDirectory}");
+                try
+                {
+                    MoveDirectory(tempDirectory, stagedModuleDirectory);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError($"Failed to move files for {moduleMetadata.ModuleName}. {e}");
+                    return null;
+                }
+
+                if (OperatingSystem.IsWindows())
+                {
+                    foreach (var dll in Directory.GetFiles(stagedModuleDirectory, "*.dll", SearchOption.AllDirectories))
+                    {
+                        RemoveZoneIdentifier(dll);
+                    }
+                }
+
+                moduleMetadata.DllFileName ??= TryFindModuleDll(stagedModuleDirectory, moduleMetadata);
+                if (moduleMetadata.DllFileName == null)
+                {
+                    _logger.LogError("Module {module} has no .dll file name specified and no .dll files were found in the extracted zip", moduleMetadata.ModuleId);
+                    return null;
                 }
             }
-
-            // We need to ensure a .dll name is valid in the RemoteTrackingModule model
-            moduleMetadata.DllFileName ??= TryFindModuleDll(moduleDirectory, moduleMetadata);
-            if (moduleMetadata.DllFileName == null)
+            else
             {
-                _logger.LogError("Module {module} has no .dll file name specified and no .dll files were found in the extracted zip", moduleMetadata.ModuleId);
+                moduleMetadata.DllFileName = string.IsNullOrEmpty(moduleMetadata.DllFileName)
+                    ? Path.GetFileName(moduleMetadata.DownloadUrl)
+                    : moduleMetadata.DllFileName;
+
+                var dllPath = Path.Combine(
+                    stagedModuleDirectory,
+                    moduleMetadata.DllFileName);
+
+                try
+                {
+                    await DownloadModuleToFile(moduleMetadata, dllPath, moduleMetadata.FileHash);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError($"Failed to download module data for {moduleMetadata.ModuleName}. {e}");
+                    return null;
+                }
+
+                _logger.LogDebug("Downloaded module {module} to {dllPath}", moduleMetadata.ModuleId, dllPath);
+            }
+
+            var moduleJsonPath = Path.Combine(stagedModuleDirectory, "module.json");
+            await File.WriteAllTextAsync(moduleJsonPath, JsonConvert.SerializeObject(moduleMetadata, Formatting.Indented));
+
+            if (!ReplaceModuleDirectory(moduleMetadata, stagedModuleDirectory, moduleDirectory, previousDirectory))
+            {
                 return null;
             }
         }
-        else
+        finally
         {
-            moduleMetadata.DllFileName = string.IsNullOrEmpty(moduleMetadata.DllFileName)
-                ? Path.GetFileName(moduleMetadata.DownloadUrl)
-                : moduleMetadata.DllFileName;
-
-            var dllPath = Path.Combine(
-                moduleDirectory,
-                moduleMetadata.DllFileName);
-
-            if (Directory.Exists(moduleDirectory))
+            DeleteDirectory(tempDirectory);
+            if (!Directory.Exists(previousDirectory) || Directory.Exists(moduleDirectory))
             {
-                Directory.Delete(moduleDirectory, true);
+                DeleteDirectory(stagingDirectory);
             }
-            Directory.CreateDirectory(moduleDirectory);
-
-            try
-            {
-                await DownloadModuleToFile(moduleMetadata, dllPath, moduleMetadata.FileHash);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"Failed to download module data for {moduleMetadata.ModuleName}. {e}");
-                return null;
-            }
-
-            _logger.LogDebug("Downloaded module {module} to {dllPath}", moduleMetadata.ModuleId, dllPath);
         }
-
-        // Now we can overwrite the module.json file with the latest metadata
-        var moduleJsonPath = Path.Combine(moduleDirectory, "module.json");
-        await File.WriteAllTextAsync(moduleJsonPath, JsonConvert.SerializeObject(moduleMetadata, Formatting.Indented));
 
         _logger.LogInformation("Installed module {module} to {moduleDirectory}", moduleMetadata.ModuleId, moduleDirectory);
 
         return Path.Combine(moduleDirectory, moduleMetadata.DllFileName);
     }
 
+    private bool ReplaceModuleDirectory(TrackingModuleMetadata moduleMetadata, string stagedModuleDirectory, string moduleDirectory, string previousDirectory)
+    {
+        try
+        {
+            if (Directory.Exists(moduleDirectory))
+            {
+                Directory.Move(moduleDirectory, previousDirectory);
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not move the installed copy of {module} aside, so it was left in place", moduleMetadata.ModuleId);
+            return false;
+        }
+
+        try
+        {
+            Directory.Move(stagedModuleDirectory, moduleDirectory);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not move the new copy of {module} into {moduleDirectory}; restoring the installed copy", moduleMetadata.ModuleId, moduleDirectory);
+        }
+
+        try
+        {
+            if (Directory.Exists(previousDirectory))
+            {
+                Directory.Move(previousDirectory, moduleDirectory);
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not restore {module}; the installed copy is in {previousDirectory}", moduleMetadata.ModuleId, previousDirectory);
+        }
+
+        return false;
+    }
+
+    private void DeleteDirectory(string? directory)
+    {
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(directory, true);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Could not delete {directory}", directory);
+        }
+    }
+
     public void UninstallModule(TrackingModuleMetadata moduleMetadata)
     {
         _logger.LogDebug("Uninstalling module {module}", moduleMetadata.ModuleId);
-        var moduleDirectory = Path.Combine(Utils.CustomLibsDirectory, moduleMetadata.ModuleId.ToString());
+        var moduleDirectory = Path.Combine(_customLibsDirectory, moduleMetadata.ModuleId.ToString());
         if (Directory.Exists(moduleDirectory))
         {
             try

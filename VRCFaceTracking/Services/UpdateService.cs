@@ -210,7 +210,7 @@ public class UpdateService
             if (Installed)
             {
                 var setupScript = Path.Combine(StagingDir, "apply.ps1");
-                File.WriteAllText(setupScript, UpdateHelperScript.BuildSetup(Environment.ProcessId, archivePath, StagingDir, InstallDir, exePath, logPath));
+                UpdateHelperScript.WritePowerShell(setupScript, UpdateHelperScript.BuildSetup(Environment.ProcessId, archivePath, StagingDir, InstallDir, exePath, logPath));
                 Process.Start(PowerShell(setupScript));
                 _logger.LogInformation("Update helper started for {tag} with {setup}; closing to apply", release.TagName, archiveName);
                 OnUi(() => _ = App.MainWindow!.CloseAfterTeardown());
@@ -239,7 +239,7 @@ public class UpdateService
             if (OperatingSystem.IsWindows())
             {
                 var scriptPath = Path.Combine(StagingDir, "apply.ps1");
-                File.WriteAllText(scriptPath, UpdateHelperScript.Build(Environment.ProcessId, payloadRoot, StagingDir, InstallDir, exePath, logPath));
+                UpdateHelperScript.WritePowerShell(scriptPath, UpdateHelperScript.Build(Environment.ProcessId, payloadRoot, StagingDir, InstallDir, exePath, logPath));
                 psi = PowerShell(scriptPath);
                 psi.WorkingDirectory = InstallDir;
             }

@@ -4,6 +4,10 @@ namespace VRCFaceTracking.Core.Updates;
 
 public static class UpdateHelperScript
 {
+    private static readonly UTF8Encoding Utf8WithBom = new(true);
+
+    public static void WritePowerShell(string path, string script) => File.WriteAllText(path, script, Utf8WithBom);
+
     public static string Build(int processId, string payloadRoot, string stagingDir, string installDir, string exePath, string logPath)
     {
         var sb = new StringBuilder();

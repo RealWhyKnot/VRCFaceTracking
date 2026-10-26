@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using VRCFaceTracking.Core.Updates;
 
 namespace VRCFaceTracking.Core.Tests;
@@ -200,6 +202,96 @@ public class UpdateHelperScriptTests
         Assert.True(relaunch < script.IndexOf("Remove-Item", StringComparison.Ordinal));
         Assert.DoesNotContain("\n", script.Replace("\r\n", ""));
         Assert.All(script, c => Assert.True(c < 128));
+    }
+
+    [Fact]
+    public void PowerShellScriptsAreWrittenAsUtf8WithBom()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vrcft-bom-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            const string install = @"C:\Users\Jürgen 山田\AppData\Local\VRCFaceTracking";
+            var path = Path.Combine(root, "apply.ps1");
+            var scripts = new[]
+            {
+                UpdateHelperScript.Build(4242, @"C:\stage\extracted", @"C:\stage", install, install + @"\VRCFaceTracking.exe", @"C:\logs\update.log"),
+                UpdateHelperScript.BuildSetup(4242, @"C:\stage\VRCFaceTracking-Setup.exe", @"C:\stage", install, install + @"\VRCFaceTracking.exe", @"C:\logs\update.log"),
+            };
+
+            foreach (var script in scripts)
+            {
+                UpdateHelperScript.WritePowerShell(path, script);
+                var bytes = File.ReadAllBytes(path);
+                Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
+                var text = new UTF8Encoding(false, true).GetString(bytes, 3, bytes.Length - 3);
+                Assert.Equal(script, text);
+                Assert.Contains("'" + install + "'", text);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task WindowsPowerShellAppliesAnUpdateIntoANonAsciiPath()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var top = Path.Combine(Path.GetTempPath(), "vrcft-apply-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(top, "Jürgen 山田");
+        var staging = Path.Combine(root, "update");
+        var payload = Path.Combine(staging, "extracted");
+        var install = Path.Combine(root, "VRCFaceTracking");
+        Directory.CreateDirectory(payload);
+        Directory.CreateDirectory(install);
+        File.WriteAllText(Path.Combine(payload, "payload.txt"), "new");
+        File.WriteAllText(Path.Combine(install, "payload.txt"), "old");
+        try
+        {
+            int exitedId;
+            using (var exited = Process.Start(new ProcessStartInfo("cmd.exe", "/c exit") { UseShellExecute = false, CreateNoWindow = true })!)
+            {
+                await exited.WaitForExitAsync();
+                exitedId = exited.Id;
+            }
+
+            var scriptPath = Path.Combine(staging, "apply.ps1");
+            UpdateHelperScript.WritePowerShell(scriptPath, UpdateHelperScript.Build(exitedId, payload, staging, install, Path.Combine(install, "missing.exe"), Path.Combine(root, "update.log")));
+
+            var psi = new ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = true };
+            foreach (var arg in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath })
+            {
+                psi.ArgumentList.Add(arg);
+            }
+
+            using var shell = Process.Start(psi)!;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            try
+            {
+                await shell.WaitForExitAsync(cts.Token);
+            }
+            finally
+            {
+                if (!shell.HasExited)
+                {
+                    shell.Kill(true);
+                }
+            }
+
+            Assert.Equal(0, shell.ExitCode);
+            Assert.Equal("new", File.ReadAllText(Path.Combine(install, "payload.txt")));
+            Assert.False(Directory.Exists(staging));
+        }
+        finally
+        {
+            Directory.Delete(top, true);
+        }
     }
 
     [Fact]

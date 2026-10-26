@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Models;
+using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.ViewModels;
 
@@ -115,7 +116,7 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
                 }
                 else
                 {
-                    remoteModule.InstallationState = remoteModule.Version != installedModule.Version
+                    remoteModule.InstallationState = ModuleUpdates.IsUpdate(remoteModule, installedModule)
                         ? InstallState.Outdated
                         : InstallState.Installed;
                     ModuleInfos.Move(ModuleInfos.IndexOf(remoteModule), 0);
