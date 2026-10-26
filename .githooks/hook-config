@@ -1,4 +1,5 @@
 STAMP_PATTERN='\([0-9]{4}\.[0-9]+\.[0-9]+\.[0-9]+(-[A-Fa-f0-9]{4})?\)'
 CHECK_CONVENTIONAL=1
+FORBIDDEN_BODY_PATTERN='(^|[^A-Za-z0-9_])#[0-9]+|benaclejames|github\.com/benaclejames'
 VERSION_FILE='commit-version.txt'
 VERSION_IN_GITDIR=1

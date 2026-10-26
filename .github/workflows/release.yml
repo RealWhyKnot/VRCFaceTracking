@@ -27,7 +27,10 @@ jobs:
   validate:
     name: Validate ${{ inputs.tag || github.ref_name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
       version: ${{ steps.tag.outputs.version }}
@@ -47,6 +50,12 @@ jobs:
           tag: ${{ inputs.tag || github.ref_name }}
           tag-pattern: '^v\d{4}\.\d+\.\d+\.\d+(-beta)?$'
 
+      - name: Wait for CI
+        uses: RealWhyKnot/workflows/wait-for-ci@v1
+        with:
+          sha: ${{ steps.tag.outputs.sha }}
+          workflow: ci.yml
+
       - name: Validate release version sequence
         uses: RealWhyKnot/workflows/version-sequence@v1
         with:
@@ -55,7 +64,6 @@ jobs:
       - name: Script self-tests
         shell: pwsh
         run: |
-          ./.github/scripts/Test-WorkflowSyntax.ps1
           ./.github/scripts/Test-GenerateReleaseNotes.ps1
           ./.github/scripts/Test-GenerateContributors.ps1
 
@@ -153,7 +161,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Download contributors
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: contributors
           path: VRCFaceTracking/Assets
@@ -176,16 +184,9 @@ jobs:
 
       - name: Install NSIS
         if: matrix.os == 'windows'
-        shell: pwsh
-        run: |
-          $want = 'v3.12'
-          $have = ''
-          $exe = 'C:\Program Files (x86)\NSIS\makensis.exe'
-          if (Test-Path -LiteralPath $exe) { $have = (& $exe /VERSION) }
-          if ($have -ne $want) {
-            choco install nsis --version 3.12.0 --force -y --no-progress
-            if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed ($LASTEXITCODE)" }
-          }
+        uses: RealWhyKnot/workflows/setup-nsis@v1
+        with:
+          version: '3.12'
 
       - name: Package
         shell: pwsh

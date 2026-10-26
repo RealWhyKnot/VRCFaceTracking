@@ -14,3 +14,4 @@ jobs:
     with:
       stamp-pattern: '\([0-9]{4}\.[0-9]+\.[0-9]+\.[0-9]+(-[A-Fa-f0-9]{4})?\)'
       check-conventional: true
+      forbidden-body-pattern: '(^|[^A-Za-z0-9_])#[0-9]+|benaclejames|github\.com/benaclejames'
