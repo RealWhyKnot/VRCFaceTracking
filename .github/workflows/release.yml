@@ -306,7 +306,7 @@ jobs:
             markers+=("Initializing OSC")
           fi
           found=
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             sleep 1
             found=1
             for marker in "${markers[@]}"; do
