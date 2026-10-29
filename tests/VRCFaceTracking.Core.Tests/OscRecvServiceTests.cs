@@ -142,6 +142,7 @@ public sealed class OscRecvServiceTests
         try
         {
             using var sender = new UdpClient(AddressFamily.InterNetwork);
+            sender.Client.SendBufferSize = 65536;
             for (int i = 0; i < datagrams.Length; i++)
             {
                 await sender.SendAsync(datagrams[i], bound);
