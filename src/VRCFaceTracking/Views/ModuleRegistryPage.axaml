@@ -127,7 +127,7 @@
                             <TextBlock Grid.Row="3" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.ModulePage_Text}" />
                             <HyperlinkButton Grid.Row="3" Grid.Column="1"
                                     Padding="0"
-                                    Content="{Binding ModulePageUrl}"
+                                    Content="{Binding ModulePageUrl.OriginalString}"
                                     Click="OpenModulePage_Click" />
 
                             <TextBlock Grid.Row="4" Grid.Column="0" Classes="detail-label" Text="{x:Static s:Resources.Description_Text}" />

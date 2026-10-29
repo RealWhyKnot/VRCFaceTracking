@@ -4,24 +4,32 @@ using Microsoft.Extensions.Logging.Abstractions;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Sandboxing;
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 using VRCFaceTracking.Core.Services;
 using Xunit.Abstractions;
 
 namespace VRCFaceTracking.Perf.Tests;
 
-public sealed class MemoryTests(ITestOutputHelper output)
+public sealed class MemoryTests
 {
     private const double AvatarChangeBudgetMs = 250;
     private const long AvatarCycleHeapGrowthBudgetBytes = 256 * 1024;
     private const long SampleHeapGrowthBudgetBytes = 64 * 1024;
 
-    private static List<Core.Params.Parameter> ApplyAvatar(IParameterDefinition[] definitions)
+    private readonly ITestOutputHelper _output;
+
+    public MemoryTests(ITestOutputHelper output)
     {
-        var relevant = new List<Core.Params.Parameter>();
-        foreach (var parameter in UnifiedTracking.AllParameters)
+        _output = output;
+    }
+
+    private static List<Parameter> ApplyAvatar(IParameterDefinition[] definitions)
+    {
+        var relevant = new List<Parameter>();
+        foreach (Parameter parameter in TrackingOutput.AllParameters)
         {
             relevant.AddRange(parameter.ResetParam(definitions));
         }
@@ -29,20 +37,20 @@ public sealed class MemoryTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AvatarChange_StaysWithinCpuBudget()
+    public void AvatarChangeStaysWithinCpuBudget()
     {
         ParameterSenderService.AllParametersRelevantStatic = false;
-        var definitions = Tracking.AvatarDefinitions().ToArray();
+        IParameterDefinition[] definitions = [.. Tracking.AvatarDefinitions()];
         ApplyAvatar(definitions);
-        ApplyAvatar(Array.Empty<IParameterDefinition>());
+        ApplyAvatar([]);
 
-        var start = Stopwatch.GetTimestamp();
-        var relevant = ApplyAvatar(definitions);
-        var ms = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-        ApplyAvatar(Array.Empty<IParameterDefinition>());
+        long start = Stopwatch.GetTimestamp();
+        List<Parameter> relevant = ApplyAvatar(definitions);
+        double ms = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        ApplyAvatar([]);
         ParameterSenderService.Clear();
 
-        output.Report("avatar change", $"{ms:N1} ms for {definitions.Length} avatar parameters, {relevant.Count} relevant, budget {AvatarChangeBudgetMs} ms");
+        _output.Report("avatar change", $"{ms:N1} ms for {definitions.Length} avatar parameters, {relevant.Count} relevant, budget {AvatarChangeBudgetMs} ms");
         Assert.True(relevant.Count > 200, $"only {relevant.Count} parameters matched the synthetic avatar");
         Assert.True(ms < AvatarChangeBudgetMs, $"{ms:N1} ms per avatar change");
     }
@@ -51,84 +59,84 @@ public sealed class MemoryTests(ITestOutputHelper output)
     private static int CycleAvatar(IParameterDefinition[] definitions)
     {
         ApplyAvatar(definitions);
-        var avatarSubscribers = Tracking.Subscribers();
-        ApplyAvatar(Array.Empty<IParameterDefinition>());
+        int avatarSubscribers = Tracking.Subscribers();
+        ApplyAvatar([]);
         ParameterSenderService.Clear();
         return avatarSubscribers;
     }
 
     [Fact]
-    public void AvatarChange_Repeated_DoesNotLeakSubscribersOrHeap()
+    public void AvatarChangeRepeatedDoesNotLeakSubscribersOrHeap()
     {
         ParameterSenderService.AllParametersRelevantStatic = false;
-        var definitions = Tracking.AvatarDefinitions().ToArray();
+        IParameterDefinition[] definitions = [.. Tracking.AvatarDefinitions()];
         CycleAvatar(definitions);
-        var baseSubscribers = Tracking.Subscribers();
+        int baseSubscribers = Tracking.Subscribers();
 
-        var avatarSubscribers = CycleAvatar(definitions);
-        var heapBefore = Measure.LiveHeapBytes();
+        int avatarSubscribers = CycleAvatar(definitions);
+        long heapBefore = Measure.LiveHeapBytes();
 
-        for (var i = 0; i < 50; i++)
+        for (int i = 0; i < 50; i++)
         {
             Assert.Equal(avatarSubscribers, CycleAvatar(definitions));
         }
 
-        var growth = Measure.LiveHeapBytes() - heapBefore;
+        long growth = Measure.LiveHeapBytes() - heapBefore;
         GC.KeepAlive(definitions);
-        output.Report("avatar cycles", $"{baseSubscribers} -> {avatarSubscribers} subscribers, heap growth {growth / 1024.0:N1} KB over 50 cycles, budget {AvatarCycleHeapGrowthBudgetBytes / 1024} KB");
+        _output.Report("avatar cycles", $"{baseSubscribers} -> {avatarSubscribers} subscribers, heap growth {growth / 1024.0:N1} KB over 50 cycles, budget {AvatarCycleHeapGrowthBudgetBytes / 1024} KB");
         Assert.Equal(baseSubscribers, Tracking.Subscribers());
         Assert.True(growth < AvatarCycleHeapGrowthBudgetBytes, $"live heap grew {growth} B over 50 avatar changes");
     }
 
     [Fact]
-    public void IpcSamples_LongRun_AreNotRetained()
+    public void IpcSamplesLongRunAreNotRetained()
     {
         var data = new UnifiedTrackingData();
-        var scratch = new byte[ReplyUpdatePacket.PayloadSize];
+        byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
         ReplyUpdatePacket? latest = null;
         void Sample(int frame)
         {
             data.Shapes[frame % data.Shapes.Length].Weight = frame % 100 / 100f;
             latest = ReplyUpdatePacket.CaptureIfChanged(data, frame + 1, scratch, latest) ?? latest;
-            VrcftPacketDecoder.TryDecodePacket(latest!.GetBytes(), out var packet);
-            lock (UnifiedTracking.DataLock)
+            Assert.True(VrcftPacketDecoder.TryDecodePacket(latest!.GetBytes(), out IpcPacket? packet));
+            using (UnifiedTracking.LockData())
             {
                 ((ReplyUpdatePacket)packet).UpdateGlobalState(TrackingCapability.All);
             }
         }
 
-        for (var i = 0; i < 2000; i++)
+        for (int i = 0; i < 2000; i++)
         {
             Sample(i);
         }
-        var heapBefore = Measure.LiveHeapBytes();
+        long heapBefore = Measure.LiveHeapBytes();
 
-        for (var i = 0; i < 50_000; i++)
+        for (int i = 0; i < 50_000; i++)
         {
             Sample(i);
         }
 
-        var growth = Measure.LiveHeapBytes() - heapBefore;
-        output.Report("ipc sample heap growth", $"{growth / 1024.0:N1} KB over 50000 samples, budget {SampleHeapGrowthBudgetBytes / 1024} KB");
+        long growth = Measure.LiveHeapBytes() - heapBefore;
+        _output.Report("ipc sample heap growth", $"{growth / 1024.0:N1} KB over 50000 samples, budget {SampleHeapGrowthBudgetBytes / 1024} KB");
         Assert.True(growth < SampleHeapGrowthBudgetBytes, $"live heap grew {growth} B over 50000 samples");
     }
 
     [Fact]
-    public void SendQueue_WithoutAnOscTarget_StillDrains()
+    public void SendQueueWithoutAnOscTargetStillDrains()
     {
         var target = new FakeOscTarget();
         var send = new OscSendService(NullLogger<OscSendService>.Instance, target);
-        var mutator = Tracking.CreateMutator(allMutations: false);
+        UnifiedTrackingMutator mutator = Tracking.CreateMutator(allMutations: false);
         using var sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance,
             new TimerResolutionHold(NullLogger.Instance));
-        Tracking.SetAllParametersRelevant(true);
+        Tracking.SetAllParametersRelevant(relevant: true);
         try
         {
-            var drained = 0;
-            for (var i = 0; i < 100; i++)
+            int drained = 0;
+            for (int i = 0; i < 100; i++)
             {
                 Tracking.WriteFrame(i);
-                UnifiedTracking.UpdateData();
+                TrackingOutput.UpdateData();
                 drained += sender.SendQueued();
             }
 
@@ -137,7 +145,7 @@ public sealed class MemoryTests(ITestOutputHelper output)
         }
         finally
         {
-            Tracking.SetAllParametersRelevant(false);
+            Tracking.SetAllParametersRelevant(relevant: false);
         }
     }
 }

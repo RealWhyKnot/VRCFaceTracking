@@ -15,11 +15,11 @@ public static class NativeFaceBlob
             throw new ArgumentException($"The face tracking blob needs {Length} bytes, got {bytes.Length}", nameof(bytes));
         }
 
-        var eye = data.Eye;
-        var rightYaw = eye.Right.Gaze.ToNormalizedYaw();
-        var rightUp = -eye.Right.Gaze.ToNormalizedPitch();
-        var leftYaw = eye.Left.Gaze.ToNormalizedYaw();
-        var leftUp = -eye.Left.Gaze.ToNormalizedPitch();
+        UnifiedEyeData eye = data.Eye;
+        float rightYaw = eye.Right.Gaze.ToNormalizedYaw();
+        float rightUp = -eye.Right.Gaze.ToNormalizedPitch();
+        float leftYaw = eye.Left.Gaze.ToNormalizedYaw();
+        float leftUp = -eye.Left.Gaze.ToNormalizedPitch();
 
         bytes[0] = ToByte(rightYaw);
         bytes[1] = ToByte(-rightYaw);
@@ -32,14 +32,14 @@ public static class NativeFaceBlob
         bytes[8] = ToByte(1f - eye.Right.Openness);
         bytes[9] = ToByte(1f - eye.Left.Openness);
 
-        var rightPupil = PupilOffset(eye, eye.Right.PupilDiameter_MM);
-        var leftPupil = PupilOffset(eye, eye.Left.PupilDiameter_MM);
+        float rightPupil = PupilOffset(eye, eye.Right.PupilDiameter_MM);
+        float leftPupil = PupilOffset(eye, eye.Left.PupilDiameter_MM);
         bytes[10] = ToByte(rightPupil);
         bytes[11] = ToByte(leftPupil);
         bytes[12] = ToByte(-rightPupil);
         bytes[13] = ToByte(-leftPupil);
 
-        for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
+        for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
         {
             bytes[ShapeOffset + i] = ToByte(data.Shapes[i].Weight);
         }
@@ -47,13 +47,8 @@ public static class NativeFaceBlob
 
     private static float PupilOffset(UnifiedEyeData eye, float diameter)
     {
-        var range = eye._maxDilation - eye._minDilation;
-        if (!(range > 0f) || float.IsInfinity(range))
-        {
-            return 0f;
-        }
-
-        return ((diameter - eye._minDilation) / range - 0.5f) * 2f;
+        float range = eye._maxDilation - eye._minDilation;
+        return !(range > 0f) || float.IsInfinity(range) ? 0f : (((diameter - eye._minDilation) / range) - 0.5f) * 2f;
     }
 
     private static byte ToByte(float value) =>

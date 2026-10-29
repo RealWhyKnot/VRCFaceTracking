@@ -1,36 +1,69 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
+shopt -s inherit_errexit
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-[ -f "$repo_root/VRCFaceTracking.slnx" ] || exit 0
-
-if ! command -v dotnet >/dev/null 2>&1; then
-  echo "pre-push: dotnet not found; skipping format check." >&2
-  exit 0
-fi
-
-upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-[ -n "$upstream" ] || upstream="origin/main"
-if ! git rev-parse --verify -q "$upstream" >/dev/null; then
-  upstream="HEAD~1"
-fi
-
-changed="$(git diff --name-only --diff-filter=ACMR "$upstream...HEAD" -- '*.cs' 2>/dev/null | head -1)"
-if [ -z "$changed" ]; then
-  echo "pre-push: no C# changes since $upstream; skipping format check." >&2
-  exit 0
-fi
-
-echo "pre-push: checking formatting (dotnet format --verify-no-changes)..." >&2
-(cd "$repo_root" && dotnet format VRCFaceTracking.slnx --verify-no-changes --no-restore -v q)
-if [ "$?" -ne 0 ]; then
-  {
-    echo ""
-    echo "pre-push BLOCKED: the solution would fail CI's lint job."
-    echo "  Fix format:  dotnet format VRCFaceTracking.slnx"
-    echo "  Bypass:      git push --no-verify"
-    echo ""
-  } >&2
+die() {
+  printf 'pre-push BLOCKED: %s\n  Bypass: git push --no-verify\n' "$*" >&2
   exit 1
+}
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[[ -f "${repo_root}/VRCFaceTracking.slnx" ]] || exit 0
+cd "${repo_root}"
+
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || upstream=origin/main
+git rev-parse --verify -q "${upstream}" >/dev/null || upstream=HEAD~1
+
+dotnet_paths=(
+  '*.cs' '*.csproj' '*.props' '*.targets' '*.slnx' '*.axaml' '*.editorconfig' '*packages.lock.json' '.lint/*'
+)
+changed=$(git diff --name-only "${upstream}...HEAD" -- "${dotnet_paths[@]}" 2>/dev/null) || changed=unknown
+
+if [[ -z ${changed} ]]; then
+  printf 'pre-push: no .NET changes since %s; skipping the .NET checks.\n' "${upstream}" >&2
+elif ! command -v dotnet >/dev/null 2>&1; then
+  echo "pre-push: dotnet not found; skipping the .NET checks." >&2
+else
+  plat=()
+  os=$(uname -s)
+  case "${os}" in
+    MINGW* | MSYS* | CYGWIN*) plat=(-p:Platform=x64) ;;
+    *) ;;
+  esac
+
+  echo "pre-push: restore (locked)..." >&2
+  dotnet restore VRCFaceTracking.slnx ${plat[@]+"${plat[@]}"} --locked-mode -v q \
+    || die "restore failed; if a package changed, restore without --locked-mode and commit packages.lock.json."
+
+  echo "pre-push: dotnet format..." >&2
+  dotnet format VRCFaceTracking.slnx --verify-no-changes --no-restore -v q \
+    || die "formatting drift; fix it with 'dotnet format VRCFaceTracking.slnx'."
+
+  echo "pre-push: Release build..." >&2
+  dotnet build VRCFaceTracking.slnx -c Release ${plat[@]+"${plat[@]}"} --no-restore -v q -nologo \
+    || die "the Release build failed."
+
+  echo "pre-push: tests..." >&2
+  dotnet test VRCFaceTracking.slnx -c Release ${plat[@]+"${plat[@]}"} --no-build -v q \
+    || die "tests failed."
+
+  echo "pre-push: C# style rules..." >&2
+  dotnet run .lint/CSharpStyle/Program.cs -- . || die "C# style rules failed."
 fi
-exit 0
+
+python_bin=""
+for c in python3 python py; do
+  if command -v "${c}" >/dev/null 2>&1; then
+    python_bin=${c}
+    break
+  fi
+done
+
+if [[ -z ${python_bin} ]]; then
+  echo "pre-push: Python not found; skipping style_check.py." >&2
+else
+  echo "pre-push: style_check.py..." >&2
+  "${python_bin}" -B style_check.py || die "style_check.py failed."
+fi
+
+echo "pre-push: checks passed." >&2

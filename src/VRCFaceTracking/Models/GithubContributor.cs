@@ -1,17 +1,15 @@
+using System.Text.Json.Serialization;
+
 namespace VRCFaceTracking.Models;
 
-public class GithubContributor
+internal sealed class GithubContributor
 {
-    public string login
-    {
-        get; set;
-    }
-    public string html_url
-    {
-        get; set;
-    }
-    public int contributions
-    {
-        get; set;
-    }
+    [JsonPropertyName("login")]
+    public string Login { get; set; } = string.Empty;
+
+    [JsonPropertyName("html_url")]
+    public string HtmlUrl { get; set; } = string.Empty;
+
+    [JsonPropertyName("contributions")]
+    public int Contributions { get; set; }
 }

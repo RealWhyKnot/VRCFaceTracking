@@ -5,15 +5,15 @@ namespace VRCFaceTracking.Core.Contracts.Services;
 
 public interface ILibManager
 {
-    public ObservableCollection<ModuleMetadataInternal> LoadedModulesMetadata
-    {
-        get; set;
-    }
-    public ModuleInitProgress InitProgress
+    ObservableCollection<ModuleMetadataInternal> LoadedModulesMetadata
     {
         get;
     }
-    public void Initialize();
+    ModuleInitProgress InitProgress
+    {
+        get;
+    }
+    void Initialize();
     void TeardownAllAndReset();
     void SetImageStreamEnabled(bool enabled);
 }

@@ -4,25 +4,25 @@ namespace VRCFaceTracking.Core.Contracts;
 
 public interface IOscTarget : INotifyPropertyChanged
 {
-    public bool IsConnected
+    bool IsConnected
     {
         get;
         set;
     }
 
-    public int InPort
+    int InPort
     {
         get;
         set;
     }
 
-    public int OutPort
+    int OutPort
     {
         get;
         set;
     }
 
-    public string DestinationAddress
+    string? DestinationAddress
     {
         get;
         set;

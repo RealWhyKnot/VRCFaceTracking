@@ -1,18 +1,18 @@
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Helpers;
 using VRCFaceTracking.Core.Models;
+using VRCFaceTracking.Models;
 
 namespace VRCFaceTracking.Core.Services;
 
-public class ModuleDataService : IModuleDataService
+internal sealed partial class ModuleDataService : IModuleDataService
 {
     private List<InstallableTrackingModule>? _remoteModules;
-    private readonly Dictionary<Guid, int> _ratingCache = new();
+    private readonly Dictionary<Guid, int> _ratingCache = [];
 
     private readonly IIdentityService _identityService;
     private readonly ILogger<ModuleDataService> _logger;
@@ -28,51 +28,49 @@ public class ModuleDataService : IModuleDataService
         _httpClient.BaseAddress = new Uri(BaseUrl);
     }
 
-    private async Task<IEnumerable<InstallableTrackingModule>> AllModules()
+    private async Task<IEnumerable<InstallableTrackingModule>> FetchAllModulesAsync(CancellationToken cancellationToken)
     {
         try
         {
-            // This is where we make the actual request to the API at modules and get the list of modules.
-            var response = await _httpClient.GetAsync("modules");
+            using HttpResponseMessage response = await _httpClient.GetAsync(new Uri("modules", UriKind.Relative), cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return new List<InstallableTrackingModule>();
+                return [];
             }
 
-            var content = await response.Content.ReadAsStringAsync();
-            return await Json.ToObjectAsync<List<InstallableTrackingModule>>(content);
+            string content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return await JsonText.ToObjectAsync<List<InstallableTrackingModule>>(content, cancellationToken) ?? [];
         }
-        catch (Exception e)
+        catch (Exception e) when (e is HttpRequestException or JsonException || (e is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            _logger.LogWarning("Exception trying to get modules from module registry: {e}", e.Message);
-            return new List<InstallableTrackingModule>();
+            LogExceptionTryingGetModulesModule(_logger, e.Message);
+            return [];
         }
     }
 
-    public async Task<IEnumerable<InstallableTrackingModule>> GetRemoteModules()
+    public async Task<IEnumerable<InstallableTrackingModule>> GetRemoteModulesAsync(CancellationToken cancellationToken)
     {
-        _remoteModules ??= new List<InstallableTrackingModule>(await AllModules());
+        _remoteModules ??= [.. await FetchAllModulesAsync(cancellationToken)];
 
         return _remoteModules;
     }
 
-    public async Task IncrementDownloadsAsync(TrackingModuleMetadata moduleMetadata)
+    public async Task IncrementDownloadsAsync(TrackingModuleMetadata moduleMetadata, CancellationToken cancellationToken)
     {
-        // Send a PATCH request to the downloads endpoint with the module ID in the body
         var rating = new RatingObject
         {
             UserId = _identityService.GetUniqueUserId(),
-            ModuleId = moduleMetadata.ModuleId.ToString()
+            ModuleId = moduleMetadata.ModuleId.ToString(),
         };
-        var content = new StringContent(JsonConvert.SerializeObject(rating), Encoding.UTF8, "application/json");
-        var response = await _httpClient.PatchAsync("downloads", content);
+        using var content = new StringContent(JsonConvert.SerializeObject(rating), Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await _httpClient.PatchAsync(new Uri("downloads", UriKind.Relative), content, cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.OK)
         {
             return;
         }
 
-        _logger.LogError("Failed to increment downloads for {ModuleId}. Status code: {StatusCode}", moduleMetadata.ModuleId, response.StatusCode);
+        LogFailedIncrementDownloadsStatusCode(_logger, moduleMetadata.ModuleId, response.StatusCode);
     }
 
     public IEnumerable<InstallableTrackingModule> GetLegacyModules()
@@ -82,7 +80,7 @@ public class ModuleDataService : IModuleDataService
             Directory.CreateDirectory(Utils.CustomLibsDirectory);
         }
 
-        var moduleDlls = Directory.GetFiles(Utils.CustomLibsDirectory, "*.dll");
+        string[] moduleDlls = Directory.GetFiles(Utils.CustomLibsDirectory, "*.dll");
 
         return moduleDlls.Select(moduleDll => new InstallableTrackingModule
         {
@@ -93,82 +91,77 @@ public class ModuleDataService : IModuleDataService
             ModuleName = Path.GetFileNameWithoutExtension(moduleDll),
             ModuleDescription = "Legacy module",
             AuthorName = "Local",
-            ModulePageUrl = "file:///" + Path.GetDirectoryName(moduleDll)
+            ModulePageUrl = new Uri("file:///" + Path.GetDirectoryName(moduleDll)),
         });
     }
 
-    public async Task<int?> GetMyRatingAsync(TrackingModuleMetadata moduleMetadata)
+    public async Task<int?> GetMyRatingAsync(TrackingModuleMetadata moduleMetadata, CancellationToken cancellationToken)
     {
         try
         {
-            if (_ratingCache.TryGetValue(moduleMetadata.ModuleId, out var async))
+            if (_ratingCache.TryGetValue(moduleMetadata.ModuleId, out int cached))
             {
-                _logger.LogDebug("Rating for {ModuleId} was cached as {Rating}", moduleMetadata.ModuleId, async);
-                return async;
+                LogRatingCached(_logger, moduleMetadata.ModuleId, cached);
+                return cached;
             }
 
             var rating = new RatingObject
             {
                 UserId = _identityService.GetUniqueUserId(),
-                ModuleId = moduleMetadata.ModuleId.ToString()
+                ModuleId = moduleMetadata.ModuleId.ToString(),
             };
 
-            var response = await _httpClient.SendAsync(new HttpRequestMessage
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("rating", UriKind.Relative))
             {
-                Method = HttpMethod.Get,
-                RequestUri = new Uri("rating", UriKind.Relative),
                 Content = new StringContent(JsonConvert.SerializeObject(rating), Encoding.UTF8, "application/json"),
-            });
+            };
+            using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
 
-            // Deserialize the input content but extract the Rating property. Be careful though, we might 404 if the user hasn't rated the module yet.
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                _logger.LogDebug("Failed to get user rating for module {ModuleId}", moduleMetadata.ModuleId);
+                LogFailedGetUserRatingModule(_logger, moduleMetadata.ModuleId);
                 return null;
             }
 
-            var ratingResponse = await Json.ToObjectAsync<RatingObject>(await response.Content.ReadAsStringAsync());
+            RatingObject ratingResponse = await JsonText.ToObjectAsync<RatingObject>(await response.Content.ReadAsStringAsync(cancellationToken), cancellationToken);
 
-            _logger.LogDebug("Rating for {ModuleId} was {Rating}. Caching...", moduleMetadata.ModuleId, ratingResponse.Rating);
+            LogRatingCaching(_logger, moduleMetadata.ModuleId, ratingResponse.Rating);
             _ratingCache[moduleMetadata.ModuleId] = ratingResponse.Rating;
             return ratingResponse.Rating;
         }
-        catch (Exception e)
+        catch (Exception e) when (e is HttpRequestException or JsonException || (e is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            _logger.LogWarning("Failed to get user rating for module {ModuleId}. Exception: {Exception}", moduleMetadata.ModuleId, e.Message);
+            LogGetUserRatingFailed(_logger, moduleMetadata.ModuleId, e.Message);
             return null;
         }
     }
 
-    public async Task SetMyRatingAsync(TrackingModuleMetadata moduleMetadata, int rating)
+    public async Task SetMyRatingAsync(TrackingModuleMetadata moduleMetadata, int rating, CancellationToken cancellationToken)
     {
         try
         {
-            // Same format as get but we PUT this time
             var ratingObject = new RatingObject
             {
                 UserId = _identityService.GetUniqueUserId(),
                 ModuleId = moduleMetadata.ModuleId.ToString(),
-                Rating = rating
+                Rating = rating,
             };
 
-            var content = new StringContent(JsonConvert.SerializeObject(ratingObject), Encoding.UTF8,
-                "application/json");
-            var response = await _httpClient.PutAsync("rating", content);
+            using var content = new StringContent(JsonConvert.SerializeObject(ratingObject), Encoding.UTF8, "application/json");
+            using HttpResponseMessage response = await _httpClient.PutAsync(new Uri("rating", UriKind.Relative), content, cancellationToken);
 
             if (response.StatusCode != HttpStatusCode.OK)
             {
-                _logger.LogError("Failed to set rating for {ModuleId} to {Rating}. Status code: {StatusCode}",
-                    moduleMetadata.ModuleId, rating, response.StatusCode);
+                LogFailedSetRatingStatusCode(_logger, moduleMetadata.ModuleId, rating, response.StatusCode);
                 return;
             }
 
-            _logger.LogDebug("Rating for {ModuleId} was set to {Rating}. Caching...", moduleMetadata.ModuleId, rating);
+            LogRatingSetCaching(_logger, moduleMetadata.ModuleId, rating);
             _ratingCache[moduleMetadata.ModuleId] = rating;
         }
-        catch (Exception e)
+        catch (Exception e) when (e is HttpRequestException || (e is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            _logger.LogWarning("Failed to set rating for module {ModuleId}. Exception: {Exception}", moduleMetadata.ModuleId, e.Message);
+            LogSetRatingFailed(_logger, moduleMetadata.ModuleId, e.Message);
         }
     }
 
@@ -179,13 +172,11 @@ public class ModuleDataService : IModuleDataService
             Directory.CreateDirectory(Utils.CustomLibsDirectory);
         }
 
-        // Check each folder in our CustomModulesDir folder and see if it has a module.json file.
-        // If it does, deserialize it and add it to the list of installed modules.
         var installedModules = new List<InstallableTrackingModule>();
-        var moduleFolders = Directory.GetDirectories(Utils.CustomLibsDirectory);
-        foreach (var moduleFolder in moduleFolders)
+        string[] moduleFolders = Directory.GetDirectories(Utils.CustomLibsDirectory);
+        foreach (string moduleFolder in moduleFolders)
         {
-            var moduleJsonPath = Path.Combine(moduleFolder, "module.json");
+            string moduleJsonPath = Path.Combine(moduleFolder, "module.json");
             if (!File.Exists(moduleJsonPath))
             {
                 continue;
@@ -193,17 +184,56 @@ public class ModuleDataService : IModuleDataService
 
             try
             {
-                var moduleJson = File.ReadAllText(moduleJsonPath);
-                var module = JsonConvert.DeserializeObject<InstallableTrackingModule>(moduleJson);
-                module.AssemblyLoadPath = Path.Combine(moduleFolder, module.DllFileName);
+                string moduleJson = File.ReadAllText(moduleJsonPath);
+                InstallableTrackingModule? module = JsonConvert.DeserializeObject<InstallableTrackingModule>(moduleJson);
+                if (module?.DllFileName is not { Length: > 0 } dllFileName)
+                {
+                    LogModuleJsonNamesNoDll(_logger, moduleFolder);
+                    continue;
+                }
+
+                module.AssemblyLoadPath = Path.Combine(moduleFolder, dllFileName);
                 installedModules.Add(module);
             }
-            catch (Exception e)
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
             {
-                _logger.LogError(e, "Failed to deserialize module.json for {ModuleFolder}", moduleFolder);
+                LogFailedDeserializeModuleJson(_logger, e, moduleFolder);
             }
         }
 
         return installedModules;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Skipping {Folder}: its module.json names no DLL")]
+    private static partial void LogModuleJsonNamesNoDll(ILogger logger, string folder);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Exception trying to get modules from module registry: {E}")]
+    private static partial void LogExceptionTryingGetModulesModule(ILogger logger, string e);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to increment downloads for {ModuleId}. Status code: {StatusCode}")]
+    private static partial void LogFailedIncrementDownloadsStatusCode(ILogger logger, Guid moduleId, HttpStatusCode statusCode);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Rating for {ModuleId} was cached as {Rating}")]
+    private static partial void LogRatingCached(ILogger logger, Guid moduleId, int rating);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Failed to get user rating for module {ModuleId}")]
+    private static partial void LogFailedGetUserRatingModule(ILogger logger, Guid moduleId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Rating for {ModuleId} was {Rating}. Caching...")]
+    private static partial void LogRatingCaching(ILogger logger, Guid moduleId, int rating);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to get user rating for module {ModuleId}. Exception: {ErrorMessage}")]
+    private static partial void LogGetUserRatingFailed(ILogger logger, Guid moduleId, string errorMessage);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to set rating for {ModuleId} to {Rating}. Status code: {StatusCode}")]
+    private static partial void LogFailedSetRatingStatusCode(ILogger logger, Guid moduleId, int rating, HttpStatusCode statusCode);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Rating for {ModuleId} was set to {Rating}. Caching...")]
+    private static partial void LogRatingSetCaching(ILogger logger, Guid moduleId, int rating);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to set rating for module {ModuleId}. Exception: {ErrorMessage}")]
+    private static partial void LogSetRatingFailed(ILogger logger, Guid moduleId, string errorMessage);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to deserialize module.json for {ModuleFolder}")]
+    private static partial void LogFailedDeserializeModuleJson(ILogger logger, Exception exception, string moduleFolder);
 }

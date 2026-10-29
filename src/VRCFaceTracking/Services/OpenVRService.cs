@@ -6,25 +6,26 @@ using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Services;
 
-public class OpenVRService
+internal sealed partial class OpenVRService : IDisposable
 {
     private static readonly TimeSpan EventPollInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan ReconnectInterval = TimeSpan.FromSeconds(30);
     private static readonly uint EventSize = (uint)Marshal.SizeOf<VREvent_t>();
 
     private readonly ILogger<OpenVRService> _logger;
-    private readonly object _initLock = new();
+    private readonly Lock _initLock = new();
     private readonly CancellationTokenSource _serviceCts = new();
     private CVRSystem? _system;
     private CancellationTokenSource? _pollingCts;
     private Task? _reconnectLoop;
     private bool _nativeMissing;
+    private bool _disposed;
 
     public static bool Enabled = true;
 
     public static bool IsSupported => !OperatingSystem.IsMacOS();
 
-    public event Action? QuitRequested;
+    public event EventHandler? QuitRequested;
 
     [SavedSetting("ExitWithSteamVR", false)]
     public bool ExitWithSteamVr
@@ -51,7 +52,7 @@ public class OpenVRService
                 return false;
             }
 
-            var error = EVRInitError.None;
+            EVRInitError error = EVRInitError.None;
             try
             {
                 _system = OpenVR.Init(ref error, EVRApplicationType.VRApplication_Background);
@@ -59,29 +60,29 @@ public class OpenVRService
             catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException or TypeInitializationException)
             {
                 _nativeMissing = true;
-                _logger.LogWarning("OpenVR native library not available: {Message}", ex.Message);
+                LogOpenVRNativeLibraryNotAvailable(_logger, ex.Message);
                 return false;
             }
 
             if (error != EVRInitError.None)
             {
-                _logger.Log(quiet ? LogLevel.Debug : LogLevel.Warning, "Failed to initialize OpenVR: {Error}", error);
+                LogOpenVRInitFailed(_logger, quiet ? LogLevel.Debug : LogLevel.Warning, error);
                 _system = null;
                 return false;
             }
 
-            var currentDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? AppContext.BaseDirectory;
-            var fullManifestPath = Path.Combine(currentDirectory, "app.vrmanifest");
-            var manifestRegisterResult = OpenVR.Applications.AddApplicationManifest(fullManifestPath, false);
+            string currentDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? AppContext.BaseDirectory;
+            string fullManifestPath = Path.Combine(currentDirectory, "app.vrmanifest");
+            EVRApplicationError manifestRegisterResult = OpenVR.Applications.AddApplicationManifest(fullManifestPath, bTemporary: false);
             if (manifestRegisterResult != EVRApplicationError.None)
             {
-                _logger.Log(quiet ? LogLevel.Debug : LogLevel.Warning, "Failed to register manifest: {Error}", manifestRegisterResult);
+                LogManifestRegisterFailed(_logger, quiet ? LogLevel.Debug : LogLevel.Warning, manifestRegisterResult);
                 _system = null;
                 OpenVR.Shutdown();
                 return false;
             }
 
-            _logger.LogInformation("Successfully initialized OpenVR");
+            LogSuccessfullyInitializedOpenVR(_logger);
             IsInitialized = true;
 
             if (_pollingCts == null)
@@ -100,28 +101,25 @@ public class OpenVRService
         {
             return;
         }
-        _reconnectLoop ??= ReconnectAsync();
+        _reconnectLoop ??= ReconnectAsync(_serviceCts.Token);
     }
 
-    private async Task ReconnectAsync()
+    private async Task ReconnectAsync(CancellationToken cancellationToken)
     {
         try
         {
             using var timer = new PeriodicTimer(ReconnectInterval);
-            while (await timer.WaitForNextTickAsync(_serviceCts.Token))
+            while (await timer.WaitForNextTickAsync(cancellationToken))
             {
                 if (!IsInitialized)
                 {
-                    Initialize(true);
+                    Initialize(quiet: true);
                 }
             }
         }
         catch (OperationCanceledException)
         {
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "OpenVR reconnect loop stopped");
+            return;
         }
     }
 
@@ -131,6 +129,18 @@ public class OpenVRService
         Shutdown();
     }
 
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        StopService();
+        _serviceCts.Dispose();
+    }
+
     private async Task PumpEventsAsync(CancellationToken ct)
     {
         try
@@ -138,22 +148,16 @@ public class OpenVRService
             using var timer = new PeriodicTimer(EventPollInterval);
             while (await timer.WaitForNextTickAsync(ct))
             {
-                var system = _system;
+                CVRSystem? system = _system;
                 if (system == null || DrainEvents(system))
                 {
                     return;
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException)
         {
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "OpenVR event pump stopped unexpectedly");
+            return;
         }
     }
 
@@ -169,14 +173,14 @@ public class OpenVRService
 
             if (ExitWithSteamVr)
             {
-                _logger.LogInformation("SteamVR is shutting down, closing VRCFaceTracking");
+                LogSteamVRShuttingDownClosingVRCFaceTracking(_logger);
                 system.AcknowledgeQuit_Exiting();
                 Shutdown();
-                QuitRequested?.Invoke();
+                QuitRequested?.Invoke(this, EventArgs.Empty);
             }
             else
             {
-                _logger.LogInformation("SteamVR is shutting down, releasing OpenVR and staying open");
+                LogSteamVRShuttingDownReleasingOpenVR(_logger);
                 Shutdown();
             }
 
@@ -224,15 +228,39 @@ public class OpenVRService
         {
             if (!IsInitialized && !Initialize())
             {
-                _logger.LogWarning("Failed to set AutoStart preference. OpenVR couldn't be initialized.");
+                LogFailedSetAutoStartPreferenceOpenVR(_logger);
                 return;
             }
 
-            var setAutoLaunchResult = OpenVR.Applications.SetApplicationAutoLaunch("benaclejames.vrcft", value);
+            EVRApplicationError setAutoLaunchResult = OpenVR.Applications.SetApplicationAutoLaunch("benaclejames.vrcft", value);
             if (setAutoLaunchResult != EVRApplicationError.None)
             {
-                _logger.LogError("Failed to set auto launch: {Error}", setAutoLaunchResult);
+                LogFailedSetAutoLaunch(_logger, setAutoLaunchResult);
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "OpenVR native library not available: {Message}")]
+    private static partial void LogOpenVRNativeLibraryNotAvailable(ILogger logger, string message);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Successfully initialized OpenVR")]
+    private static partial void LogSuccessfullyInitializedOpenVR(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "SteamVR is shutting down, closing VRCFaceTracking")]
+    private static partial void LogSteamVRShuttingDownClosingVRCFaceTracking(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "SteamVR is shutting down, releasing OpenVR and staying open")]
+    private static partial void LogSteamVRShuttingDownReleasingOpenVR(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Failed to set AutoStart preference. OpenVR couldn't be initialized.")]
+    private static partial void LogFailedSetAutoStartPreferenceOpenVR(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to set auto launch: {Error}")]
+    private static partial void LogFailedSetAutoLaunch(ILogger logger, EVRApplicationError error);
+
+    [LoggerMessage(Message = "Failed to initialize OpenVR: {Error}")]
+    private static partial void LogOpenVRInitFailed(ILogger logger, LogLevel level, EVRInitError error);
+
+    [LoggerMessage(Message = "Failed to register manifest: {Error}")]
+    private static partial void LogManifestRegisterFailed(ILogger logger, LogLevel level, EVRApplicationError error);
 }

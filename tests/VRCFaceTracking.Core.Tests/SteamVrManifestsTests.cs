@@ -1,17 +1,18 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class SteamVrManifestsTests : IDisposable
+public sealed partial class SteamVrManifestsTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory().FullName;
 
-    public void Dispose() => Directory.Delete(_root, true);
+    public void Dispose() => Directory.Delete(_root, recursive: true);
 
     private string Manifest(string folder, string appKey)
     {
-        var dir = Directory.CreateDirectory(Path.Combine(_root, folder)).FullName;
-        var path = Path.Combine(dir, "app.vrmanifest");
+        string dir = Directory.CreateDirectory(Path.Combine(_root, folder)).FullName;
+        string path = Path.Combine(dir, "app.vrmanifest");
         File.WriteAllText(path, "{\n  // SteamVR tolerates comments\n  \"source\": \"builtin\",\n  \"applications\": [ { \"app_key\": \"" + appKey + "\", \"launch_type\": \"binary\" }, ]\n}");
         return path;
     }
@@ -19,15 +20,15 @@ public class SteamVrManifestsTests : IDisposable
     private string OpenVrPaths(params string[][] configs)
     {
         var configDirs = new List<string>();
-        for (var i = 0; i < configs.Length; i++)
+        for (int i = 0; i < configs.Length; i++)
         {
-            var dir = Directory.CreateDirectory(Path.Combine(_root, $"config{i}")).FullName;
-            File.WriteAllText(Path.Combine(dir, "appconfig.json"), JsonSerializer.Serialize(new Dictionary<string, string[]> { ["manifest_paths"] = configs[i] }));
+            string dir = Directory.CreateDirectory(Path.Combine(_root, $"config{i}")).FullName;
+            File.WriteAllText(Path.Combine(dir, "appconfig.json"), JsonSerializer.Serialize(new Dictionary<string, string[]>(StringComparer.Ordinal) { ["manifest_paths"] = configs[i] }));
             configDirs.Add(dir);
         }
 
-        var file = Path.Combine(_root, "openvrpaths.vrpath");
-        File.WriteAllText(file, JsonSerializer.Serialize(new Dictionary<string, object> { ["config"] = configDirs, ["version"] = 1 }));
+        string file = Path.Combine(_root, "openvrpaths.vrpath");
+        File.WriteAllText(file, JsonSerializer.Serialize(new Dictionary<string, object>(StringComparer.Ordinal) { ["config"] = configDirs, ["version"] = 1 }));
         return file;
     }
 
@@ -36,7 +37,7 @@ public class SteamVrManifestsTests : IDisposable
     {
         Assert.Equal("benaclejames.vrcft", SteamVrManifests.AppKey(Manifest("a", "benaclejames.vrcft")));
         Assert.Null(SteamVrManifests.AppKey(Path.Combine(_root, "missing.vrmanifest")));
-        var broken = Path.Combine(_root, "broken.vrmanifest");
+        string broken = Path.Combine(_root, "broken.vrmanifest");
         File.WriteAllText(broken, "{ not json");
         Assert.Null(SteamVrManifests.AppKey(broken));
     }
@@ -44,10 +45,10 @@ public class SteamVrManifestsTests : IDisposable
     [Fact]
     public void RegisteredMergesConfigDirsWithoutDuplicates()
     {
-        var a = Manifest("a", "x");
-        var b = Manifest("b", "y");
-        var file = OpenVrPaths(new[] { a, b }, new[] { a.ToUpperInvariant() });
-        var registered = SteamVrManifests.Registered(file);
+        string a = Manifest("a", "x");
+        string b = Manifest("b", "y");
+        string file = OpenVrPaths([a, b], [a.ToUpperInvariant()]);
+        IReadOnlyList<string> registered = SteamVrManifests.Registered(file);
         Assert.Equal(OperatingSystem.IsWindows() ? 2 : 3, registered.Count);
         Assert.Equal(a, registered[0]);
         Assert.Equal(b, registered[1]);
@@ -57,7 +58,7 @@ public class SteamVrManifestsTests : IDisposable
     public void RegisteredIsEmptyWithoutSteamVr()
     {
         Assert.Empty(SteamVrManifests.Registered(Path.Combine(_root, "missing.vrpath")));
-        var file = Path.Combine(_root, "empty.vrpath");
+        string file = Path.Combine(_root, "empty.vrpath");
         File.WriteAllText(file, "{}");
         Assert.Empty(SteamVrManifests.Registered(file));
     }
@@ -65,16 +66,16 @@ public class SteamVrManifestsTests : IDisposable
     [Fact]
     public void PlanFindsOtherCopiesWithTheSameKey()
     {
-        var ours = Manifest("ours", "benaclejames.vrcft");
-        var oldCopy = Manifest("old", "benaclejames.vrcft");
-        var other = Manifest("other", "someone.else");
-        var gone = Path.Combine(_root, "deleted", "app.vrmanifest");
+        string ours = Manifest("ours", "benaclejames.vrcft");
+        string oldCopy = Manifest("old", "benaclejames.vrcft");
+        string other = Manifest("other", "someone.else");
+        string gone = Path.Combine(_root, "deleted", "app.vrmanifest");
 
-        var plan = SteamVrManifests.Plan(ours, "benaclejames.vrcft", new[] { oldCopy, other, gone }, SteamVrManifests.AppKey);
+        SteamVrManifestPlan plan = SteamVrManifests.Plan(ours, "benaclejames.vrcft", [oldCopy, other, gone], SteamVrManifests.AppKey);
         Assert.False(plan.Registered);
-        Assert.Equal(new[] { oldCopy }, plan.Rivals);
+        Assert.Equal([oldCopy], plan.Rivals);
 
-        plan = SteamVrManifests.Plan(ours, "benaclejames.vrcft", new[] { other, ours + Path.DirectorySeparatorChar }, SteamVrManifests.AppKey);
+        plan = SteamVrManifests.Plan(ours, "benaclejames.vrcft", [other, ours + Path.DirectorySeparatorChar], SteamVrManifests.AppKey);
         Assert.True(plan.Registered);
         Assert.Empty(plan.Rivals);
     }
@@ -82,7 +83,7 @@ public class SteamVrManifestsTests : IDisposable
     [Fact]
     public void SamePathNormalisesSeparatorsAndCase()
     {
-        var path = Path.Combine(_root, "dir", "app.vrmanifest");
+        string path = Path.Combine(_root, "dir", "app.vrmanifest");
         Assert.True(SteamVrManifests.SamePath(path, Path.Combine(_root, "dir", ".", "app.vrmanifest")));
         Assert.Equal(OperatingSystem.IsWindows(), SteamVrManifests.SamePath(path, path.ToUpperInvariant()));
         Assert.False(SteamVrManifests.SamePath(path, Path.Combine(_root, "other", "app.vrmanifest")));
@@ -96,12 +97,12 @@ public class SteamVrManifestsTests : IDisposable
             return;
         }
 
-        var manifest = Manifest("a folder with a long name", "x");
-        var buffer = new System.Text.StringBuilder(1024);
-        var length = GetShortPathName(manifest, buffer, (uint)buffer.Capacity);
-        Assert.True(length > 0);
-        var shortPath = buffer.ToString();
-        if (shortPath == manifest)
+        string manifest = Manifest("a folder with a long name", "x");
+        Span<char> buffer = stackalloc char[1024];
+        uint length = GetShortPathName(manifest, buffer, (uint)buffer.Length);
+        Assert.True(length > 0 && length < buffer.Length);
+        string shortPath = new(buffer[..(int)length]);
+        if (string.Equals(shortPath, manifest, StringComparison.Ordinal))
         {
             return;
         }
@@ -110,6 +111,7 @@ public class SteamVrManifestsTests : IDisposable
         Assert.True(SteamVrManifests.SamePath(shortPath, manifest));
     }
 
-    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    private static extern uint GetShortPathName(string longPath, System.Text.StringBuilder shortPath, uint size);
+    [LibraryImport("kernel32.dll", EntryPoint = "GetShortPathNameW", StringMarshalling = StringMarshalling.Utf16)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static partial uint GetShortPathName(string longPath, Span<char> shortPath, uint size);
 }

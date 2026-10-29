@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Headless;
-using VRCFaceTracking;
 using VRCFaceTracking.Services;
 using VRCFaceTracking.Tests;
 
@@ -14,8 +13,8 @@ public static class TestAppBuilder
     [ModuleInitializer]
     internal static void RedirectUserFolders()
     {
-        var root = Directory.CreateTempSubdirectory("vrcft-uitests-").FullName;
-        Environment.SetEnvironmentVariable(Core.Utils.LogDirectoryEnvironmentVariable, root);
+        string root = Directory.CreateTempSubdirectory("vrcft-uitests-").FullName;
+        Environment.SetEnvironmentVariable(Core.Logging.LogDirectories.EnvironmentVariable, root);
         Environment.SetEnvironmentVariable(Core.Utils.DataDirectoryEnvironmentVariable, Path.Combine(root, "data"));
     }
 

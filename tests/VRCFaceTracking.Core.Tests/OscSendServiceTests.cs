@@ -3,19 +3,16 @@ using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging.Abstractions;
 using VRCFaceTracking.Core.Contracts;
-using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.Osc;
 using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class OscSendServiceTests
+public sealed class OscSendServiceTests
 {
     private sealed class FakeOscTarget : IOscTarget
     {
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        private int _outPort;
-        private string _destinationAddress = "127.0.0.1";
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         public bool IsConnected
         {
@@ -26,22 +23,22 @@ public class OscSendServiceTests
             get; set;
         }
 
-        public string DestinationAddress
+        public string? DestinationAddress
         {
-            get => _destinationAddress;
+            get;
             set
             {
-                _destinationAddress = value;
+                field = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DestinationAddress)));
             }
-        }
+        } = "127.0.0.1";
 
         public int OutPort
         {
-            get => _outPort;
+            get;
             set
             {
-                _outPort = value;
+                field = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OutPort)));
             }
         }
@@ -49,8 +46,10 @@ public class OscSendServiceTests
 
     private static OscMessage Float(string address)
     {
-        var message = new OscMessage(address, typeof(float));
-        message.Value = 0.5f;
+        var message = new OscMessage(address, typeof(float))
+        {
+            Value = 0.5f,
+        };
         return message;
     }
 
@@ -58,21 +57,21 @@ public class OscSendServiceTests
     [InlineData(0)]
     [InlineData(5)]
     [InlineData(100)]
-    public void Send_OversizedMessage_StillDeliversTheRestOfTheBatch(int oversizedIndex)
+    public void SendOversizedMessageStillDeliversTheRestOfTheBatch(int oversizedIndex)
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-        var port = ((IPEndPoint)listener.LocalEndPoint).Port;
+        int port = Assert.IsType<IPEndPoint>(listener.LocalEndPoint).Port;
 
         var target = new FakeOscTarget();
         var service = new OscSendService(NullLogger<OscSendService>.Instance, target);
         target.OutPort = port;
 
-        var dispatched = 0;
+        int dispatched = 0;
         service.OnMessagesDispatched = count => dispatched = count;
 
         var batch = new List<OscMessage>();
-        for (var i = 0; i < 201; i++)
+        for (int i = 0; i < 201; i++)
         {
             batch.Add(i == oversizedIndex
                 ? Float("/" + new string('a', 5000))
@@ -85,21 +84,21 @@ public class OscSendServiceTests
     }
 
     [Fact]
-    public void Send_AllMessagesFit_DispatchesEveryMessage()
+    public void SendAllMessagesFitDispatchesEveryMessage()
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-        var port = ((IPEndPoint)listener.LocalEndPoint).Port;
+        int port = Assert.IsType<IPEndPoint>(listener.LocalEndPoint).Port;
 
         var target = new FakeOscTarget();
         var service = new OscSendService(NullLogger<OscSendService>.Instance, target);
         target.OutPort = port;
 
-        var dispatched = 0;
+        int dispatched = 0;
         service.OnMessagesDispatched = count => dispatched = count;
 
         var batch = new List<OscMessage>();
-        for (var i = 0; i < 183; i++)
+        for (int i = 0; i < 183; i++)
         {
             batch.Add(Float($"/avatar/parameters/v2/Shape{i:D3}"));
         }
@@ -110,7 +109,7 @@ public class OscSendServiceTests
     }
 
     [Fact]
-    public void Send_AfterOutPortChange_ReachesTheNewTarget()
+    public void SendAfterOutPortChangeReachesTheNewTarget()
     {
         using var first = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         first.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -122,7 +121,7 @@ public class OscSendServiceTests
         var target = new FakeOscTarget();
         var service = new OscSendService(NullLogger<OscSendService>.Instance, target);
         var batch = new List<OscMessage> { Float("/avatar/parameters/v2/JawOpen") };
-        var buffer = new byte[4096];
+        byte[] buffer = new byte[4096];
 
         target.OutPort = ((IPEndPoint)first.LocalEndPoint!).Port;
         service.Send(batch);
@@ -135,7 +134,7 @@ public class OscSendServiceTests
     }
 
     [Fact]
-    public void Send_AfterDestinationAddressChange_ReachesTheNewAddress()
+    public void SendAfterDestinationAddressChangeReachesTheNewAddress()
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -153,7 +152,7 @@ public class OscSendServiceTests
     }
 
     [Fact]
-    public void OutPort_BeforeAddressIsLoaded_WaitsForTheAddress()
+    public void OutPortBeforeAddressIsLoadedWaitsForTheAddress()
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -177,7 +176,7 @@ public class OscSendServiceTests
     [InlineData("abc")]
     [InlineData("192.168.1.300")]
     [InlineData("::1")]
-    public void DestinationAddress_Unusable_KeepsThePreviousTarget(string address)
+    public void DestinationAddressUnusableKeepsThePreviousTarget(string address)
     {
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));

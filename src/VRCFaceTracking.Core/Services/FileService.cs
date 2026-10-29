@@ -4,34 +4,34 @@ using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Core.Services;
 
-public class FileService : IFileService
+public sealed class FileService : IFileService
 {
-    public T Read<T>(string folderPath, string fileName)
+    public T? Read<T>(string folderPath, string fileName)
     {
-        var path = Path.Combine(folderPath, fileName);
+        string path = Path.Combine(folderPath, fileName);
         if (File.Exists(path))
         {
-            var json = File.ReadAllText(path);
+            string json = File.ReadAllText(path);
             return JsonConvert.DeserializeObject<T>(json);
         }
 
         return default;
     }
 
-    public async Task Save<T>(string folderPath, string fileName, T content)
+    public async Task SaveAsync<T>(string folderPath, string fileName, T content, CancellationToken cancellationToken)
     {
         if (!Directory.Exists(folderPath))
         {
             Directory.CreateDirectory(folderPath);
         }
 
-        var fileContent = JsonConvert.SerializeObject(content);
-        var path = Path.Combine(folderPath, fileName);
-        var tempPath = path + ".tmp";
-        await File.WriteAllTextAsync(tempPath, fileContent, Encoding.UTF8);
+        string fileContent = JsonConvert.SerializeObject(content);
+        string path = Path.Combine(folderPath, fileName);
+        string tempPath = path + ".tmp";
+        await File.WriteAllTextAsync(tempPath, fileContent, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
         if (File.Exists(path))
         {
-            File.Replace(tempPath, path, null);
+            File.Replace(tempPath, path, destinationBackupFileName: null);
         }
         else
         {

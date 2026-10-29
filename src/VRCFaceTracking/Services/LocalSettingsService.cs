@@ -1,16 +1,18 @@
+using System.Globalization;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Helpers;
-using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Models;
 
 namespace VRCFaceTracking.Services;
 
-public class LocalSettingsService : ILocalSettingsService
+internal sealed partial class LocalSettingsService : ILocalSettingsService, IDisposable
 {
-    private const string _defaultApplicationDataFolder = "VRCFaceTracking/ApplicationData";
-    private const string _defaultLocalSettingsFile = "LocalSettings.json";
+    private const string DefaultApplicationDataFolder = "VRCFaceTracking/ApplicationData";
+    private const string DefaultLocalSettingsFile = "LocalSettings.json";
 
     private readonly IFileService _fileService;
     private readonly LocalSettingsOptions _options;
@@ -24,12 +26,10 @@ public class LocalSettingsService : ILocalSettingsService
 
     private volatile bool _isInitialized;
     private readonly SemaphoreSlim _initSemaphore = new(1, 1);
-    private readonly object _settingsLock = new();
+    private readonly Lock _settingsLock = new();
 
-    // Save debouncing
     private readonly SemaphoreSlim _semaphore = new(1, 1);
-    private readonly object _ctsLock = new();
-    private CancellationTokenSource? _cts = new();
+    private long _saveGeneration;
     private static readonly TimeSpan Debounce = TimeSpan.FromMilliseconds(300);
 
     public LocalSettingsService(IFileService fileService, IOptions<LocalSettingsOptions> options, ILogger<LocalSettingsService> logger)
@@ -38,27 +38,33 @@ public class LocalSettingsService : ILocalSettingsService
         _options = options.Value;
         _logger = logger;
 
-        _applicationDataFolder = Path.Combine(_localApplicationData, _options.ApplicationDataFolder ?? _defaultApplicationDataFolder);
-        _localSettingsFile = _options.LocalSettingsFile ?? _defaultLocalSettingsFile;
+        _applicationDataFolder = Path.Combine(_localApplicationData, _options.ApplicationDataFolder ?? DefaultApplicationDataFolder);
+        _localSettingsFile = _options.LocalSettingsFile ?? DefaultLocalSettingsFile;
 
-        _settings = new Dictionary<string, object>();
+        _settings = new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private async Task InitializeAsync()
+    public void Dispose()
+    {
+        _initSemaphore.Dispose();
+        _semaphore.Dispose();
+    }
+
+    private async Task InitializeAsync(CancellationToken cancellationToken)
     {
         if (_isInitialized)
         {
             return;
         }
 
-        await _initSemaphore.WaitAsync();
+        await _initSemaphore.WaitAsync(cancellationToken);
         try
         {
             if (_isInitialized)
             {
                 return;
             }
-            await InitializeCoreAsync();
+            await InitializeCoreAsync(cancellationToken);
             _isInitialized = true;
         }
         finally
@@ -67,39 +73,35 @@ public class LocalSettingsService : ILocalSettingsService
         }
     }
 
-    private async Task InitializeCoreAsync()
+    private async Task InitializeCoreAsync(CancellationToken cancellationToken)
     {
-        var backupFile = _localSettingsFile + ".bak";
-        var mainPath = Path.Combine(_applicationDataFolder, _localSettingsFile);
-        var backupPath = Path.Combine(_applicationDataFolder, backupFile);
+        string backupFile = _localSettingsFile + ".bak";
+        string mainPath = Path.Combine(_applicationDataFolder, _localSettingsFile);
+        string backupPath = Path.Combine(_applicationDataFolder, backupFile);
 
-        var loaded = await Task.Run(() => TestSettingsFileRead(_localSettingsFile));
+        IDictionary<string, object>? loaded = await Task.Run(() => TestSettingsFileRead(_localSettingsFile), cancellationToken);
         if (loaded == null)
         {
-            // If our primary settings file is unreadable or corrupt
-            _logger.LogWarning("Primary settings is was corrupt");
-            loaded = await Task.Run(() => TestSettingsFileRead(backupFile));
+            LogPrimarySettingsCorrupt(_logger);
+            loaded = await Task.Run(() => TestSettingsFileRead(backupFile), cancellationToken);
             if (loaded != null)
             {
-                // But our backup settings file isn't corrupt then restore it
-                _logger.LogWarning("Restoring primary settings from session backup");
+                LogRestoringPrimarySettingsSessionBackup(_logger);
                 Directory.CreateDirectory(_applicationDataFolder);
                 File.Copy(backupPath, mainPath, overwrite: true);
             }
         }
 
-        _settings = loaded ?? new Dictionary<string, object>();
+        _settings = loaded ?? new Dictionary<string, object>(StringComparer.Ordinal);
 
         if (loaded == null)
         {
-            // Neither file was usable. Restore defaults
-            _logger.LogWarning("Restoring default settings");
-            await _fileService.Save(_applicationDataFolder, _localSettingsFile, _settings);
+            LogRestoringDefaultSettings(_logger);
+            await _fileService.SaveAsync(_applicationDataFolder, _localSettingsFile, _settings, cancellationToken);
         }
 
         if (File.Exists(mainPath))
         {
-            // Copy current main file to backup file
             Directory.CreateDirectory(_applicationDataFolder);
             File.Copy(mainPath, backupPath, overwrite: true);
         }
@@ -111,70 +113,65 @@ public class LocalSettingsService : ILocalSettingsService
         {
             return _fileService.Read<IDictionary<string, object>>(_applicationDataFolder, fileName);
         }
-        catch
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
         {
             return null;
         }
     }
 
-    public async Task<T?> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false)
+    public async Task<T?> ReadSettingAsync<T>(string key, T? defaultValue, bool forceLocal, CancellationToken cancellationToken)
     {
-        await InitializeAsync();
+        await InitializeAsync(cancellationToken);
 
         object? obj;
         bool found;
         lock (_settingsLock)
         {
-            found = _settings != null && _settings.TryGetValue(key, out obj);
+            found = _settings != null && _settings.TryGetValue(key, out _);
             obj = found ? _settings![key] : null;
         }
-        if (found)
-        {
-            return await ParseSettingAsync(key, obj, defaultValue);
-        }
-
-        return defaultValue;
+        return found ? await ParseSettingAsync(key, obj, defaultValue, cancellationToken) : defaultValue;
     }
 
-    private async Task<T?> ParseSettingAsync<T>(string key, object? raw, T? defaultValue)
+    private async Task<T?> ParseSettingAsync<T>(string key, object? raw, T? defaultValue, CancellationToken cancellationToken)
     {
         try
         {
             if (raw is not string json)
             {
-                _logger.LogWarning("Setting {Key} holds a {Type} instead of a string; using its default", key, raw?.GetType().Name ?? "null");
+                LogSettingHoldsInsteadStringUsing(_logger, key, raw?.GetType().Name ?? "null");
                 return defaultValue;
             }
-            return await Json.ToObjectAsync<T>(json);
+            return await JsonText.ToObjectAsync<T>(json, cancellationToken);
         }
-        catch (Exception e)
+        catch (JsonException e)
         {
-            _logger.LogWarning("Setting {Key} could not be parsed; using its default: {Message}", key, e.Message);
+            LogSettingCouldNotParsedUsing(_logger, key, e.Message);
             return defaultValue;
         }
     }
 
-    public async Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false)
+    public async Task SaveSettingAsync<T>(string key, T value, bool forceLocal, CancellationToken cancellationToken)
     {
-        await InitializeAsync();
+        await InitializeAsync(cancellationToken);
 
-        var json = await Json.StringifyAsync(value);
+        string json = await JsonText.StringifyAsync(value, cancellationToken);
         lock (_settingsLock)
         {
             _settings[key] = json;
         }
 
-        _ = FlushSaveSettings();
+        _ = FlushAfterDebounceAsync(Interlocked.Increment(ref _saveGeneration), CancellationToken.None);
     }
 
-    public async Task Load(object instance)
+    public async Task LoadAsync(object target, CancellationToken cancellationToken)
     {
-        var type = instance.GetType();
-        var properties = type.GetProperties();
+        Type type = target.GetType();
+        PropertyInfo[] properties = type.GetProperties();
 
-        foreach (var property in properties)
+        foreach (PropertyInfo property in properties)
         {
-            var attributes = property.GetCustomAttributes(typeof(SavedSettingAttribute), false);
+            object[] attributes = property.GetCustomAttributes(typeof(SavedSettingAttribute), inherit: false);
 
             if (attributes.Length <= 0)
             {
@@ -182,32 +179,32 @@ public class LocalSettingsService : ILocalSettingsService
             }
 
             var savedSettingAttribute = (SavedSettingAttribute)attributes[0];
-            var settingName = savedSettingAttribute.GetName();
-            var defaultValue = savedSettingAttribute.Default();
+            string settingName = savedSettingAttribute.SettingName;
+            object? defaultValue = savedSettingAttribute.DefaultValue;
 
-            var setting = await ReadSettingAsync(settingName, defaultValue, savedSettingAttribute.ForceLocal());
+            object? setting = await ReadSettingAsync(settingName, defaultValue, savedSettingAttribute.ForceLocal, cancellationToken);
             object? convertedSetting;
             try
             {
-                convertedSetting = Convert.ChangeType(setting, property.PropertyType);
+                convertedSetting = Convert.ChangeType(setting, property.PropertyType, CultureInfo.InvariantCulture);
             }
-            catch
+            catch (Exception e) when (e is InvalidCastException or FormatException or OverflowException)
             {
                 convertedSetting = defaultValue;
             }
 
-            property.SetValue(instance, convertedSetting);
+            property.SetValue(target, convertedSetting);
         }
     }
 
-    public async Task Save(object instance)
+    public async Task SaveAsync(object target, CancellationToken cancellationToken)
     {
-        var type = instance.GetType();
-        var properties = type.GetProperties();
+        Type type = target.GetType();
+        PropertyInfo[] properties = type.GetProperties();
 
-        foreach (var property in properties)
+        foreach (PropertyInfo property in properties)
         {
-            var attributes = property.GetCustomAttributes(typeof(SavedSettingAttribute), false);
+            object[] attributes = property.GetCustomAttributes(typeof(SavedSettingAttribute), inherit: false);
 
             if (attributes.Length <= 0)
             {
@@ -215,89 +212,71 @@ public class LocalSettingsService : ILocalSettingsService
             }
 
             var savedSettingAttribute = (SavedSettingAttribute)attributes[0];
-            var settingName = savedSettingAttribute.GetName();
+            string settingName = savedSettingAttribute.SettingName;
 
-            await SaveSettingAsync(settingName, property.GetValue(instance), savedSettingAttribute.ForceLocal());
+            await SaveSettingAsync(settingName, property.GetValue(target), savedSettingAttribute.ForceLocal, cancellationToken);
         }
 
-        await FlushNowAsync();
+        await FlushAsync(cancellationToken);
     }
 
-    public async Task FlushAsync() => await FlushNowAsync();
-
-    private async Task FlushNowAsync()
+    public async Task FlushAsync(CancellationToken cancellationToken)
     {
         if (!_isInitialized)
         {
             return;
         }
 
-        lock (_ctsLock)
-        {
-            _cts?.Cancel();
-        }
-
-        await _semaphore.WaitAsync();
-        try
-        {
-            Dictionary<string, object> snapshot;
-            lock (_settingsLock)
-            {
-                snapshot = new Dictionary<string, object>(_settings);
-            }
-            await _fileService.Save(_applicationDataFolder, _localSettingsFile, snapshot);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Failed to save settings");
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
+        Interlocked.Increment(ref _saveGeneration);
+        await WriteSettingsAsync(cancellationToken);
     }
 
-    private async Task FlushSaveSettings()
+    private async Task FlushAfterDebounceAsync(long generation, CancellationToken cancellationToken)
     {
-        var cts = new CancellationTokenSource();
-        lock (_ctsLock)
+        await Task.Delay(Debounce, cancellationToken);
+        if (Interlocked.Read(ref _saveGeneration) == generation)
         {
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = cts;
+            await WriteSettingsAsync(cancellationToken);
         }
+    }
 
-        try
-        {
-            await Task.Delay(Debounce, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Newer save req came in. Skip this one and let the new one do the write.
-            return;
-        }
-        catch (ObjectDisposedException)
-        {
-            return;
-        }
-
-        await _semaphore.WaitAsync();
+    private async Task WriteSettingsAsync(CancellationToken cancellationToken)
+    {
+        await _semaphore.WaitAsync(cancellationToken);
         try
         {
             Dictionary<string, object> snapshot;
             lock (_settingsLock)
             {
-                snapshot = new Dictionary<string, object>(_settings);
+                snapshot = new Dictionary<string, object>(_settings, StringComparer.Ordinal);
             }
-            await _fileService.Save(_applicationDataFolder, _localSettingsFile, snapshot);
+            await _fileService.SaveAsync(_applicationDataFolder, _localSettingsFile, snapshot, cancellationToken);
         }
-        catch (Exception e)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            _logger.LogError(e, "Failed to save settings");
+            LogFailedSaveSettings(_logger, e);
         }
         finally
         {
             _semaphore.Release();
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Primary settings is was corrupt")]
+    private static partial void LogPrimarySettingsCorrupt(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Restoring primary settings from session backup")]
+    private static partial void LogRestoringPrimarySettingsSessionBackup(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Restoring default settings")]
+    private static partial void LogRestoringDefaultSettings(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Setting {Key} holds a {Type} instead of a string; using its default")]
+    private static partial void LogSettingHoldsInsteadStringUsing(ILogger logger, string key, string type);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Setting {Key} could not be parsed; using its default: {Message}")]
+    private static partial void LogSettingCouldNotParsedUsing(ILogger logger, string key, string message);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to save settings")]
+    private static partial void LogFailedSaveSettings(ILogger logger, Exception exception);
 }

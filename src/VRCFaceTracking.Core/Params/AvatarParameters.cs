@@ -1,39 +1,37 @@
 using VRCFaceTracking.Core.Contracts;
-using VRCFaceTracking.Core.OSC.DataTypes;
+using VRCFaceTracking.Core.Osc.DataTypes;
 using VRCFaceTracking.Core.Params.DataTypes;
 using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.Core.Params;
 
-public static class AvatarParameters
+internal static class AvatarParameters
 {
     private static readonly HashSet<Parameter> SentAlongsideNativeFaceTracking =
-        UnifiedTracking.AllParameters.Where(parameter => parameter is ConditionalBoolParameter)
-            .Concat(UnifiedTracking.HeadParameters)
-            .ToHashSet();
+        [.. TrackingOutput.AllParameters.Where(parameter => parameter is ConditionalBoolParameter)
+, .. TrackingOutput.HeadParameters];
 
     private static readonly Lazy<string[]> LeftToVrchatNames = new(() =>
-        UnifiedTracking.AllParameters.Where(parameter => !SentAlongsideNativeFaceTracking.Contains(parameter))
+        [.. TrackingOutput.AllParameters.Where(parameter => !SentAlongsideNativeFaceTracking.Contains(parameter))
             .SelectMany(parameter => parameter.GetParamNames())
             .Select(name => name.paramName)
-            .Distinct()
-            .ToArray());
+            .Distinct(StringComparer.Ordinal)]);
 
-    public static List<Parameter> Reset(IParameterDefinition[] definitions, bool fullFaceTracking, List<string> leftToVrchat)
+    public static List<Parameter> Reset(IReadOnlyList<IParameterDefinition> definitions, bool fullFaceTracking, List<string> leftToVrchat)
     {
         var relevant = new List<Parameter>();
-        var gate = fullFaceTracking && !ParameterSenderService.AllParametersRelevantStatic;
-        foreach (var parameter in UnifiedTracking.AllParameters)
+        bool gate = fullFaceTracking && !ParameterSenderService.AllParametersRelevantStatic;
+        foreach (Parameter parameter in TrackingOutput.AllParameters)
         {
-            var offered = !gate || SentAlongsideNativeFaceTracking.Contains(parameter)
+            IReadOnlyList<IParameterDefinition> offered = !gate || SentAlongsideNativeFaceTracking.Contains(parameter)
                 ? definitions
-                : Array.Empty<IParameterDefinition>();
+                : [];
             relevant.AddRange(parameter.ResetParam(offered));
         }
 
         if (gate)
         {
-            leftToVrchat.AddRange(definitions.Where(IsLeftToVrchat).Select(definition => definition.Name).Distinct());
+            leftToVrchat.AddRange(definitions.Where(IsLeftToVrchat).Select(definition => definition.Name).Distinct(StringComparer.Ordinal));
         }
 
         return relevant;

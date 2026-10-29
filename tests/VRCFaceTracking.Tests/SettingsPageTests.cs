@@ -11,14 +11,14 @@ using VRCFaceTracking.Views;
 
 namespace VRCFaceTracking.Tests;
 
-public class SettingsPageTests
+public sealed class SettingsPageTests
 {
     [AvaloniaFact]
-    public void OscAddressBox_CommitsWhenFocusLeaves()
+    public void OscAddressBoxCommitsWhenFocusLeaves()
     {
         App.GetService<OscRecvService>();
-        var target = App.GetService<IOscTarget>();
-        var original = (target.InPort, target.OutPort, target.DestinationAddress);
+        IOscTarget target = App.GetService<IOscTarget>();
+        (int InPort, int OutPort, string? DestinationAddress) original = (target.InPort, target.OutPort, target.DestinationAddress);
         target.InPort = 9001;
         target.OutPort = 9000;
         target.DestinationAddress = "127.0.0.1";
@@ -28,8 +28,8 @@ public class SettingsPageTests
         window.Show();
         Dispatcher.UIThread.RunJobs();
         var boxes = page.GetVisualDescendants().OfType<TextBox>().ToList();
-        var address = boxes.Single(box => box.Watermark == "127.0.0.1");
-        var elsewhere = page.GetVisualDescendants().OfType<NumericUpDown>().First();
+        TextBox address = boxes.Single(box => string.Equals(box.Watermark, "127.0.0.1", StringComparison.Ordinal));
+        NumericUpDown elsewhere = page.GetVisualDescendants().OfType<NumericUpDown>().First();
 
         try
         {
@@ -54,10 +54,10 @@ public class SettingsPageTests
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Sections_KeepDeveloperSectionsTogether_AfterEverydaySettings(bool developer)
+    public void SectionsKeepDeveloperSectionsTogetherAfterEverydaySettings(bool developer)
     {
-        var settings = App.GetService<DeveloperSettings>();
-        var original = settings.Enabled;
+        DeveloperSettings settings = App.GetService<DeveloperSettings>();
+        bool original = settings.Enabled;
         settings.Enabled = developer;
 
         var page = new SettingsPage();
@@ -82,11 +82,11 @@ public class SettingsPageTests
 
             expected.Add(Resources.About_Text);
 
-            var headers = page.GetVisualDescendants()
+            IEnumerable<string?> headers = page.GetVisualDescendants()
                 .OfType<TextBlock>()
                 .Where(t => t.Classes.Contains("section-header") && t.IsEffectivelyVisible)
                 .Select(t => t.Text);
-            Assert.Equal(expected, headers);
+            Assert.Equal(expected, headers, StringComparer.Ordinal);
         }
         finally
         {

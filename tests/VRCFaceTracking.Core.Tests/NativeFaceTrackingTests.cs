@@ -6,7 +6,7 @@ using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
-using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.Osc;
 using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.DataTypes;
@@ -17,10 +17,10 @@ using VRCFaceTracking.Core.Types;
 namespace VRCFaceTracking.Core.Tests;
 
 [Collection("UnifiedTrackingState")]
-public class NativeFaceTrackingTests
+public sealed class NativeFaceTrackingTests
 {
     private static readonly string[] VrchatKeyOrder =
-    {
+    [
         "EyeLookOutRight", "EyeLookInRight", "EyeLookUpRight", "EyeLookDownRight",
         "EyeLookOutLeft", "EyeLookInLeft", "EyeLookUpLeft", "EyeLookDownLeft",
         "EyeClosedRight", "EyeClosedLeft", "EyeDilationRight", "EyeDilationLeft", "EyeConstrictRight", "EyeConstrictLeft",
@@ -44,15 +44,13 @@ public class NativeFaceTrackingTests
         "TongueOut", "TongueUp", "TongueDown", "TongueRight", "TongueLeft", "TongueRoll", "TongueBendDown", "TongueCurlUp",
         "TongueSquish", "TongueFlat", "TongueTwistRight", "TongueTwistLeft",
         "SoftPalateClose", "ThroatSwallow", "NeckFlexRight", "NeckFlexLeft",
-    };
+    ];
 
-    private sealed record Avatar(string Name, string Id, IParameterDefinition[] Parameters, bool FullFaceTracking) : IAvatarInfo;
+    private sealed record Avatar(string Name, string Id, IReadOnlyList<IParameterDefinition> Parameters, bool FullFaceTracking) : IAvatarInfo;
 
     private sealed class FakeOscTarget : IOscTarget
     {
         public event PropertyChangedEventHandler? PropertyChanged;
-
-        private int _outPort;
 
         public bool IsConnected
         {
@@ -62,14 +60,14 @@ public class NativeFaceTrackingTests
         {
             get; set;
         }
-        public string DestinationAddress { get; set; } = "127.0.0.1";
+        public string? DestinationAddress { get; set; } = "127.0.0.1";
 
         public int OutPort
         {
-            get => _outPort;
+            get;
             set
             {
-                _outPort = value;
+                field = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OutPort)));
             }
         }
@@ -77,11 +75,11 @@ public class NativeFaceTrackingTests
 
     private sealed class NullSettings : ILocalSettingsService
     {
-        public Task<T> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false) => Task.FromResult(defaultValue!);
-        public Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false) => Task.CompletedTask;
-        public Task Save(object target) => Task.CompletedTask;
-        public Task Load(object target) => Task.CompletedTask;
-        public Task FlushAsync() => Task.CompletedTask;
+        public Task<T?> ReadSettingAsync<T>(string key, T? defaultValue, bool forceLocal, CancellationToken cancellationToken) => Task.FromResult(defaultValue);
+        public Task SaveSettingAsync<T>(string key, T value, bool forceLocal, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SaveAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task LoadAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class InlineDispatcher : IDispatcherService
@@ -99,7 +97,7 @@ public class NativeFaceTrackingTests
 
     private static byte[] Write(UnifiedTrackingData data)
     {
-        var bytes = new byte[NativeFaceBlob.Length];
+        byte[] bytes = new byte[NativeFaceBlob.Length];
         NativeFaceBlob.Write(data, bytes);
         return bytes;
     }
@@ -109,16 +107,16 @@ public class NativeFaceTrackingTests
     private static float Tan(float degrees) => MathF.Tan(degrees * MathF.PI / 180f);
 
     [Fact]
-    public void Blob_HasOneByteForEveryVrchatKey()
+    public void BlobHasOneByteForEveryVrchatKey()
     {
         Assert.Equal(102, NativeFaceBlob.Length);
         Assert.Equal(NativeFaceBlob.Length, VrchatKeyOrder.Length);
     }
 
     [Fact]
-    public void Blob_ShapesFollowVrchatKeyOrder()
+    public void BlobShapesFollowVrchatKeyOrder()
     {
-        for (var i = NativeFaceBlob.ShapeOffset; i < NativeFaceBlob.Length; i++)
+        for (int i = NativeFaceBlob.ShapeOffset; i < NativeFaceBlob.Length; i++)
         {
             Assert.Equal(VrchatKeyOrder[i], ((UnifiedExpressions)(i - NativeFaceBlob.ShapeOffset)).ToString());
         }
@@ -127,42 +125,39 @@ public class NativeFaceTrackingTests
     }
 
     [Fact]
-    public void Blob_NeutralFaceIsAllZero()
-    {
-        Assert.All(Write(OpenEyes()), b => Assert.Equal(0, b));
-    }
+    public void BlobNeutralFaceIsAllZero() => Assert.All(Write(OpenEyes()), b => Assert.Equal(0, b));
 
     [Fact]
-    public void Blob_SplitsGazeIntoLookKeysForEachEye()
+    public void BlobSplitsGazeIntoLookKeysForEachEye()
     {
-        var data = OpenEyes();
+        UnifiedTrackingData data = OpenEyes();
         data.Eye.Right.Gaze = new Vector2(Tan(45f), Tan(9f));
         data.Eye.Left.Gaze = new Vector2(Tan(45f), Tan(-45f));
 
-        var bytes = Write(data);
+        byte[] bytes = Write(data);
 
         Assert.Equal(new byte[] { 255, 0, 51, 0, 0, 255, 0, 255 }, bytes[..8]);
     }
 
     [Fact]
-    public void Blob_ClampsGazePastFortyFiveDegrees()
+    public void BlobClampsGazePastFortyFiveDegrees()
     {
-        var data = OpenEyes();
+        UnifiedTrackingData data = OpenEyes();
         data.Eye.Right.Gaze = new Vector2(Tan(-70f), Tan(-70f));
         data.Eye.Left.Gaze = new Vector2(Tan(-70f), Tan(70f));
 
-        var bytes = Write(data);
+        byte[] bytes = Write(data);
 
         Assert.Equal(new byte[] { 0, 255, 0, 255, 255, 0, 255, 0 }, bytes[..8]);
     }
 
     [Fact]
-    public void Blob_KeepsEachEyelidSeparate()
+    public void BlobKeepsEachEyelidSeparate()
     {
-        var data = OpenEyes();
+        UnifiedTrackingData data = OpenEyes();
         data.Eye.Right.Openness = 0.25f;
 
-        var bytes = Write(data);
+        byte[] bytes = Write(data);
 
         Assert.Equal(191, bytes[8]);
         Assert.Equal(0, bytes[9]);
@@ -172,15 +167,15 @@ public class NativeFaceTrackingTests
     [InlineData(8f, 255, 0)]
     [InlineData(6.5f, 128, 0)]
     [InlineData(2f, 0, 255)]
-    public void Blob_SplitsPupilAroundTheMiddleOfItsRange(float rightDiameter, byte dilation, byte constrict)
+    public void BlobSplitsPupilAroundTheMiddleOfItsRange(float rightDiameter, byte dilation, byte constrict)
     {
-        var data = OpenEyes();
+        UnifiedTrackingData data = OpenEyes();
         data.Eye._minDilation = 2f;
         data.Eye._maxDilation = 8f;
         data.Eye.Left.PupilDiameter_MM = 5f;
         data.Eye.Right.PupilDiameter_MM = rightDiameter;
 
-        var bytes = Write(data);
+        byte[] bytes = Write(data);
 
         Assert.Equal(new byte[] { dilation, 0, constrict, 0 }, bytes[10..14]);
     }
@@ -190,9 +185,9 @@ public class NativeFaceTrackingTests
     [InlineData(999f, 0f, 5f)]
     [InlineData(5f, 5f, 5f)]
     [InlineData(5f, float.PositiveInfinity, 5f)]
-    public void Blob_SendsNoPupilAtTheMiddleOrWithoutARange(float min, float max, float diameter)
+    public void BlobSendsNoPupilAtTheMiddleOrWithoutARange(float min, float max, float diameter)
     {
-        var data = OpenEyes();
+        UnifiedTrackingData data = OpenEyes();
         data.Eye._minDilation = min;
         data.Eye._maxDilation = max;
         data.Eye.Left.PupilDiameter_MM = diameter;
@@ -207,23 +202,20 @@ public class NativeFaceTrackingTests
     [InlineData(1.5f, 255)]
     [InlineData(-0.5f, 0)]
     [InlineData(float.NaN, 0)]
-    public void Blob_RoundsAndClampsShapeWeights(float weight, byte expected)
+    public void BlobRoundsAndClampsShapeWeights(float weight, byte expected)
     {
-        var data = OpenEyes();
+        UnifiedTrackingData data = OpenEyes();
         data.Shapes[(int)UnifiedExpressions.JawOpen].Weight = weight;
         data.Shapes[(int)UnifiedExpressions.NeckFlexLeft].Weight = weight;
 
-        var bytes = Write(data);
+        byte[] bytes = Write(data);
 
         Assert.Equal(expected, bytes[Key(UnifiedExpressions.JawOpen)]);
         Assert.Equal(expected, bytes[NativeFaceBlob.Length - 1]);
     }
 
     [Fact]
-    public void Blob_RejectsAShortBuffer()
-    {
-        Assert.Throws<ArgumentException>(() => NativeFaceBlob.Write(OpenEyes(), new byte[NativeFaceBlob.Length - 1]));
-    }
+    public void BlobRejectsAShortBuffer() => Assert.Throws<ArgumentException>(() => NativeFaceBlob.Write(OpenEyes(), new byte[NativeFaceBlob.Length - 1]));
 
     [Theory]
     [InlineData("avtr_a", "avtr_a", null, false, true)]
@@ -233,16 +225,13 @@ public class NativeFaceTrackingTests
     [InlineData("avtr_a", "avtr_a", false, true, false)]
     [InlineData("avtr_b", "avtr_a", null, false, false)]
     [InlineData(null, "avtr_a", null, false, false)]
-    public void IsAlreadyLoaded_ReloadsWhenVrchatReportsADifferentFaceTrackingFlag(
-        string? newId, string loadedId, bool? reported, bool loaded, bool expected)
-    {
-        Assert.Equal(expected, OscQueryService.IsAlreadyLoaded(newId, loadedId, reported, loaded));
-    }
+    public void IsAlreadyLoadedReloadsWhenVrchatReportsADifferentFaceTrackingFlag(
+        string? newId, string loadedId, bool? reported, bool loaded, bool expected) => Assert.Equal(expected, OscQueryService.IsAlreadyLoaded(newId, loadedId, reported, loaded));
 
     private sealed record ParamDef(string Address, string Name, Type Type) : IParameterDefinition;
 
     private static readonly IParameterDefinition[] HybridAvatar =
-    {
+    [
         new ParamDef("/avatar/parameters/EyeTrackingActive", "EyeTrackingActive", typeof(bool)),
         new ParamDef("/avatar/parameters/LipTrackingActive", "LipTrackingActive", typeof(bool)),
         new ParamDef("/avatar/parameters/ExpressionTrackingActive", "ExpressionTrackingActive", typeof(bool)),
@@ -251,93 +240,93 @@ public class NativeFaceTrackingTests
         new ParamDef("/avatar/parameters/FT/v2/MouthClosed2", "FT/v2/MouthClosed2", typeof(bool)),
         new ParamDef("/avatar/parameters/FT/v2/EyeLidLeft", "FT/v2/EyeLidLeft", typeof(float)),
         new ParamDef("/avatar/parameters/FaceTrackingLimits", "FaceTrackingLimits", typeof(bool)),
-    };
+    ];
 
     private static string[] SentNames(IEnumerable<Parameter> relevant) =>
-        relevant.SelectMany(parameter => parameter.GetParamNames()).Select(name => name.paramName).ToArray();
+        [.. relevant.SelectMany(parameter => parameter.GetParamNames()).Select(name => name.paramName)];
 
     private static int TrackingEyeCount(IEnumerable<Parameter> relevant) =>
         relevant.Count(parameter => parameter.GetType().IsGenericType && parameter.GetType().GetGenericTypeDefinition() == typeof(NativeParameter<>));
 
     [Fact]
-    public void FullFaceTrackingAvatar_KeepsStatusAndHeadParams_AndLeavesExpressionsToVrchat()
+    public void FullFaceTrackingAvatarKeepsStatusAndHeadParamsAndLeavesExpressionsToVrchat()
     {
         ParameterSenderService.AllParametersRelevantStatic = false;
         var leftToVrchat = new List<string>();
 
         try
         {
-            var sent = AvatarParameters.Reset(HybridAvatar, true, leftToVrchat);
-            var names = SentNames(sent);
+            List<Parameter> sent = AvatarParameters.Reset(HybridAvatar, fullFaceTracking: true, leftToVrchat);
+            string[] names = SentNames(sent);
 
-            Assert.Contains("EyeTrackingActive", names);
-            Assert.Contains("LipTrackingActive", names);
-            Assert.Contains("ExpressionTrackingActive", names);
-            Assert.Contains("v2/Head/Yaw", names);
-            Assert.DoesNotContain("v2/JawOpen", names);
-            Assert.DoesNotContain("v2/MouthClosed2", names);
-            Assert.DoesNotContain("v2/EyeLidLeft", names);
+            Assert.Contains("EyeTrackingActive", names, StringComparer.Ordinal);
+            Assert.Contains("LipTrackingActive", names, StringComparer.Ordinal);
+            Assert.Contains("ExpressionTrackingActive", names, StringComparer.Ordinal);
+            Assert.Contains("v2/Head/Yaw", names, StringComparer.Ordinal);
+            Assert.DoesNotContain("v2/JawOpen", names, StringComparer.Ordinal);
+            Assert.DoesNotContain("v2/MouthClosed2", names, StringComparer.Ordinal);
+            Assert.DoesNotContain("v2/EyeLidLeft", names, StringComparer.Ordinal);
             Assert.Equal(2, TrackingEyeCount(sent));
-            Assert.Equal(new[] { "FT/v2/JawOpen", "FT/v2/MouthClosed2", "FT/v2/EyeLidLeft" }, leftToVrchat);
+            Assert.Equal(["FT/v2/JawOpen", "FT/v2/MouthClosed2", "FT/v2/EyeLidLeft"], leftToVrchat, StringComparer.Ordinal);
         }
         finally
         {
-            AvatarParameters.Reset(Array.Empty<IParameterDefinition>(), false, new List<string>());
+            AvatarParameters.Reset([], fullFaceTracking: false, []);
         }
     }
 
     [Fact]
-    public void SwitchingFromFullFaceTrackingToALegacyAvatar_SendsEveryListedParamAgain()
+    public void SwitchingFromFullFaceTrackingToALegacyAvatarSendsEveryListedParamAgain()
     {
         ParameterSenderService.AllParametersRelevantStatic = false;
         var leftToVrchat = new List<string>();
 
         try
         {
-            AvatarParameters.Reset(HybridAvatar, true, new List<string>());
-            var sent = AvatarParameters.Reset(HybridAvatar, false, leftToVrchat);
-            var names = SentNames(sent);
+            AvatarParameters.Reset(HybridAvatar, fullFaceTracking: true, []);
+            List<Parameter> sent = AvatarParameters.Reset(HybridAvatar, fullFaceTracking: false, leftToVrchat);
+            string[] names = SentNames(sent);
 
-            Assert.Contains("EyeTrackingActive", names);
-            Assert.Contains("v2/JawOpen", names);
-            Assert.Contains("v2/MouthClosed2", names);
-            Assert.Contains("v2/EyeLidLeft", names);
+            Assert.Contains("EyeTrackingActive", names, StringComparer.Ordinal);
+            Assert.Contains("v2/JawOpen", names, StringComparer.Ordinal);
+            Assert.Contains("v2/MouthClosed2", names, StringComparer.Ordinal);
+            Assert.Contains("v2/EyeLidLeft", names, StringComparer.Ordinal);
             Assert.Equal(1, TrackingEyeCount(sent));
             Assert.Empty(leftToVrchat);
         }
         finally
         {
-            AvatarParameters.Reset(Array.Empty<IParameterDefinition>(), false, new List<string>());
+            AvatarParameters.Reset([], fullFaceTracking: false, []);
         }
     }
 
     [Fact]
-    public void AllParametersRelevant_StillSendsEverythingToAFullFaceTrackingAvatar()
+    public void AllParametersRelevantStillSendsEverythingToAFullFaceTrackingAvatar()
     {
         ParameterSenderService.AllParametersRelevantStatic = true;
         var leftToVrchat = new List<string>();
 
         try
         {
-            var names = SentNames(AvatarParameters.Reset(HybridAvatar, true, leftToVrchat));
+            string[] names = SentNames(AvatarParameters.Reset(HybridAvatar, fullFaceTracking: true, leftToVrchat));
 
-            Assert.Contains("v2/JawOpen", names);
-            Assert.Contains("EyeTrackingActive", names);
+            Assert.Contains("v2/JawOpen", names, StringComparer.Ordinal);
+            Assert.Contains("EyeTrackingActive", names, StringComparer.Ordinal);
             Assert.Empty(leftToVrchat);
         }
         finally
         {
             ParameterSenderService.AllParametersRelevantStatic = false;
-            AvatarParameters.Reset(Array.Empty<IParameterDefinition>(), false, new List<string>());
+            AvatarParameters.Reset([], fullFaceTracking: false, []);
         }
     }
 
     [Fact]
-    public async Task Sender_SendsTheBlobOnlyToAFaceTrackingAvatarWhileAModuleIsTracking()
+    public async Task SenderSendsTheBlobOnlyToAFaceTrackingAvatarWhileAModuleIsTracking()
     {
         ParameterSenderService.AllParametersRelevantStatic = false;
-        var previousMutator = UnifiedTracking.Mutator;
-        var tracking = true;
+        UnifiedTrackingMutator previousMutator = TrackingOutput.Mutator;
+        bool tracking = true;
 
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -350,63 +339,67 @@ public class NativeFaceTrackingTests
 
         try
         {
-            lock (UnifiedTracking.DataLock)
-            {
-                UnifiedTracking.Data.Eye.Left.Openness = 1f;
-                UnifiedTracking.Data.Eye.Right.Openness = 0f;
-                UnifiedTracking.Data.Shapes[(int)UnifiedExpressions.JawOpen].Weight = 0.2f;
-            }
+            SetFace(leftOpenness: 1f, rightOpenness: 0f, jawOpen: 0.2f);
 
             await face.StartAsync(CancellationToken.None);
             await sender.StartAsync(CancellationToken.None);
 
-            face.SetAvatar(new Avatar("Native", "avtr_native", Array.Empty<IParameterDefinition>(), true));
+            face.SetAvatar(new Avatar("Native", "avtr_native", [], FullFaceTracking: true));
             Assert.True(face.AvatarUsesNativeFaceTracking);
             UnifiedTracking.MarkDataUpdated();
-            var blob = ReceiveBlob(listener, NativeFaceBlob.Address, TimeSpan.FromSeconds(3));
-
-            Assert.NotNull(blob);
-            Assert.Equal(NativeFaceBlob.Length, blob.Length);
-            Assert.Equal(51, blob[Key(UnifiedExpressions.JawOpen)]);
-            Assert.Equal(255, blob[8]);
-            Assert.Equal(0, blob[9]);
+            AssertFaceBlob(ReceiveBlob(listener, NativeFaceBlob.Address, TimeSpan.FromSeconds(3)));
 
             Volatile.Write(ref tracking, false);
-            await Task.Delay(100);
-            Drain(listener);
-            UnifiedTracking.MarkDataUpdated();
-
-            Assert.Null(ReceiveBlob(listener, NativeFaceBlob.Address, TimeSpan.FromMilliseconds(500)));
+            await AssertNoBlobAsync(listener, CancellationToken.None);
 
             Volatile.Write(ref tracking, true);
-            face.SetAvatar(new Avatar("Legacy", "avtr_legacy", Array.Empty<IParameterDefinition>(), false));
+            face.SetAvatar(new Avatar("Legacy", "avtr_legacy", [], FullFaceTracking: false));
             Assert.False(face.AvatarUsesNativeFaceTracking);
-            await Task.Delay(100);
-            Drain(listener);
-            UnifiedTracking.MarkDataUpdated();
-
-            Assert.Null(ReceiveBlob(listener, NativeFaceBlob.Address, TimeSpan.FromMilliseconds(500)));
+            await AssertNoBlobAsync(listener, CancellationToken.None);
         }
         finally
         {
             await sender.StopAsync(CancellationToken.None);
             sender.Dispose();
             await face.StopAsync(CancellationToken.None);
-            lock (UnifiedTracking.DataLock)
-            {
-                UnifiedTracking.Data.Eye.Left.Openness = 0f;
-                UnifiedTracking.Data.Eye.Right.Openness = 0f;
-                UnifiedTracking.Data.Shapes[(int)UnifiedExpressions.JawOpen].Weight = 0f;
-            }
-            UnifiedTracking.Mutator = previousMutator;
+            SetFace(leftOpenness: 0f, rightOpenness: 0f, jawOpen: 0f);
+            TrackingOutput.Mutator = previousMutator;
             ParameterSenderService.Clear();
         }
     }
 
+    private static void SetFace(float leftOpenness, float rightOpenness, float jawOpen)
+    {
+        using (UnifiedTracking.LockData())
+        {
+            UnifiedTracking.Data.Eye.Left.Openness = leftOpenness;
+            UnifiedTracking.Data.Eye.Right.Openness = rightOpenness;
+            UnifiedTracking.Data.Shapes[(int)UnifiedExpressions.JawOpen].Weight = jawOpen;
+        }
+    }
+
+    private static void AssertFaceBlob(byte[]? blob)
+    {
+        Assert.NotNull(blob);
+        Assert.Equal(NativeFaceBlob.Length, blob.Length);
+        Assert.Equal(51, blob[Key(UnifiedExpressions.JawOpen)]);
+        Assert.Equal(255, blob[8]);
+        Assert.Equal(0, blob[9]);
+    }
+
+    private static async Task AssertNoBlobAsync(Socket listener, CancellationToken cancellationToken)
+    {
+        await Task.Delay(100, cancellationToken);
+        Drain(listener);
+        UnifiedTracking.MarkDataUpdated();
+
+        Assert.Null(ReceiveBlob(listener, NativeFaceBlob.Address, TimeSpan.FromMilliseconds(500)));
+    }
+
     private static byte[]? ReceiveBlob(Socket listener, string address, TimeSpan timeout)
     {
-        var buffer = new byte[65536];
-        var pattern = Encoding.ASCII.GetBytes(address + "\0");
+        byte[] buffer = new byte[65536];
+        byte[] pattern = Encoding.ASCII.GetBytes(address + "\0");
         var watch = Stopwatch.StartNew();
         while (watch.Elapsed < timeout)
         {
@@ -421,15 +414,14 @@ public class NativeFaceTrackingTests
                 return null;
             }
 
-            var start = buffer.AsSpan(0, length).IndexOf(pattern);
+            int start = buffer.AsSpan(0, length).IndexOf(pattern);
             if (start < 0)
             {
                 continue;
             }
 
-            var index = start;
-            var message = OscCodec.TryParse(buffer, length, ref index);
-            if (message?.Values is [{ Type: OscValueType.Blob } value])
+            int index = start;
+            if (OscCodec.TryParse(buffer, length, ref index, out OscMessage? message) && message._values is [{ Type: OscValueType.Blob } value])
             {
                 return value.BlobValue;
             }
@@ -440,7 +432,7 @@ public class NativeFaceTrackingTests
 
     private static void Drain(Socket listener)
     {
-        var buffer = new byte[65536];
+        byte[] buffer = new byte[65536];
         while (listener.Available > 0)
         {
             listener.Receive(buffer);

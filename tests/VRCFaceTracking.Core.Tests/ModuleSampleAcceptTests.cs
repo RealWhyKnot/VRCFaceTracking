@@ -1,40 +1,49 @@
+using System.Diagnostics;
 using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class ModuleSampleAcceptTests
+public sealed class ModuleSampleAcceptTests
 {
-    [Fact]
-    public void NewerSample_IsAccepted()
+    private static ModuleRuntimeInfo NewModule() => new()
     {
-        var module = new ModuleRuntimeInfo();
+        SandboxModulePath = string.Empty,
+        Process = new Process(),
+        ModuleInformation = new ModuleMetadataInternal(),
+        ModuleClassName = string.Empty,
+    };
+
+    [Fact]
+    public void NewerSampleIsAccepted()
+    {
+        ModuleRuntimeInfo module = NewModule();
 
         Assert.True(module.TryAcceptSample(100, TrackingCapability.All));
         Assert.True(module.TryAcceptSample(101, TrackingCapability.All));
     }
 
     [Fact]
-    public void RepeatedSample_IsRejected()
+    public void RepeatedSampleIsRejected()
     {
-        var module = new ModuleRuntimeInfo();
+        ModuleRuntimeInfo module = NewModule();
         module.TryAcceptSample(100, TrackingCapability.All);
 
         Assert.False(module.TryAcceptSample(100, TrackingCapability.All));
     }
 
     [Fact]
-    public void OlderSample_IsRejected()
+    public void OlderSampleIsRejected()
     {
-        var module = new ModuleRuntimeInfo();
+        ModuleRuntimeInfo module = NewModule();
         module.TryAcceptSample(100, TrackingCapability.All);
 
         Assert.False(module.TryAcceptSample(99, TrackingCapability.All));
     }
 
     [Fact]
-    public void RepeatedSample_WithChangedCapabilities_IsAcceptedOnce()
+    public void RepeatedSampleWithChangedCapabilitiesIsAcceptedOnce()
     {
-        var module = new ModuleRuntimeInfo();
+        ModuleRuntimeInfo module = NewModule();
         module.TryAcceptSample(100, TrackingCapability.Eyes);
 
         Assert.True(module.TryAcceptSample(100, TrackingCapability.Eyes | TrackingCapability.Mouth));
@@ -42,9 +51,9 @@ public class ModuleSampleAcceptTests
     }
 
     [Fact]
-    public void UnstampedSample_IsAlwaysAccepted()
+    public void UnstampedSampleIsAlwaysAccepted()
     {
-        var module = new ModuleRuntimeInfo();
+        ModuleRuntimeInfo module = NewModule();
         module.TryAcceptSample(100, TrackingCapability.All);
 
         Assert.True(module.TryAcceptSample(0, TrackingCapability.All));
@@ -52,21 +61,21 @@ public class ModuleSampleAcceptTests
     }
 
     [Fact]
-    public void Modules_TrackSamplesIndependently()
+    public void ModulesTrackSamplesIndependently()
     {
-        var first = new ModuleRuntimeInfo();
-        var second = new ModuleRuntimeInfo();
+        ModuleRuntimeInfo first = NewModule();
+        ModuleRuntimeInfo second = NewModule();
         first.TryAcceptSample(200, TrackingCapability.Eyes);
 
         Assert.True(second.TryAcceptSample(150, TrackingCapability.Mouth));
     }
 
     [Fact]
-    public void RestartedModule_AcceptsItsFirstSample()
+    public void RestartedModuleAcceptsItsFirstSample()
     {
-        var before = new ModuleRuntimeInfo();
+        ModuleRuntimeInfo before = NewModule();
         before.TryAcceptSample(500, TrackingCapability.All);
-        var after = new ModuleRuntimeInfo();
+        ModuleRuntimeInfo after = NewModule();
 
         Assert.True(after.TryAcceptSample(501, TrackingCapability.All));
     }

@@ -1,102 +1,90 @@
 using System.ComponentModel;
-using VRCFaceTracking.Core.Library;
 
-namespace VRCFaceTracking;
+namespace VRCFaceTracking.Core.Library;
 
-// Internal version of ModuleMetadata, done to not break compat
-public class ModuleMetadataInternal : INotifyPropertyChanged
+public sealed class ModuleMetadataInternal : INotifyPropertyChanged
 {
-    public event PropertyChangedEventHandler PropertyChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
 
-    public List<Stream> StaticImages
+    public IReadOnlyList<Stream>? StaticImages
     {
         get; set;
     }
     public string Name
     {
         get; set;
-    }
+    } = string.Empty;
     public string ModulePath
     {
         get; set;
-    }
+    } = string.Empty;
     public bool IsPlaceholder
     {
         get; set;
     }
-    private bool _active;
 
     public bool Active
     {
-        get => _active;
+        get;
         set
         {
-            _active = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Active)));
         }
     }
 
-    //Temporary for the menu display
-    private bool _usingEye;
-    private bool _usingExpression;
-
-
     public bool UsingEye
     {
-        get => _usingEye;
+        get;
         set
         {
-            if (_usingEye == value)
+            if (field == value)
             {
                 return;
             }
-            _usingEye = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsingEye)));
         }
     }
 
     public bool UsingExpression
     {
-        get => _usingExpression;
+        get;
         set
         {
-            if (_usingExpression == value)
+            if (field == value)
             {
                 return;
             }
-            _usingExpression = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UsingExpression)));
         }
     }
 
-    private TrackingCapability _effectiveCapabilities;
-
     public TrackingCapability EffectiveCapabilities
     {
-        get => _effectiveCapabilities;
+        get;
         set
         {
-            if (_effectiveCapabilities == value)
+            if (field == value)
             {
                 return;
             }
-            _effectiveCapabilities = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EffectiveCapabilities)));
         }
     }
 
-    private TrackingCapability? _allowedCapabilities;
-
     public TrackingCapability? AllowedCapabilities
     {
-        get => _allowedCapabilities;
+        get;
         set
         {
-            if (_allowedCapabilities == value)
+            if (field == value)
             {
                 return;
             }
-            _allowedCapabilities = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowedCapabilities)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsAutomatic)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AllowEyes)));
@@ -107,7 +95,7 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
         }
     }
 
-    public bool IsAutomatic => _allowedCapabilities == null;
+    public bool IsAutomatic => AllowedCapabilities == null;
 
     public bool AllowEyes
     {
@@ -141,65 +129,59 @@ public class ModuleMetadataInternal : INotifyPropertyChanged
 
     public void ResetCapabilitiesToAutomatic() => AllowedCapabilities = null;
 
-    private bool GetAllowed(TrackingCapability flag) => (_allowedCapabilities ?? TrackingCapability.All).Allows(flag);
+    private bool GetAllowed(TrackingCapability flag) => (AllowedCapabilities ?? TrackingCapability.All).Allows(flag);
 
     private void SetAllowed(TrackingCapability flag, bool value)
     {
-        var current = _allowedCapabilities ?? TrackingCapability.All;
+        TrackingCapability current = AllowedCapabilities ?? TrackingCapability.All;
         AllowedCapabilities = value ? current | flag : current & ~flag;
     }
 
-    private bool _supportedEye;
-    private bool _supportedExpression;
-
     public bool SupportedEye
     {
-        get => _supportedEye;
+        get;
         set
         {
-            if (_supportedEye == value)
+            if (field == value)
             {
                 return;
             }
-            _supportedEye = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SupportedEye)));
         }
     }
 
     public bool SupportedExpression
     {
-        get => _supportedExpression;
+        get;
         set
         {
-            if (_supportedExpression == value)
+            if (field == value)
             {
                 return;
             }
-            _supportedExpression = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SupportedExpression)));
         }
     }
 
-    private bool _crashed;
-    private string _crashDescription = string.Empty;
-
     public bool Crashed
     {
-        get => _crashed;
+        get;
         set
         {
-            _crashed = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Crashed)));
         }
     }
 
     public string CrashDescription
     {
-        get => _crashDescription;
+        get;
         set
         {
-            _crashDescription = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CrashDescription)));
         }
-    }
+    } = string.Empty;
 }

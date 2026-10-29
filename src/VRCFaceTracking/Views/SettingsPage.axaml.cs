@@ -14,7 +14,7 @@ using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking.Views;
 
-public partial class SettingsPage : UserControl, INotifyNavigated
+internal sealed partial class SettingsPage : UserControl, INotifyNavigated
 {
     private SettingsViewModel ViewModel => (SettingsViewModel)DataContext!;
 
@@ -41,7 +41,7 @@ public partial class SettingsPage : UserControl, INotifyNavigated
                 OnCameraStreamsToggled((bool)e.NewValue!);
             }
         };
-        Unloaded += (_, _) => OnCameraStreamsToggled(false);
+        Unloaded += (_, _) => OnCameraStreamsToggled(enabled: false);
     }
 
     public void OnNavigatedTo()
@@ -61,7 +61,7 @@ public partial class SettingsPage : UserControl, INotifyNavigated
             {
                 "Light" => 0,
                 "Dark" => 1,
-                _ => 2
+                _ => 2,
             };
         }
         finally
@@ -72,41 +72,51 @@ public partial class SettingsPage : UserControl, INotifyNavigated
 
     private void ThemeCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_applyingTheme) return;
-        if (ThemeCombo.SelectedItem is not ComboBoxItem item) return;
+        if (_applyingTheme)
+        {
+            return;
+        }
 
-        var tag = item.Tag?.ToString() ?? "Default";
+        if (ThemeCombo.SelectedItem is not ComboBoxItem item)
+        {
+            return;
+        }
+
+        string tag = item.Tag?.ToString() ?? "Default";
         Application.Current!.RequestedThemeVariant = tag switch
         {
             "Light" => ThemeVariant.Light,
             "Dark" => ThemeVariant.Dark,
-            _ => ThemeVariant.Default
+            _ => ThemeVariant.Default,
         };
-        _ = ViewModel.SaveThemeAsync(tag);
+        _ = ViewModel.SaveThemeAsync(tag, CancellationToken.None);
     }
 
     private async void ChangeLogFolder_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
-        if (storageProvider == null) return;
+        IStorageProvider? storageProvider = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (storageProvider == null)
+        {
+            return;
+        }
 
         try
         {
-            var folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            IReadOnlyList<IStorageFolder> folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
                 Title = Strings.Resources.LogFolderPickerTitle,
-                AllowMultiple = false
+                AllowMultiple = false,
             });
 
-            var path = folders.FirstOrDefault()?.TryGetLocalPath();
+            string? path = folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
             if (!string.IsNullOrWhiteSpace(path))
             {
-                await ViewModel.SetLogDirectoryAsync(path);
+                await ViewModel.SetLogDirectoryAsync(path, CancellationToken.None);
             }
         }
-        catch (Exception ex)
+        catch (COMException ex)
         {
-            Ioc.Default.GetRequiredService<ILoggerFactory>().CreateLogger<SettingsPage>().LogError(ex, "Changing the log folder failed");
+            LogChangingLogFolderFailed(Ioc.Default.GetRequiredService<ILoggerFactory>().CreateLogger<SettingsPage>(), ex);
         }
     }
 
@@ -133,48 +143,69 @@ public partial class SettingsPage : UserControl, INotifyNavigated
         _lipStream.Render(UnifiedTracking.LipImageData, _streamStart);
     }
 
-    private sealed class StreamView(Image image, TextBlock status)
+    private sealed class StreamView
     {
-        private WriteableBitmap? _bitmap;
+        private readonly Image _image;
+        private readonly TextBlock _status;
         private byte[]? _lastData;
+
+        public StreamView(Image image, TextBlock status)
+        {
+            _image = image;
+            _status = status;
+        }
 
         public void Reset()
         {
-            image.Source = null;
-            image.IsVisible = true;
-            _bitmap = null;
+            ReleaseBitmap();
+            _image.IsVisible = true;
             _lastData = null;
-            status.Text = Strings.Resources.CameraStreamsWaiting;
-            status.IsVisible = true;
+            _status.Text = Strings.Resources.CameraStreamsWaiting;
+            _status.IsVisible = true;
+        }
+
+        private void ReleaseBitmap()
+        {
+            var old = _image.Source as IDisposable;
+            _image.Source = null;
+            old?.Dispose();
         }
 
         public void Render(Core.Types.Image frame, DateTime start)
         {
-            var data = frame.ImageData;
+            byte[] data = frame.ImageData;
             if (data == null || !frame.SupportsImage)
             {
                 if (DateTime.UtcNow - start >= TimeSpan.FromSeconds(2))
                 {
-                    status.Text = Strings.Resources.CameraStreamsNone;
-                    status.IsVisible = true;
-                    image.IsVisible = false;
+                    _status.Text = Strings.Resources.CameraStreamsNone;
+                    _status.IsVisible = true;
+                    _image.IsVisible = false;
                 }
                 return;
             }
 
-            if (ReferenceEquals(data, _lastData)) return;
-            _lastData = data;
-
-            var (x, y) = frame.ImageSize;
-            if (x <= 0 || y <= 0 || data.Length < x * y * 4) return;
-
-            if (_bitmap == null || _bitmap.PixelSize.Width != x || _bitmap.PixelSize.Height != y)
+            if (ReferenceEquals(data, _lastData))
             {
-                _bitmap = new WriteableBitmap(new PixelSize(x, y), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Unpremul);
-                image.Source = _bitmap;
+                return;
             }
 
-            using (var fb = _bitmap.Lock())
+            _lastData = data;
+
+            (int x, int y) = frame.ImageSize;
+            if (x <= 0 || y <= 0 || data.Length < x * y * 4)
+            {
+                return;
+            }
+
+            if (_image.Source is not WriteableBitmap bitmap || bitmap.PixelSize.Width != x || bitmap.PixelSize.Height != y)
+            {
+                ReleaseBitmap();
+                bitmap = new WriteableBitmap(new PixelSize(x, y), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+                _image.Source = bitmap;
+            }
+
+            using (ILockedFramebuffer fb = bitmap.Lock())
             {
                 if (fb.RowBytes == x * 4)
                 {
@@ -182,45 +213,34 @@ public partial class SettingsPage : UserControl, INotifyNavigated
                 }
                 else
                 {
-                    for (var row = 0; row < y; row++)
+                    for (int row = 0; row < y; row++)
                     {
-                        Marshal.Copy(data, row * x * 4, fb.Address + row * fb.RowBytes, x * 4);
+                        Marshal.Copy(data, row * x * 4, fb.Address + (row * fb.RowBytes), x * 4);
                     }
                 }
             }
 
-            image.InvalidateVisual();
-            image.IsVisible = true;
-            status.IsVisible = false;
+            _image.InvalidateVisual();
+            _image.IsVisible = true;
+            _status.IsVisible = false;
         }
     }
 
-    private void ForceReInit_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        ViewModel.RiskySettings.ForceReInit();
-    }
+    private async void ForceReInit_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => await ViewModel.RiskySettings.ForceReInitAsync(CancellationToken.None);
 
-    private void ResetVRCFT_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        ViewModel.RiskySettings.ResetVRCFT();
-    }
+    private void ResetVRCFT_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel.RiskySettings.ResetVRCFT();
 
-    private void ResetAvatarConfig_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        ViewModel.RiskySettings.ResetAvatarOscManifests();
-    }
+    private void ResetAvatarConfig_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ViewModel.RiskySettings.ResetAvatarOscManifests();
 
     private async void ContributorButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is Button { Tag: string url } && !string.IsNullOrEmpty(url))
+        ILauncher? launcher = TopLevel.GetTopLevel(this)?.Launcher;
+        if (sender is Button { Tag: string url } && launcher != null && Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
-            try
-            {
-                var launcher = TopLevel.GetTopLevel(this)?.Launcher;
-                if (launcher != null)
-                    await launcher.LaunchUriAsync(new Uri(url));
-            }
-            catch { }
+            await launcher.LaunchUriAsync(uri);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Changing the log folder failed")]
+    private static partial void LogChangingLogFolderFailed(ILogger logger, Exception exception);
 }

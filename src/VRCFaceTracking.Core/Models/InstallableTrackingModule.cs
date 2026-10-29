@@ -2,15 +2,7 @@ using Newtonsoft.Json;
 
 namespace VRCFaceTracking.Core.Models;
 
-public enum InstallState
-{
-    NotInstalled,
-    Installed,
-    Outdated,
-    AwaitingRestart
-}
-
-public class InstallableTrackingModule : TrackingModuleMetadata
+public sealed class InstallableTrackingModule : TrackingModuleMetadata
 {
     public InstallState InstallationState
     {
@@ -21,5 +13,5 @@ public class InstallableTrackingModule : TrackingModuleMetadata
     public string AssemblyLoadPath
     {
         get; set;
-    }
+    } = string.Empty;
 }

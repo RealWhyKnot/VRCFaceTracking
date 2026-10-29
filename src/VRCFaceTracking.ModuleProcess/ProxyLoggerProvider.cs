@@ -4,13 +4,20 @@ using VRCFaceTracking.Core.Logging;
 
 namespace VRCFaceTracking.ModuleProcess;
 
-public class ProxyLoggerProvider(LogLevelGate gate) : ILoggerProvider
+internal sealed class ProxyLoggerProvider : ILoggerProvider
 {
     private readonly ConcurrentDictionary<string, ProxyLogger> _loggers =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly LogLevelGate _gate;
+
+    public ProxyLoggerProvider(LogLevelGate gate)
+    {
+        _gate = gate;
+    }
+
     public ILogger CreateLogger(string categoryName) =>
-        _loggers.GetOrAdd(categoryName, name => new ProxyLogger(name, gate));
+        _loggers.GetOrAdd(categoryName, name => new ProxyLogger(name, _gate));
 
     public void Dispose() => _loggers.Clear();
 }

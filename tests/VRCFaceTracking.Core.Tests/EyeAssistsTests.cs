@@ -6,7 +6,7 @@ using VRCFaceTracking.Core.Types;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class EyeAssistsTests
+public sealed class EyeAssistsTests
 {
     private sealed class FakeClock
     {
@@ -16,8 +16,10 @@ public class EyeAssistsTests
     private static (EyeAssists mutator, FakeClock clock) Create()
     {
         var clock = new FakeClock();
-        var mutator = new EyeAssists();
-        mutator.NowSeconds = () => clock.Now;
+        var mutator = new EyeAssists
+        {
+            NowSeconds = () => clock.Now,
+        };
         return (mutator, clock);
     }
 
@@ -34,12 +36,12 @@ public class EyeAssistsTests
     [InlineData(0.6f, 1f, 1f)]
     [InlineData(0.6f, 0.65f, 0.5f)]
     [InlineData(0f, 0.42f, 0.42f)]
-    public void CloseAssist_RemapsOpenness(float strength, float input, float expected)
+    public void CloseAssistRemapsOpenness(float strength, float input, float expected)
     {
-        var (mutator, _) = Create();
-        mutator.closeAssist = true;
-        mutator.closeAssistStrength = strength;
-        var data = Data(input, input);
+        (EyeAssists? mutator, FakeClock _) = Create();
+        mutator.CloseAssist = true;
+        mutator.CloseAssistStrength = strength;
+        UnifiedTrackingData data = Data(input, input);
 
         mutator.MutateData(ref data);
 
@@ -50,14 +52,14 @@ public class EyeAssistsTests
     [Theory]
     [InlineData(false, 0.2f, 0.38f)]
     [InlineData(true, 0.62f, 0.8f)]
-    public void EyelidSync_FirstFrameSnapsToBlendedTarget(bool mostOpen, float expectedLeft, float expectedRight)
+    public void EyelidSyncFirstFrameSnapsToBlendedTarget(bool mostOpen, float expectedLeft, float expectedRight)
     {
-        var (mutator, _) = Create();
-        mutator.eyelidSync = true;
-        mutator.syncStrength = 0.7f;
-        mutator.syncToMostOpen = mostOpen;
-        mutator.preserveWinks = false;
-        var data = Data(0.2f, 0.8f);
+        (EyeAssists? mutator, FakeClock _) = Create();
+        mutator.EyelidSync = true;
+        mutator.SyncStrength = 0.7f;
+        mutator.SyncToMostOpen = mostOpen;
+        mutator.PreserveWinks = false;
+        UnifiedTrackingData data = Data(0.2f, 0.8f);
 
         mutator.MutateData(ref data);
 
@@ -66,60 +68,60 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void EyelidSync_SingleEmaStepUsesClosingTau()
+    public void EyelidSyncSingleEmaStepUsesClosingTau()
     {
-        var (mutator, clock) = Create();
-        mutator.eyelidSync = true;
-        mutator.syncStrength = 0.7f;
-        mutator.preserveWinks = false;
-        var data = Data(0.8f, 0.8f);
+        (EyeAssists? mutator, FakeClock? clock) = Create();
+        mutator.EyelidSync = true;
+        mutator.SyncStrength = 0.7f;
+        mutator.PreserveWinks = false;
+        UnifiedTrackingData data = Data(0.8f, 0.8f);
         mutator.MutateData(ref data);
 
         clock.Now += 0.01;
         data = Data(0.2f, 0.8f);
         mutator.MutateData(ref data);
 
-        var alpha = (float)(1.0 - Math.Exp(-0.01 / 0.018));
-        Assert.Equal(0.8f + alpha * (0.2f - 0.8f), data.Eye.Left.Openness, 4);
-        Assert.Equal(0.8f + alpha * (0.38f - 0.8f), data.Eye.Right.Openness, 4);
+        float alpha = (float)(1.0 - Math.Exp(-0.01 / 0.018));
+        Assert.Equal(0.8f + (alpha * (0.2f - 0.8f)), data.Eye.Left.Openness, 4);
+        Assert.Equal(0.8f + (alpha * (0.38f - 0.8f)), data.Eye.Right.Openness, 4);
     }
 
     [Fact]
-    public void EyelidSync_ClosesFasterThanItOpens()
+    public void EyelidSyncClosesFasterThanItOpens()
     {
-        var (closing, closingClock) = Create();
-        closing.eyelidSync = true;
-        closing.syncStrength = 1f;
-        closing.preserveWinks = false;
-        var data = Data(1f, 1f);
+        (EyeAssists? closing, FakeClock? closingClock) = Create();
+        closing.EyelidSync = true;
+        closing.SyncStrength = 1f;
+        closing.PreserveWinks = false;
+        UnifiedTrackingData data = Data(1f, 1f);
         closing.MutateData(ref data);
         closingClock.Now += 0.01;
         data = Data(0.6f, 0.6f);
         closing.MutateData(ref data);
-        var closingDelta = 1f - data.Eye.Left.Openness;
+        float closingDelta = 1f - data.Eye.Left.Openness;
 
-        var (opening, openingClock) = Create();
-        opening.eyelidSync = true;
-        opening.syncStrength = 1f;
-        opening.preserveWinks = false;
+        (EyeAssists? opening, FakeClock? openingClock) = Create();
+        opening.EyelidSync = true;
+        opening.SyncStrength = 1f;
+        opening.PreserveWinks = false;
         data = Data(0.2f, 0.2f);
         opening.MutateData(ref data);
         openingClock.Now += 0.01;
         data = Data(0.6f, 0.6f);
         opening.MutateData(ref data);
-        var openingDelta = data.Eye.Left.Openness - 0.2f;
+        float openingDelta = data.Eye.Left.Openness - 0.2f;
 
         Assert.True(closingDelta > openingDelta);
     }
 
     [Fact]
-    public void EyelidSync_SustainedWinkBypassesSync()
+    public void EyelidSyncSustainedWinkBypassesSync()
     {
-        var (mutator, clock) = Create();
-        mutator.eyelidSync = true;
-        mutator.syncStrength = 1f;
-        mutator.preserveWinks = true;
-        var data = Data(1f, 1f);
+        (EyeAssists? mutator, FakeClock? clock) = Create();
+        mutator.EyelidSync = true;
+        mutator.SyncStrength = 1f;
+        mutator.PreserveWinks = true;
+        UnifiedTrackingData data = Data(1f, 1f);
         mutator.MutateData(ref data);
 
         clock.Now = 0.01;
@@ -140,13 +142,13 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void EyelidSync_WinkDwellResetsWhenAsymmetryDrops()
+    public void EyelidSyncWinkDwellResetsWhenAsymmetryDrops()
     {
-        var (mutator, clock) = Create();
-        mutator.eyelidSync = true;
-        mutator.syncStrength = 1f;
-        mutator.preserveWinks = true;
-        var data = Data(1f, 0.2f);
+        (EyeAssists? mutator, FakeClock? clock) = Create();
+        mutator.EyelidSync = true;
+        mutator.SyncStrength = 1f;
+        mutator.PreserveWinks = true;
+        UnifiedTrackingData data = Data(1f, 0.2f);
         mutator.MutateData(ref data);
 
         clock.Now = 0.2;
@@ -160,13 +162,13 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void EyelidSync_SnapsAfterLongGap()
+    public void EyelidSyncSnapsAfterLongGap()
     {
-        var (mutator, clock) = Create();
-        mutator.eyelidSync = true;
-        mutator.syncStrength = 1f;
-        mutator.preserveWinks = false;
-        var data = Data(1f, 1f);
+        (EyeAssists? mutator, FakeClock? clock) = Create();
+        mutator.EyelidSync = true;
+        mutator.SyncStrength = 1f;
+        mutator.PreserveWinks = false;
+        UnifiedTrackingData data = Data(1f, 1f);
         mutator.MutateData(ref data);
 
         clock.Now = 0.6;
@@ -178,13 +180,13 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void EyelidSync_BlendsEyeWideWithoutEma()
+    public void EyelidSyncBlendsEyeWideWithoutEma()
     {
-        var (mutator, _) = Create();
-        mutator.eyelidSync = true;
-        mutator.syncStrength = 0.5f;
-        mutator.preserveWinks = false;
-        var data = Data(0.5f, 0.5f);
+        (EyeAssists? mutator, FakeClock _) = Create();
+        mutator.EyelidSync = true;
+        mutator.SyncStrength = 0.5f;
+        mutator.PreserveWinks = false;
+        UnifiedTrackingData data = Data(0.5f, 0.5f);
         data.Shapes[(int)UnifiedExpressions.EyeWideLeft].Weight = 0.8f;
         data.Shapes[(int)UnifiedExpressions.EyeWideRight].Weight = 0.2f;
 
@@ -199,12 +201,12 @@ public class EyeAssistsTests
     [InlineData(0.5f, -0.2f, 0.2f, -0.1f, 0.1f)]
     [InlineData(1f, 0.1f, 0.5f, 0.3f, 0.3f)]
     [InlineData(1f, 0.2f, -0.2f, 0.2f, -0.2f)]
-    public void Convergence_ClampsDivergenceOnly(float strength, float leftX, float rightX, float expectedLeft, float expectedRight)
+    public void ConvergenceClampsDivergenceOnly(float strength, float leftX, float rightX, float expectedLeft, float expectedRight)
     {
-        var (mutator, _) = Create();
-        mutator.convergenceFix = true;
-        mutator.convergenceStrength = strength;
-        var data = Data(1f, 1f);
+        (EyeAssists? mutator, FakeClock _) = Create();
+        mutator.ConvergenceFix = true;
+        mutator.ConvergenceStrength = strength;
+        UnifiedTrackingData data = Data(1f, 1f);
         data.Eye.Left.Gaze.x = leftX;
         data.Eye.Right.Gaze.x = rightX;
 
@@ -215,13 +217,13 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void ForceEyesClosed_OverridesEverything()
+    public void ForceEyesClosedOverridesEverything()
     {
-        var (mutator, _) = Create();
-        mutator.eyelidSync = true;
-        mutator.closeAssist = true;
-        mutator.forceEyesClosed = true;
-        var data = Data(1f, 0.8f);
+        (EyeAssists? mutator, FakeClock _) = Create();
+        mutator.EyelidSync = true;
+        mutator.CloseAssist = true;
+        mutator.ForceEyesClosed = true;
+        UnifiedTrackingData data = Data(1f, 0.8f);
         data.Eye.Left.Gaze.x = 0.4f;
         data.Eye.Right.Gaze.y = -0.3f;
         data.Shapes[(int)UnifiedExpressions.EyeWideLeft].Weight = 0.7f;
@@ -239,16 +241,16 @@ public class EyeAssistsTests
 
     private static EyeAssists Limited(float maxHorizontal, float maxVertical)
     {
-        var (mutator, _) = Create();
-        mutator.limitEyeRange = true;
-        mutator.maxHorizontal = maxHorizontal;
-        mutator.maxVertical = maxVertical;
+        (EyeAssists? mutator, FakeClock _) = Create();
+        mutator.LimitEyeRange = true;
+        mutator.MaxHorizontal = maxHorizontal;
+        mutator.MaxVertical = maxVertical;
         return mutator;
     }
 
     private static UnifiedTrackingData Gaze(float leftX, float leftY, float rightX, float rightY)
     {
-        var data = Data(1f, 1f);
+        UnifiedTrackingData data = Data(1f, 1f);
         data.Eye.Left.Gaze = new Vector2(leftX, leftY);
         data.Eye.Right.Gaze = new Vector2(rightX, rightY);
         return data;
@@ -264,12 +266,12 @@ public class EyeAssistsTests
         "\"forceEyesClosed\":false,\"Name\":\"Eye Assists\",\"Step\":2,\"IsActive\":true,\"IsSaved\":false}";
 
     [Fact]
-    public void RangeLimit_OffLeavesGazeUntouched()
+    public void RangeLimitOffLeavesGazeUntouched()
     {
-        var (mutator, _) = Create();
-        mutator.maxHorizontal = 0.1f;
-        mutator.maxVertical = 0.1f;
-        var data = Gaze(0.9f, -1.3f, -0.45f, 0.7f);
+        (EyeAssists? mutator, FakeClock _) = Create();
+        mutator.MaxHorizontal = 0.1f;
+        mutator.MaxVertical = 0.1f;
+        UnifiedTrackingData data = Gaze(0.9f, -1.3f, -0.45f, 0.7f);
 
         mutator.MutateData(ref data);
 
@@ -282,10 +284,10 @@ public class EyeAssistsTests
     [Theory]
     [InlineData(1f, -1f, -1.2f, 0.8f)]
     [InlineData(-3f, 2.5f, 0.9f, -0.95f)]
-    public void RangeLimit_CapsBothEyesOnBothAxes(float leftX, float leftY, float rightX, float rightY)
+    public void RangeLimitCapsBothEyesOnBothAxes(float leftX, float leftY, float rightX, float rightY)
     {
-        var mutator = Limited(0.3f, 0.2f);
-        var data = Gaze(leftX, leftY, rightX, rightY);
+        EyeAssists mutator = Limited(0.3f, 0.2f);
+        UnifiedTrackingData data = Gaze(leftX, leftY, rightX, rightY);
 
         mutator.MutateData(ref data);
 
@@ -307,10 +309,10 @@ public class EyeAssistsTests
     [InlineData(0.4f, 0.5f, 0.380599f)]
     [InlineData(1f, 0.3f, 0.240079f)]
     [InlineData(-1f, 0.3f, -0.240079f)]
-    public void RangeLimit_FollowsTheKneeCurve(float input, float max, float expected)
+    public void RangeLimitFollowsTheKneeCurve(float input, float max, float expected)
     {
-        var mutator = Limited(max, max);
-        var data = Gaze(input, input, input, input);
+        EyeAssists mutator = Limited(max, max);
+        UnifiedTrackingData data = Gaze(input, input, input, input);
 
         mutator.MutateData(ref data);
 
@@ -319,10 +321,10 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void RangeLimit_FullGazeLandsOnTheSliderShareOfNativeRange()
+    public void RangeLimitFullGazeLandsOnTheSliderShareOfNativeRange()
     {
-        var mutator = Limited(0.3f, 0.2f);
-        var data = Gaze(1f, 1f, -1f, -1f);
+        EyeAssists mutator = Limited(0.3f, 0.2f);
+        UnifiedTrackingData data = Gaze(1f, 1f, -1f, -1f);
 
         mutator.MutateData(ref data);
 
@@ -340,10 +342,10 @@ public class EyeAssistsTests
     [InlineData(0.05f)]
     [InlineData(0.15f)]
     [InlineData(-0.2f)]
-    public void RangeLimit_LeavesValuesBelowTheKneeExact(float gaze)
+    public void RangeLimitLeavesValuesBelowTheKneeExact(float gaze)
     {
-        var mutator = Limited(0.35f, 0.35f);
-        var data = Gaze(gaze, -gaze, -gaze, gaze);
+        EyeAssists mutator = Limited(0.35f, 0.35f);
+        UnifiedTrackingData data = Gaze(gaze, -gaze, -gaze, gaze);
 
         mutator.MutateData(ref data);
 
@@ -357,26 +359,26 @@ public class EyeAssistsTests
     [InlineData(0.8, 0.001f)]
     [InlineData(0.9, 0.02f)]
     [InlineData(1.0, 0.06f)]
-    public void RangeLimit_BarelyMovesValuesInsideTheLimit(double shareOfLimit, float maxShrink)
+    public void RangeLimitBarelyMovesValuesInsideTheLimit(double shareOfLimit, float maxShrink)
     {
-        var mutator = Limited(0.35f, 0.35f);
-        var input = GazeAtShare(shareOfLimit * 0.35);
-        var data = Gaze(input, input, -input, -input);
+        EyeAssists mutator = Limited(0.35f, 0.35f);
+        float input = GazeAtShare(shareOfLimit * 0.35);
+        UnifiedTrackingData data = Gaze(input, input, -input, -input);
 
         mutator.MutateData(ref data);
 
-        Assert.InRange(1f - ShareOfRange(data.Eye.Left.Gaze.x) / ShareOfRange(input), 0f, maxShrink);
-        Assert.InRange(1f - ShareOfRange(data.Eye.Right.Gaze.y) / ShareOfRange(-input), 0f, maxShrink);
+        Assert.InRange(1f - (ShareOfRange(data.Eye.Left.Gaze.x) / ShareOfRange(input)), 0f, maxShrink);
+        Assert.InRange(1f - (ShareOfRange(data.Eye.Right.Gaze.y) / ShareOfRange(-input)), 0f, maxShrink);
     }
 
     private static List<(float input, float x, float y)> SweepLimit(float maxHorizontal, float maxVertical)
     {
-        var mutator = Limited(maxHorizontal, maxVertical);
+        EyeAssists mutator = Limited(maxHorizontal, maxVertical);
         var samples = new List<(float, float, float)>();
-        for (var i = -800; i <= 800; i++)
+        for (int i = -800; i <= 800; i++)
         {
-            var input = i / 400f;
-            var data = Gaze(input, input, input, input);
+            float input = i / 400f;
+            UnifiedTrackingData data = Gaze(input, input, input, input);
             mutator.MutateData(ref data);
             samples.Add((input, data.Eye.Left.Gaze.x, data.Eye.Right.Gaze.y));
         }
@@ -384,11 +386,11 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void RangeLimit_KneeIsMonotonic()
+    public void RangeLimitKneeIsMonotonic()
     {
-        var samples = SweepLimit(0.35f, 0.2f);
+        List<(float input, float x, float y)> samples = SweepLimit(0.35f, 0.2f);
 
-        for (var i = 1; i < samples.Count; i++)
+        for (int i = 1; i < samples.Count; i++)
         {
             Assert.True(samples[i].x >= samples[i - 1].x, $"x fell at input {samples[i].input}");
             Assert.True(samples[i].y >= samples[i - 1].y, $"y fell at input {samples[i].input}");
@@ -398,23 +400,23 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void RangeLimit_KneeHasNoJumps()
+    public void RangeLimitKneeHasNoJumps()
     {
-        var samples = SweepLimit(0.35f, 0.2f);
+        List<(float input, float x, float y)> samples = SweepLimit(0.35f, 0.2f);
 
-        for (var i = 1; i < samples.Count; i++)
+        for (int i = 1; i < samples.Count; i++)
         {
-            var step = samples[i].input - samples[i - 1].input;
+            float step = samples[i].input - samples[i - 1].input;
             Assert.True(samples[i].x - samples[i - 1].x <= step + 1e-6f, $"x jumped at input {samples[i].input}");
             Assert.True(samples[i].y - samples[i - 1].y <= step + 1e-6f, $"y jumped at input {samples[i].input}");
         }
     }
 
     [Fact]
-    public void RangeLimit_MaxOfOneLeavesThatAxisUnlimited()
+    public void RangeLimitMaxOfOneLeavesThatAxisUnlimited()
     {
-        var mutator = Limited(1f, 0.3f);
-        var data = Gaze(1.4f, 1.4f, -1.4f, -1.4f);
+        EyeAssists mutator = Limited(1f, 0.3f);
+        UnifiedTrackingData data = Gaze(1.4f, 1.4f, -1.4f, -1.4f);
 
         mutator.MutateData(ref data);
 
@@ -425,12 +427,12 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void RangeLimit_AppliesToConvergedGaze()
+    public void RangeLimitAppliesToConvergedGaze()
     {
-        var mutator = Limited(0.5f, 1f);
-        mutator.convergenceFix = true;
-        mutator.convergenceStrength = 1f;
-        var data = Gaze(0.2f, 0f, 0.6f, 0f);
+        EyeAssists mutator = Limited(0.5f, 1f);
+        mutator.ConvergenceFix = true;
+        mutator.ConvergenceStrength = 1f;
+        UnifiedTrackingData data = Gaze(0.2f, 0f, 0.6f, 0f);
 
         mutator.MutateData(ref data);
 
@@ -439,11 +441,11 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public void RangeLimit_ForceEyesClosedStillCentersGaze()
+    public void RangeLimitForceEyesClosedStillCentersGaze()
     {
-        var mutator = Limited(0.3f, 0.3f);
-        mutator.forceEyesClosed = true;
-        var data = Gaze(0.9f, -0.9f, 0.9f, -0.9f);
+        EyeAssists mutator = Limited(0.3f, 0.3f);
+        mutator.ForceEyesClosed = true;
+        UnifiedTrackingData data = Gaze(0.9f, -0.9f, 0.9f, -0.9f);
 
         mutator.MutateData(ref data);
 
@@ -456,24 +458,24 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public async Task RangeLimit_OldSettingsLoadWithDefaults()
+    public async Task RangeLimitOldSettingsLoadWithDefaults()
     {
-        var loaded = await Json.ToObjectAsync<EyeAssists>(SettingsBeforeRangeLimit);
+        EyeAssists loaded = (await JsonText.ToObjectAsync<EyeAssists>(SettingsBeforeRangeLimit, CancellationToken.None))!;
 
         Assert.True(loaded.IsActive);
-        Assert.True(loaded.closeAssist);
-        Assert.Equal(1f, loaded.closeAssistStrength);
-        Assert.False(loaded.preserveWinks);
-        Assert.False(loaded.limitEyeRange);
-        Assert.Equal(0.35f, loaded.maxHorizontal);
-        Assert.Equal(0.35f, loaded.maxVertical);
+        Assert.True(loaded.CloseAssist);
+        Assert.Equal(1f, loaded.CloseAssistStrength);
+        Assert.False(loaded.PreserveWinks);
+        Assert.False(loaded.LimitEyeRange);
+        Assert.Equal(0.35f, loaded.MaxHorizontal);
+        Assert.Equal(0.35f, loaded.MaxVertical);
     }
 
     [Fact]
-    public async Task RangeLimit_OldSettingsLeaveGazeUntouched()
+    public async Task RangeLimitOldSettingsLeaveGazeUntouched()
     {
-        var loaded = await Json.ToObjectAsync<EyeAssists>(SettingsBeforeRangeLimit);
-        var data = Gaze(0.9f, -1.3f, -0.45f, 0.7f);
+        EyeAssists loaded = (await JsonText.ToObjectAsync<EyeAssists>(SettingsBeforeRangeLimit, CancellationToken.None))!;
+        UnifiedTrackingData data = Gaze(0.9f, -1.3f, -0.45f, 0.7f);
 
         loaded.MutateData(ref data);
 
@@ -484,28 +486,28 @@ public class EyeAssistsTests
     }
 
     [Fact]
-    public async Task RangeLimit_SettingsSurviveSaveAndLoad()
+    public async Task RangeLimitSettingsSurviveSaveAndLoad()
     {
-        var mutation = new EyeAssists { limitEyeRange = true, maxHorizontal = 0.42f, maxVertical = 0.27f };
+        var mutation = new EyeAssists { LimitEyeRange = true, MaxHorizontal = 0.42f, MaxVertical = 0.27f };
 
-        var loaded = await Json.ToObjectAsync<EyeAssists>(await Json.StringifyAsync(mutation));
+        EyeAssists loaded = (await JsonText.ToObjectAsync<EyeAssists>(await JsonText.StringifyAsync(mutation, CancellationToken.None), CancellationToken.None))!;
 
-        Assert.True(loaded.limitEyeRange);
-        Assert.Equal(0.42f, loaded.maxHorizontal);
-        Assert.Equal(0.27f, loaded.maxVertical);
+        Assert.True(loaded.LimitEyeRange);
+        Assert.Equal(0.42f, loaded.MaxHorizontal);
+        Assert.Equal(0.27f, loaded.MaxVertical);
     }
 
     [Fact]
-    public void RangeLimit_ShowsAfterConvergenceSettings()
+    public void RangeLimitShowsAfterConvergenceSettings()
     {
         var mutation = new EyeAssists();
         mutation.CreateProperties();
         var rows = mutation.Components.OfType<MutationProperty>().ToList();
-        var start = rows.FindIndex(r => r.Name == "Limit Eye Range");
+        int start = rows.FindIndex(r => string.Equals(r.Name, "Limit Eye Range", StringComparison.Ordinal));
 
         Assert.Equal(
-            new[] { "Convergence Strength", "Limit Eye Range", "Max Horizontal", "Max Vertical", "Eye Close Assist" },
-            rows.Skip(start - 1).Take(5).Select(r => r.Name));
+            ["Convergence Strength", "Limit Eye Range", "Max Horizontal", "Max Vertical", "Eye Close Assist"],
+            rows.Skip(start - 1).Take(5).Select(r => r.Name), StringComparer.Ordinal);
         Assert.Equal(MutationPropertyType.CheckBox, rows[start].Type);
         Assert.All(rows.Skip(start + 1).Take(2), r =>
         {

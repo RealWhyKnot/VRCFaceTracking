@@ -1,247 +1,290 @@
+using System.Collections.Concurrent;
 using System.CommandLine;
 using System.Diagnostics;
-using System.Net.Sockets;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Logging;
-using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
 using VRCFaceTracking.Core.Sandboxing;
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 
 namespace VRCFaceTracking.ModuleProcess;
 
-public class ModuleProcessMain
+internal sealed partial class ModuleProcessMain
 {
-    private const double CONNECTION_TIMEOUT = 60.0;
-    private const double CONNECTED_TIMEOUT = 10.0;
+    private const double ConnectionTimeoutSeconds = 60.0;
+    private const double ConnectedTimeoutSeconds = 10.0;
     private static volatile bool WaitForPackets = true;
-    public static ModuleAssembly DefModuleAssembly;
-    public static ILoggerFactory? LoggerFactory;
-    public static ILogger<ModuleProcessMain> Logger;
-    public static VrcftSandboxClient Client;
-    public static CancellationTokenSource cts = new();
+    public static ModuleAssembly? DefModuleAssembly;
+    public static ILoggerFactory LoggerFactory = NullLoggerFactory.Instance;
+    public static ILogger<ModuleProcessMain> Logger = NullLogger<ModuleProcessMain>.Instance;
+    public static VrcftSandboxClient? Client;
+    public static CancellationTokenSource Cts = new();
 
     private static readonly LogLevelGate Gate = new();
-    private static FileLoggerProvider? _fileLogger;
-    private static readonly System.Collections.Concurrent.ConcurrentQueue<IpcPacket> _packetsToSend = new();
-    private static Timer? _connectionTimer;
-    private static volatile bool _connected;
-    private static Thread? _updateThread;
+    private static FileLoggerProvider? LogFile;
+    private static readonly ConcurrentQueue<IpcPacket> PacketsToSend = new();
+    private static Timer? ConnectionTimer;
+    private static volatile bool Connected;
+    private static Thread? UpdateThread;
 
-    private static readonly AutoResetEvent _wakeup = new(false);
+    private static readonly AutoResetEvent Wakeup = new(initialState: false);
     private const int SendLoopFallbackWakeMs = 1000;
-    private static ReplyUpdatePacket? _latest;
-    private static volatile bool _imageStreamEnabled;
+    private static ReplyUpdatePacket? Latest;
+    private static volatile bool ImageStreamEnabled;
     private const int ImageFrameIntervalMs = 90;
-    private static readonly System.Diagnostics.Stopwatch _eyeFrameTimer = System.Diagnostics.Stopwatch.StartNew();
-    private static readonly System.Diagnostics.Stopwatch _lipFrameTimer = System.Diagnostics.Stopwatch.StartNew();
-
-    private static void TryEnqueueImageFrame(Core.Types.Image image, byte kind, System.Diagnostics.Stopwatch timer)
-    {
-        if (timer.ElapsedMilliseconds < ImageFrameIntervalMs)
-        {
-            return;
-        }
-
-        var data = image?.ImageData;
-        var (x, y) = image?.ImageSize ?? default;
-        if (image is not { SupportsImage: true } || data == null ||
-            x < 1 || y < 1 ||
-            x > ImageFrameUpdatePacket.MaxDimension || y > ImageFrameUpdatePacket.MaxDimension ||
-            data.Length != x * y * 4)
-        {
-            return;
-        }
-
-        timer.Restart();
-        _packetsToSend.Enqueue(new ImageFrameUpdatePacket
-        {
-            Kind = kind,
-            Width = x,
-            Height = y,
-            Data = (byte[])data.Clone(),
-        });
-        _wakeup.Set();
-    }
+    private static readonly Stopwatch EyeFrameTimer = Stopwatch.StartNew();
+    private static readonly Stopwatch LipFrameTimer = Stopwatch.StartNew();
 
     public static int Main(string[] args)
     {
-        var modulePathArg = args.SkipWhile(a => a != "--module-path").Skip(1).FirstOrDefault();
-        var moduleName = Path.GetFileNameWithoutExtension(modulePathArg ?? "module");
+        string? modulePathArg = args.SkipWhile(a => !string.Equals(a, "--module-path", StringComparison.Ordinal)).Skip(1).FirstOrDefault();
+        string moduleName = Path.GetFileNameWithoutExtension(modulePathArg ?? "module");
         GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
         Gate.Set(args.Contains("--verbose") || BuildInfo.VerboseForced);
 
-        var throttling = "n/a";
-        if (OperatingSystem.IsWindows())
-        {
-            throttling = Core.Utils.OptOutOfPowerThrottling(out var mask, out var error)
-                ? $"0x{mask:X} {Core.Utils.DescribePowerThrottling()}"
-                : $"failed (error {error})";
-            try
-            {
-                Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
-            }
-            catch (Exception)
-            {
-            }
-        }
-        _fileLogger = new FileLoggerProvider(Core.Utils.LogDirectory, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}"), Gate);
-        _fileLogger.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass} throttling={throttling} gc={GCSettings.LatencyMode}");
+        string throttling = OptOutOfThrottling();
+        var logFile = new FileLoggerProvider(LogDirectories.Current, LogFileNames.Module(moduleName, DateTime.Now), BuildInfo.HeaderBlock($"ModuleProcess {moduleName}", DateTimeOffset.UtcNow), Gate, TimeProvider.System);
+        LogFile = logFile;
+        logFile.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum} priority={Process.GetCurrentProcess().PriorityClass} throttling={throttling} gc={GCSettings.LatencyMode}");
 
-        var serviceProvider = new ServiceCollection()
-            .AddLogging(loggingBuilder => loggingBuilder
-                .ClearProviders()
-                .SetMinimumLevel(LogLevel.Trace)
-                .AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace)
-                .AddFilter<ConsoleLoggerProvider>(null, LogLevel.Error)
-                .AddProvider(_fileLogger)
-                .AddProvider(new ProxyLoggerProvider(Gate)))
-            .BuildServiceProvider();
-
-        LoggerFactory = serviceProvider.GetService<ILoggerFactory>();
-        Logger = LoggerFactory!.CreateLogger<ModuleProcessMain>();
-        CrashHandlers.Install(Logger, _fileLogger.Flush);
-
-        AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
-        {
-            Logger.LogInformation("Process exit requested");
-            WaitForPackets = false;
-            DefModuleAssembly?._updateCts?.Cancel();
-            cts.Cancel();
-            _wakeup.Set();
-            _updateThread?.Join(TimeSpan.FromSeconds(5));
-            _fileLogger.Flush();
-        };
+        ConfigureLogging(logFile);
+        HookProcessEvents(logFile);
 
         try
         {
             if (args.Length < 1)
             {
-                Logger.LogCritical("No arguments supplied");
-                return ModuleProcessExitCodes.INVALID_ARGS;
+                LogNoArgumentsSupplied(Logger);
+                return ModuleProcessExitCodes.InvalidArgs;
             }
 
-            var portOption = new Option<int?>("--port")
-            {
-                Description = "The UDP port the VRCFT server is running on."
-            };
-            var modulePathOption = new Option<string?>("--module-path")
-            {
-                Description = "The path to the module to load."
-            };
-            var parentPidOption = new Option<int?>("--parent-pid")
-            {
-                Description = "PID of the parent VRCFT process. Module process exits if parent dies."
-            };
-            var verboseOption = new Option<bool>("--verbose")
-            {
-                Description = "Write Debug and Information level log lines."
-            };
-
-            var rootCommand = new RootCommand("VRCFT Sandbox Module");
-            rootCommand.Options.Add(portOption);
-            rootCommand.Options.Add(modulePathOption);
-            rootCommand.Options.Add(parentPidOption);
-            rootCommand.Options.Add(verboseOption);
-
-            rootCommand.SetAction(parseResult =>
-            {
-                var modulePath = parseResult.GetValue(modulePathOption);
-                var port = parseResult.GetValue(portOption);
-                var parentPid = parseResult.GetValue(parentPidOption);
-                if (modulePath == null || port is null or 0)
-                {
-                    Logger.LogCritical("--module-path and --port are required");
-                    return ModuleProcessExitCodes.INVALID_ARGS;
-                }
-
-                return VrcftMain(modulePath, port.Value, parentPid);
-            });
-
-            return rootCommand.Parse(args).Invoke();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogCritical(ex, "Module process crashed");
-            return ModuleProcessExitCodes.EXCEPTION_CRASH;
+            return BuildRootCommand(logFile).Parse(args).Invoke(new InvocationConfiguration { EnableDefaultExceptionHandler = false });
         }
         finally
         {
             Client?.Dispose();
-            _fileLogger.Flush();
+            logFile.Flush();
         }
     }
 
-    static int VrcftMain(string modulePath, int serverPortNumber, int? parentPid = null)
+    private static string OptOutOfThrottling()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return "n/a";
+        }
+
+        string throttling = PowerThrottling.TryOptOut(out uint mask, out int error)
+            ? $"0x{mask:X} {PowerThrottling.Describe()}"
+            : $"failed (error {error})";
+        _ = ProcessPriority.TryRaiseToAboveNormal();
+        return throttling;
+    }
+
+    private static void ConfigureLogging(FileLoggerProvider logFile)
+    {
+        ServiceProvider serviceProvider = new ServiceCollection()
+            .AddLogging(loggingBuilder => loggingBuilder
+                .ClearProviders()
+                .SetMinimumLevel(LogLevel.Trace)
+                .AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace)
+                .AddFilter<ConsoleLoggerProvider>(category: null, LogLevel.Error)
+                .AddProvider(logFile)
+                .AddProvider(new ProxyLoggerProvider(Gate)))
+            .BuildServiceProvider();
+
+        LoggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+        Logger = LoggerFactory.CreateLogger<ModuleProcessMain>();
+    }
+
+    private static void HookProcessEvents(FileLoggerProvider logFile)
+    {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => CrashHandlers.ReportUnhandled(Logger, e, logFile.Flush);
+        TaskScheduler.UnobservedTaskException += (_, e) => CrashHandlers.ReportUnobserved(Logger, e, logFile.Flush);
+
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            LogProcessExitRequested(Logger);
+            WaitForPackets = false;
+            DefModuleAssembly?.UpdateCts?.Cancel();
+            Cts.Cancel();
+            Wakeup.Set();
+            UpdateThread?.Join(TimeSpan.FromSeconds(5));
+            logFile.Flush();
+        };
+    }
+
+    private static RootCommand BuildRootCommand(FileLoggerProvider logFile)
+    {
+        var portOption = new Option<int?>("--port")
+        {
+            Description = "The UDP port the VRCFT server is running on.",
+        };
+        var modulePathOption = new Option<string?>("--module-path")
+        {
+            Description = "The path to the module to load.",
+        };
+        var parentPidOption = new Option<int?>("--parent-pid")
+        {
+            Description = "PID of the parent VRCFT process. Module process exits if parent dies.",
+        };
+        var verboseOption = new Option<bool>("--verbose")
+        {
+            Description = "Write Debug and Information level log lines.",
+        };
+
+        var rootCommand = new RootCommand("VRCFT Sandbox Module");
+        rootCommand.Options.Add(portOption);
+        rootCommand.Options.Add(modulePathOption);
+        rootCommand.Options.Add(parentPidOption);
+        rootCommand.Options.Add(verboseOption);
+
+        rootCommand.SetAction(parseResult =>
+        {
+            string? modulePath = parseResult.GetValue(modulePathOption);
+            int? port = parseResult.GetValue(portOption);
+            int? parentPid = parseResult.GetValue(parentPidOption);
+            if (modulePath == null || port is null or 0)
+            {
+                LogModulePathPortRequired(Logger);
+                return ModuleProcessExitCodes.InvalidArgs;
+            }
+
+            return VrcftMain(modulePath, port.Value, parentPid, logFile.CreateLogger(nameof(ModuleProcessMain)));
+        });
+
+        return rootCommand;
+    }
+
+    private static int VrcftMain(string modulePath, int serverPortNumber, int? parentPid, ILogger fileLogger)
     {
         Thread.Sleep(50);
 
         if (parentPid.HasValue)
         {
-            var watchdogThread = new Thread(() =>
-            {
-                try
-                {
-                    using var parent = Process.GetProcessById(parentPid.Value);
-                    parent.WaitForExit();
-                }
-                catch (Exception) { }
-
-                Logger.LogWarning("Host process {Pid} exited, tearing down module", parentPid.Value);
-                var teardownThread = new Thread(() =>
-                {
-                    try
-                    {
-                        DefModuleAssembly?._updateCts?.Cancel();
-                        DefModuleAssembly?.TrackingModule?.Teardown();
-                    }
-                    catch (Exception) { }
-                });
-                teardownThread.IsBackground = true;
-                teardownThread.Start();
-                teardownThread.Join(TimeSpan.FromSeconds(10));
-
-                _fileLogger?.Flush();
-                Environment.Exit(ModuleProcessExitCodes.PARENT_EXITED);
-            });
-            watchdogThread.IsBackground = true;
-            watchdogThread.Name = "ParentWatchdog";
-            watchdogThread.Start();
+            StartParentWatchdog(parentPid.Value);
         }
         else
         {
-            Logger.LogWarning("No parent pid provided. Lingering process detection is limited to existing timeouts and graceful shutdown");
+            LogNoParentPidProvidedLingering(Logger);
         }
 
-        Client = new VrcftSandboxClient(serverPortNumber, LoggerFactory);
+        var client = new VrcftSandboxClient(serverPortNumber, LoggerFactory);
+        Client = client;
+        ProxyLogger.OnLog += (level, msg) => client.SendData(new EventLogPacket(level, msg));
 
-        ProxyLogger.OnLog += (level, msg) =>
+        if (!TryLoadModule(modulePath, out ModuleAssembly? moduleAssembly, out ExtTrackingModule? trackingModule))
         {
-            var pkt = new EventLogPacket(level, msg);
-            Client.SendData(pkt);
-        };
+            return ModuleProcessExitCodes.ModuleLoadFailed;
+        }
 
+        SeedSentinelTrackingData();
+
+        client.OnPacketReceivedCallback += (in packet) => OnHostPacket(packet, trackingModule, moduleAssembly, client, fileLogger);
+        client.Connect(modulePath);
+        LogInitializing(Logger, trackingModule.GetType().Assembly.FullName ?? "");
+
+        ConnectionTimer = new Timer(_ =>
+        {
+            LogNoPacketsHostShuttingModule(Logger, Connected ? ConnectedTimeoutSeconds : ConnectionTimeoutSeconds);
+            LogFile?.Flush();
+            Environment.Exit(ModuleProcessExitCodes.NetworkConnectionTimedOut);
+        }, state: null, TimeSpan.FromSeconds(ConnectionTimeoutSeconds), Timeout.InfiniteTimeSpan);
+
+        RunSendLoop(client);
+
+        moduleAssembly.UpdateCts?.Cancel();
+        UpdateThread?.Join(TimeSpan.FromSeconds(2));
+        ConnectionTimer.Dispose();
+
+        LogFile?.Flush();
+        Environment.Exit(ModuleProcessExitCodes.OK);
+        return ModuleProcessExitCodes.OK;
+    }
+
+    private static void StartParentWatchdog(int parentPid)
+    {
+        var watchdogThread = new Thread(() => WatchParent(parentPid))
+        {
+            IsBackground = true,
+            Name = "ParentWatchdog",
+        };
+        watchdogThread.Start();
+    }
+
+    private static void WatchParent(int parentPid)
+    {
+        WaitForHostExit(parentPid);
+
+        LogHostProcessExitedTearingDown(Logger, parentPid);
+        var teardownThread = new Thread(() =>
+        {
+            DefModuleAssembly?.UpdateCts?.Cancel();
+            DefModuleAssembly?.TrackingModule?.Teardown();
+        })
+        {
+            IsBackground = true,
+        };
+        teardownThread.Start();
+        teardownThread.Join(TimeSpan.FromSeconds(10));
+
+        LogFile?.Flush();
+        Environment.Exit(ModuleProcessExitCodes.ParentExited);
+    }
+
+    private static void WaitForHostExit(int pid)
+    {
+        Process parent;
         try
         {
-            DefModuleAssembly = new ModuleAssembly(Logger, LoggerFactory, modulePath);
+            parent = Process.GetProcessById(pid);
+        }
+        catch (ArgumentException)
+        {
+            return;
+        }
+
+        using (parent)
+        {
+            parent.WaitForExit();
+        }
+    }
+
+    private static bool TryLoadModule(string modulePath, [NotNullWhen(true)] out ModuleAssembly? moduleAssembly, [NotNullWhen(true)] out ExtTrackingModule? trackingModule)
+    {
+        trackingModule = null;
+        try
+        {
+            moduleAssembly = new ModuleAssembly(Logger, LoggerFactory, modulePath);
         }
         catch (ArgumentException e)
         {
-            Logger.LogError("Invalid module path {Path}: {Message}", modulePath, e.Message);
-            return ModuleProcessExitCodes.MODULE_LOAD_FAILED;
-        }
-        DefModuleAssembly.TryLoadAssembly();
-        if (DefModuleAssembly.TrackingModule == null)
-        {
-            Logger.LogError("No ExtTrackingModule implementation could be loaded from {Path}", modulePath);
-            return ModuleProcessExitCodes.MODULE_LOAD_FAILED;
+            LogInvalidModulePath(Logger, modulePath, e.Message);
+            moduleAssembly = null;
+            return false;
         }
 
+        DefModuleAssembly = moduleAssembly;
+        moduleAssembly.LoadAssembly();
+        trackingModule = moduleAssembly.TrackingModule;
+        if (trackingModule == null)
+        {
+            LogNoExtTrackingModuleImplementationCouldLoaded(Logger, modulePath);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void SeedSentinelTrackingData()
+    {
         UnifiedTracking.Data = new()
         {
             Eye = new()
@@ -250,13 +293,13 @@ public class ModuleProcessMain
                 {
                     Gaze = new(0xFFFFFFFF, 0xFFFFFFFF),
                     Openness = 0xFFFFFFFF,
-                    PupilDiameter_MM = 0xFFFFFFFF
+                    PupilDiameter_MM = 0xFFFFFFFF,
                 },
                 Right = new()
                 {
                     Gaze = new(0xFFFFFFFF, 0xFFFFFFFF),
                     Openness = 0xFFFFFFFF,
-                    PupilDiameter_MM = 0xFFFFFFFF
+                    PupilDiameter_MM = 0xFFFFFFFF,
                 },
                 _maxDilation = 0xFFFFFFFF,
                 _minDilation = 0xFFFFFFFF,
@@ -268,249 +311,55 @@ public class ModuleProcessMain
                 HeadRoll = 0xFFFFFFFF,
                 HeadPosX = 0xFFFFFFFF,
                 HeadPosY = 0xFFFFFFFF,
-                HeadPosZ = 0xFFFFFFFF
-            }
+                HeadPosZ = 0xFFFFFFFF,
+            },
         };
-        for (var i = 0; i < (int)UnifiedExpressions.Max + 1; i++)
+        for (int i = 0; i < (int)UnifiedExpressions.Max + 1; i++)
         {
             UnifiedTracking.Data.Shapes[i].Weight = 0xFFFFFFFF;
         }
+    }
 
-        Client.OnPacketReceivedCallback += (in IpcPacket packet) =>
+    private static void RunSendLoop(VrcftSandboxClient client)
+    {
+        while (WaitForPackets && !Cts.IsCancellationRequested)
         {
-            _connected = true;
-            _connectionTimer?.Change(TimeSpan.FromSeconds(CONNECTED_TIMEOUT), Timeout.InfiniteTimeSpan);
-
-            switch (packet.GetPacketType())
+            while (PacketsToSend.TryDequeue(out IpcPacket? pkt))
             {
-                case IpcPacket.PacketType.EventGetSupported:
-                    {
-                        var result = DefModuleAssembly.TrackingModule.Supported;
-                        var pkt = new ReplySupportedPacket()
-                        {
-                            eyeAvailable = result.SupportsEye,
-                            expressionAvailable = result.SupportsExpression
-                        };
-                        _packetsToSend.Enqueue(pkt);
-                        _wakeup.Set();
-                        break;
-                    }
-                case IpcPacket.PacketType.EventInit:
-                    {
-                        var pkt = (EventInitPacket)packet;
-
-                        bool eyeSuccess, expressionSuccess;
-                        try
-                        {
-                            (eyeSuccess, expressionSuccess) = DefModuleAssembly.TrackingModule.Initialize(pkt.eyeAvailable, pkt.expressionAvailable);
-                        }
-                        catch (MissingMethodException)
-                        {
-                            Logger.LogError("{moduleName} does not properly implement ExtTrackingModule. Skipping.", DefModuleAssembly.TrackingModule.GetType().Name);
-                            return;
-                        }
-                        catch (Exception e)
-                        {
-                            Logger.LogError(e, "Exception initializing {module}. Skipping.", DefModuleAssembly.TrackingModule.GetType().Name);
-                            return;
-                        }
-
-                        DefModuleAssembly._updateCts = new CancellationTokenSource();
-                        _updateThread = new Thread(() =>
-                        {
-                            try
-                            {
-                                var snapshot = new UnifiedTrackingData();
-                                var scratch = new byte[ReplyUpdatePacket.PayloadSize];
-                                var timerResolution = new TimerResolutionHold(Logger);
-
-                                var diag = Logger.IsEnabled(LogLevel.Debug);
-                                var updateMs = new DiagStat();
-                                var captureMs = new DiagStat();
-                                var loopGapMs = new DiagStat();
-                                var pushes = 0;
-                                var toMs = 1000.0 / Stopwatch.Frequency;
-                                var lastLoop = Stopwatch.GetTimestamp();
-                                var lastReport = lastLoop;
-
-                                while (!DefModuleAssembly._updateCts.IsCancellationRequested)
-                                {
-                                    var t0 = Stopwatch.GetTimestamp();
-                                    DefModuleAssembly.TrackingModule.Update();
-                                    var t1 = Stopwatch.GetTimestamp();
-
-                                    lock (VRCFaceTracking.UnifiedTracking.DataLock)
-                                    {
-                                        snapshot.CopyPropertiesOf(VRCFaceTracking.UnifiedTracking.Data);
-                                    }
-
-                                    var changed = ReplyUpdatePacket.CaptureIfChanged(snapshot, t1, scratch, _latest);
-                                    if (changed != null)
-                                    {
-                                        try
-                                        {
-                                            Client.SendData(changed);
-                                        }
-                                        catch (SocketException)
-                                        {
-                                        }
-                                        Volatile.Write(ref _latest, changed);
-                                        pushes++;
-                                    }
-                                    timerResolution.Observe(t1, changed != null);
-
-                                    if (diag)
-                                    {
-                                        var t2 = Stopwatch.GetTimestamp();
-                                        updateMs.Add((t1 - t0) * toMs);
-                                        captureMs.Add((t2 - t1) * toMs);
-                                        loopGapMs.Add((t0 - lastLoop) * toMs);
-                                        lastLoop = t0;
-
-                                        if ((t2 - lastReport) * toMs >= 1000)
-                                        {
-                                            lastReport = t2;
-                                            var (uP50, uP99) = updateMs.Percentiles();
-                                            var (cP50, cP99) = captureMs.Percentiles();
-                                            var (gP50, gP99) = loopGapMs.Percentiles();
-                                            Logger.LogDebug(
-                                                "diag.module updates={N} pushes={P} rate={Rate:N0}/s | Update p50={UP50:N2} p99={UP99:N2} max={UMax:N2}ms | capture p50={CP50:N3} p99={CP99:N3} max={CMax:N3}ms | loopGap p50={GP50:N2} p99={GP99:N2} max={GMax:N2}ms",
-                                                updateMs.Count, pushes, updateMs.Count, uP50, uP99, updateMs.Max,
-                                                cP50, cP99, captureMs.Max, gP50, gP99, loopGapMs.Max);
-                                            updateMs.Reset();
-                                            captureMs.Reset();
-                                            loopGapMs.Reset();
-                                            pushes = 0;
-                                        }
-                                    }
-
-                                    Thread.Sleep(1);
-                                }
-
-                                timerResolution.Release();
-                            }
-                            catch (Exception e)
-                            {
-                                Logger.LogCritical(e, "Module update loop crashed");
-                                _fileLogger?.Flush();
-                                throw;
-                            }
-                        });
-                        _updateThread.IsBackground = true;
-                        _updateThread.Start();
-
-                        var pktNew = new ReplyInitPacket()
-                        {
-                            eyeSuccess = eyeSuccess,
-                            expressionSuccess = expressionSuccess,
-                            ModuleInformationName = DefModuleAssembly.TrackingModule.ModuleInformation.Name,
-                            IconDataStreams = DefModuleAssembly.TrackingModule.ModuleInformation.StaticImages
-                        };
-                        _packetsToSend.Enqueue(pktNew);
-                        _wakeup.Set();
-                        break;
-                    }
-
-                case IpcPacket.PacketType.EventTeardown:
-                    {
-                        Logger.LogInformation("Received Teardown packet");
-                        DefModuleAssembly._updateCts?.Cancel();
-                        _updateThread?.Join(TimeSpan.FromSeconds(2));
-                        try
-                        {
-                            DefModuleAssembly.TrackingModule.Teardown();
-                        }
-                        catch (Exception e)
-                        {
-                            Logger.LogWarning(e, "Tracking module failed to cleanly shut down.");
-                        }
-
-                        Logger.LogInformation("Cancelled Update Threads");
-
-                        var pkt = new ReplyTeardownPacket();
-                        Client.SendData(pkt);
-
-                        Logger.LogInformation("Sent teardown ACK");
-
-                        WaitForPackets = false;
-                        _wakeup.Set();
-                        break;
-                    }
-
-                case IpcPacket.PacketType.EventUpdate:
-                    {
-                        var latest = Volatile.Read(ref _latest);
-                        if (latest != null)
-                        {
-                            _packetsToSend.Enqueue(latest);
-                            _wakeup.Set();
-                        }
-                        if (_imageStreamEnabled)
-                        {
-                            TryEnqueueImageFrame(UnifiedTracking.EyeImageData, ImageFrameUpdatePacket.EyeKind, _eyeFrameTimer);
-                            TryEnqueueImageFrame(UnifiedTracking.LipImageData, ImageFrameUpdatePacket.LipKind, _lipFrameTimer);
-                        }
-                        break;
-                    }
-
-                case IpcPacket.PacketType.EventSetImageStream:
-                    {
-                        var pkt = (EventSetImageStreamPacket)packet;
-                        _imageStreamEnabled = pkt.Enabled;
-                        break;
-                    }
-
-                case IpcPacket.PacketType.EventUpdateStatus:
-                    {
-                        var pkt = (EventStatusUpdatePacket)packet;
-                        DefModuleAssembly.TrackingModule.Status = pkt.ModuleState;
-                        DefModuleAssembly.TrackingModule.ModuleInformation.UsingEye = pkt.UsingEye;
-                        DefModuleAssembly.TrackingModule.ModuleInformation.UsingExpression = pkt.UsingExpression;
-
-                        break;
-                    }
-
-                case IpcPacket.PacketType.EventSetVerbose:
-                    {
-                        var pkt = (EventSetVerbosePacket)packet;
-                        Gate.Set(pkt.Verbose || BuildInfo.VerboseForced);
-                        _fileLogger?.WriteRaw($"verbose={Gate.Verbose} minimum={Gate.Minimum}");
-                        break;
-                    }
+                client.SendData(pkt);
             }
 
-        };
-        Client.Connect(modulePath);
-        Logger.LogInformation("Initializing {module}", DefModuleAssembly.Assembly.ToString());
-
-        _connectionTimer = new Timer(_ =>
-        {
-            Logger.LogWarning("No packets from the host for {Timeout}s, shutting the module down", _connected ? CONNECTED_TIMEOUT : CONNECTION_TIMEOUT);
-            _fileLogger?.Flush();
-            Environment.Exit(ModuleProcessExitCodes.NETWORK_CONNECTION_TIMED_OUT);
-        }, null, TimeSpan.FromSeconds(CONNECTION_TIMEOUT), Timeout.InfiniteTimeSpan);
-
-        while (WaitForPackets && !cts.IsCancellationRequested)
-        {
-            while (_packetsToSend.TryDequeue(out IpcPacket pkt))
+            if (PacketsToSend.IsEmpty)
             {
-                if (pkt == null) continue;
-                Client.SendData(pkt);
-            }
-
-
-            if (_packetsToSend.Count == 0)
-            {
-                _wakeup.WaitOne(SendLoopFallbackWakeMs);
+                Wakeup.WaitOne(SendLoopFallbackWakeMs);
             }
         }
-
-        DefModuleAssembly._updateCts?.Cancel();
-        _updateThread?.Join(TimeSpan.FromSeconds(2));
-        _connectionTimer?.Dispose();
-
-        _fileLogger?.Flush();
-        Environment.Exit(ModuleProcessExitCodes.OK);
-        return ModuleProcessExitCodes.OK;
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Process exit requested")]
+    private static partial void LogProcessExitRequested(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Critical, Message = "No arguments supplied")]
+    private static partial void LogNoArgumentsSupplied(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Critical, Message = "--module-path and --port are required")]
+    private static partial void LogModulePathPortRequired(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Host process {Pid} exited, tearing down module")]
+    private static partial void LogHostProcessExitedTearingDown(ILogger logger, int pid);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No parent pid provided. Lingering process detection is limited to existing timeouts and graceful shutdown")]
+    private static partial void LogNoParentPidProvidedLingering(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Invalid module path {Path}: {Message}")]
+    private static partial void LogInvalidModulePath(ILogger logger, string path, string message);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "No ExtTrackingModule implementation could be loaded from {Path}")]
+    private static partial void LogNoExtTrackingModuleImplementationCouldLoaded(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing {Module}")]
+    private static partial void LogInitializing(ILogger logger, string module);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No packets from the host for {Timeout}s, shutting the module down")]
+    private static partial void LogNoPacketsHostShuttingModule(ILogger logger, double timeout);
 }

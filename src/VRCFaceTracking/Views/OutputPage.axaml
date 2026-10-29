@@ -5,6 +5,7 @@
     xmlns:s="using:VRCFaceTracking.Strings"
     xmlns:vm="using:VRCFaceTracking.ViewModels"
     xmlns:models="clr-namespace:VRCFaceTracking.Models"
+    xmlns:logging="using:VRCFaceTracking.Services.Logging"
     x:DataType="vm:OutputViewModel"
     x:Class="VRCFaceTracking.Views.OutputPage">
 
@@ -50,7 +51,7 @@
 
         <Border Grid.Row="1" Classes="card" Padding="4">
             <ListBox x:Name="LogItems"
-                     ItemsSource="{Binding Logs}"
+                     ItemsSource="{x:Static logging:OutputPageLogger.AllLogs}"
                      Background="Transparent"
                      BorderThickness="0"
                      SelectionMode="Single"

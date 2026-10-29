@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace VRCFaceTracking.Core;
 
-public partial class DeveloperSettings : ObservableObject
+public sealed partial class DeveloperSettings : ObservableObject
 {
     public const string SettingKey = "DeveloperMode";
 

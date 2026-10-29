@@ -4,7 +4,7 @@ namespace VRCFaceTracking.Core.Params.Expressions;
 
 public static class UnifiedHeadParameters
 {
-    public static readonly Parameter[] HeadParameters = {
+    public static readonly Parameter[] HeadParameters = [
         #region Rotation
 
         new EParam("v2/Head/Yaw", exp => exp.Head.HeadYaw),
@@ -17,8 +17,8 @@ public static class UnifiedHeadParameters
 
         new EParam("v2/Head/PosX", exp => exp.Head.HeadPosX),
         new EParam("v2/Head/PosY", exp => exp.Head.HeadPosY),
-        new EParam("v2/Head/PosZ", exp => exp.Head.HeadPosZ)
+        new EParam("v2/Head/PosZ", exp => exp.Head.HeadPosZ),
 
         #endregion
-    };
+    ];
 }

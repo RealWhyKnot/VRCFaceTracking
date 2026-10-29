@@ -1,12 +1,12 @@
 using System.Text.RegularExpressions;
-using VRCFaceTracking.Core.OSC.DataTypes;
+using VRCFaceTracking.Core.Osc.DataTypes;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class ParamAddressMatcherTests
+public sealed class ParamAddressMatcherTests
 {
     private static readonly string[] ParamNames =
-    {
+    [
         "JawOpen",
         "v2/JawOpen",
         "v2/EyeLidLeft",
@@ -14,10 +14,10 @@ public class ParamAddressMatcherTests
         "Eye",
         "SmileSadLeft",
         "v3/TongueOut",
-    };
+    ];
 
     private static readonly string[] Addresses =
-    {
+    [
         "/avatar/parameters/JawOpen",
         "/avatar/parameters/v2/JawOpen",
         "/avatar/parameters/v1/JawOpen",
@@ -40,21 +40,21 @@ public class ParamAddressMatcherTests
         "/avatar/parameters/v3/TongueOut",
         "",
         "/",
-    };
+    ];
 
     private static Regex ExactRegex(string name) =>
-        new(@"(?<!(v\d+))(/" + name + ")$|^(" + name + ")$");
+        new(@"(?<!(v\d+))(/" + name + ")$|^(" + name + ")$", RegexOptions.None, TimeSpan.FromSeconds(1));
 
     private static Regex IndexedRegex(string name) =>
-        new(@"(?<!(v\d+))/" + name + @"\d+$|^" + name + @"\d+$");
+        new(@"(?<!(v\d+))/" + name + @"\d+$|^" + name + @"\d+$", RegexOptions.None, TimeSpan.FromSeconds(1));
 
     [Fact]
-    public void Matches_IsEquivalentToTheOriginalExactRegex()
+    public void MatchesIsEquivalentToTheOriginalExactRegex()
     {
-        foreach (var name in ParamNames)
+        foreach (string name in ParamNames)
         {
-            var regex = ExactRegex(name);
-            foreach (var address in Addresses)
+            Regex regex = ExactRegex(name);
+            foreach (string address in Addresses)
             {
                 Assert.Equal(regex.IsMatch(address), ParamAddressMatcher.Matches(address, name));
             }
@@ -62,12 +62,12 @@ public class ParamAddressMatcherTests
     }
 
     [Fact]
-    public void MatchesIndexed_IsEquivalentToTheOriginalIndexedRegex()
+    public void MatchesIndexedIsEquivalentToTheOriginalIndexedRegex()
     {
-        foreach (var name in ParamNames)
+        foreach (string name in ParamNames)
         {
-            var regex = IndexedRegex(name);
-            foreach (var address in Addresses)
+            Regex regex = IndexedRegex(name);
+            foreach (string address in Addresses)
             {
                 Assert.Equal(regex.IsMatch(address), ParamAddressMatcher.MatchesIndexed(address, name));
             }
@@ -80,6 +80,6 @@ public class ParamAddressMatcherTests
     [InlineData("/avatar/parameters/v2/JawOpen", "v2/JawOpen", true)]
     [InlineData("/avatar/parameters/NotJawOpen", "JawOpen", false)]
     [InlineData("JawOpen", "JawOpen", true)]
-    public void Matches_KnownCases(string address, string name, bool expected) =>
+    public void MatchesKnownCases(string address, string name, bool expected) =>
         Assert.Equal(expected, ParamAddressMatcher.Matches(address, name));
 }

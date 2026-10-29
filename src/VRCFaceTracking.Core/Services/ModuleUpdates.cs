@@ -4,20 +4,11 @@ namespace VRCFaceTracking.Core.Services;
 
 public static class ModuleUpdates
 {
-    public static bool IsUpdate(TrackingModuleMetadata remote, TrackingModuleMetadata installed)
-    {
-        if (remote.ModuleId != installed.ModuleId || installed.IsLocal)
-        {
-            return false;
-        }
+    public static bool IsUpdate(TrackingModuleMetadata remote, TrackingModuleMetadata installed) =>
+        remote.ModuleId == installed.ModuleId && !installed.IsLocal && IsNewer(remote.Version, installed.Version);
 
-        try
-        {
-            return new Version(remote.Version).CompareTo(new Version(installed.Version)) > 0;
-        }
-        catch
-        {
-            return string.CompareOrdinal(remote.Version, installed.Version) > 0;
-        }
-    }
+    private static bool IsNewer(string remote, string installed) =>
+        Version.TryParse(remote, out Version? remoteVersion) && Version.TryParse(installed, out Version? installedVersion)
+            ? remoteVersion > installedVersion
+            : string.CompareOrdinal(remote, installed) > 0;
 }

@@ -6,125 +6,81 @@ namespace VRCFaceTracking.Core;
 
 public static class VRChat
 {
-    public static void EnsureVRCOSCDirectory()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            VRCOSCDirectory = Path.Combine(
-                $"{Environment.GetEnvironmentVariable("localappdata")}Low", "VRChat", "VRChat", "OSC"
-            );
-        }
-        else if (OperatingSystem.IsMacOS())
-        {
-            VRCOSCDirectory = string.Empty;
-        }
-        else
-        {
-            /* On macOS/Linux, things are a little different. The above points to a non-existent folder
-             * Thankfully, we can make some assumptions based on the fact VRChat on Linux runs through Proton
-             * For reference, here is what a target path looks like:
-             * /home/USER_NAME/.steam/steam/steamapps/compatdata/438100/pfx/drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat/OSC/
-             * Where 438100 is VRChat's Steam GameID, and the path after "steam" is pretty much fixed */
-
-            // 1) First, get the user profile folder
-            // (/home/USER_NAME/)
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-            // 2) Then, search for common Steam install paths
-            // (/home/USER_NAME/.steam/steam/)
-            string[] possiblePaths =
-            {
-                Path.Combine(home, ".steam", "steam"),
-                Path.Combine(home, ".local", "share", "Steam"),
-                Path.Combine(home, ".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam")
-            };
-            var steamPath = Array.Find(possiblePaths, Directory.Exists);
-
-            if (string.IsNullOrEmpty(steamPath))
-            {
-                VRCOSCDirectory = string.Empty;
-                return;
-            }
-
-            // 3) Inside the steam install directory, find the file steamPath/steamapps/libraryfolders.vdf
-            // This is a special file that tells us where on a users computer their steam libraries are
-            var steamLibrariesPath = Path.Combine(steamPath!, "steamapps", "libraryfolders.vdf");
-            if (!File.Exists(steamLibrariesPath))
-            {
-                VRCOSCDirectory = string.Empty;
-                return;
-            }
-
-            // Parse the VDF file without using Gameloop.Vdf
-            var libraryFolders = ParseVdfFile(File.ReadAllText(steamLibrariesPath));
-
-            // From libraryFolders, find the one containing VRChat
-            var vrchatPaths = new List<string>();
-
-            // libraryFolders should have a root "libraryfolders" dictionary
-            if (libraryFolders.TryGetValue("libraryfolders", out var libraryFoldersDict) &&
-                libraryFoldersDict is Dictionary<string, object> libraries)
-            {
-                // Each library is indexed by a number (0, 1, 2, etc.)
-                foreach (var library in libraries)
-                {
-                    if (library.Value is Dictionary<string, object> libraryData &&
-                        libraryData.TryGetValue("path", out var pathObj) &&
-                        libraryData.TryGetValue("apps", out var appsObj))
-                    {
-                        // Check if VRChat is in the apps dictionary
-                        if (appsObj is not Dictionary<string, object> apps || !apps.ContainsKey("438100"))
-                        {
-                            continue;
-                        }
-
-                        var libraryPath = pathObj.ToString();
-                        vrchatPaths.Add(libraryPath);
-                        break;
-                    }
-                }
-            }
-
-            if (!vrchatPaths.Any())
-            {
-                VRCOSCDirectory = string.Empty;
-                return;
-            }
-
-            // 4) Finally, construct the path to the user's VRChat install, check it exists and try the next path if not
-            foreach (var vrchatPath in vrchatPaths)
-            {
-                VRCOSCDirectory = Path.Combine(vrchatPath, "steamapps", "compatdata", "438100", "pfx", "drive_c",
-                    "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat", "OSC");
-
-                if (Directory.Exists(VRCOSCDirectory))
-                {
-                    break;
-                }
-            }
-        }
-    }
+    private const string VRChatSteamAppId = "438100";
 
     public static string VRCOSCDirectory
     {
         get; private set;
+    } = string.Empty;
+
+    public static void EnsureVRCOSCDirectory()
+    {
+        VRCOSCDirectory = OperatingSystem.IsWindows()
+            ? Path.Combine($"{Environment.GetEnvironmentVariable("localappdata")}Low", "VRChat", "VRChat", "OSC")
+            : OperatingSystem.IsMacOS()
+                ? string.Empty
+                : FindProtonOscDirectory() ?? string.Empty;
     }
 
-    /// <summary>
-    /// Parse a VDF file into a dictionary structure
-    /// </summary>
-    /// <param name="vdfContent">Content of the VDF file</param>
-    /// <returns>Dictionary representing the VDF structure</returns>
+    private static string? FindProtonOscDirectory()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        string[] possiblePaths =
+        [
+            Path.Combine(home, ".steam", "steam"),
+            Path.Combine(home, ".local", "share", "Steam"),
+            Path.Combine(home, ".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam"),
+        ];
+        string? steamPath = Array.Find(possiblePaths, Directory.Exists);
+        if (string.IsNullOrEmpty(steamPath))
+        {
+            return null;
+        }
+
+        string steamLibrariesPath = Path.Combine(steamPath, "steamapps", "libraryfolders.vdf");
+        if (!File.Exists(steamLibrariesPath))
+        {
+            return null;
+        }
+
+        string? libraryPath = FindVRChatLibrary(ParseVdfFile(File.ReadAllText(steamLibrariesPath)));
+        return libraryPath == null
+            ? null
+            : Path.Combine(libraryPath, "steamapps", "compatdata", VRChatSteamAppId, "pfx", "drive_c",
+                "users", "steamuser", "AppData", "LocalLow", "VRChat", "VRChat", "OSC");
+    }
+
+    private static string? FindVRChatLibrary(Dictionary<string, object> libraryFolders)
+    {
+        if (!libraryFolders.TryGetValue("libraryfolders", out object? librariesObj)
+            || librariesObj is not Dictionary<string, object> libraries)
+        {
+            return null;
+        }
+
+        foreach (object library in libraries.Values)
+        {
+            if (library is Dictionary<string, object> libraryData
+                && libraryData.TryGetValue("path", out object? pathObj)
+                && libraryData.TryGetValue("apps", out object? appsObj)
+                && appsObj is Dictionary<string, object> apps
+                && apps.ContainsKey(VRChatSteamAppId))
+            {
+                return pathObj as string;
+            }
+        }
+
+        return null;
+    }
+
     private static Dictionary<string, object> ParseVdfFile(string vdfContent)
     {
         var parser = new VdfParser(vdfContent);
         return parser.Parse();
     }
 
-    /// <summary>
-    /// A simple parser for Valve's VDF format
-    /// </summary>
-    private class VdfParser
+    private sealed class VdfParser
     {
         private readonly string _content;
         private int _position;
@@ -143,33 +99,31 @@ public static class VRChat
 
         private Dictionary<string, object> ParseObject()
         {
-            var result = new Dictionary<string, object>();
+            var result = new Dictionary<string, object>(StringComparer.Ordinal);
 
             while (_position < _content.Length)
             {
                 SkipWhitespace();
 
-                // Check for end of object
                 if (_position < _content.Length && _content[_position] == '}')
                 {
-                    _position++; // Skip the closing brace
+                    _position++;
                     break;
                 }
 
-                // Parse key
-                var key = ParseString();
+                string key = ParseString();
                 if (string.IsNullOrEmpty(key))
+                {
                     break;
+                }
 
                 SkipWhitespace();
 
-                // Parse value
                 object value;
 
-                // Check if the value is an object
                 if (_position < _content.Length && _content[_position] == '{')
                 {
-                    _position++; // Skip the opening brace
+                    _position++;
                     value = ParseObject();
                 }
                 else
@@ -187,20 +141,17 @@ public static class VRChat
         {
             SkipWhitespace();
 
-            // Check for quoted string
             if (_position < _content.Length && _content[_position] == '"')
             {
-                _position++; // Skip opening quote
+                _position++;
 
-                var startPos = _position;
+                int startPos = _position;
 
-                // Find the closing quote
                 while (_position < _content.Length && _content[_position] != '"')
                 {
-                    // Handle escaped characters
                     if (_content[_position] == '\\' && _position + 1 < _content.Length)
                     {
-                        _position += 2; // Skip the escape sequence
+                        _position += 2;
                     }
                     else
                     {
@@ -210,8 +161,8 @@ public static class VRChat
 
                 if (_position < _content.Length)
                 {
-                    var result = _content.Substring(startPos, _position - startPos);
-                    _position++; // Skip closing quote
+                    string result = _content[startPos.._position];
+                    _position++;
                     return result;
                 }
             }
@@ -223,7 +174,7 @@ public static class VRChat
         {
             while (_position < _content.Length)
             {
-                var c = _content[_position];
+                char c = _content[_position];
 
                 if (char.IsWhiteSpace(c) || c == '\r' || c == '\n' || c == '\t')
                 {
@@ -231,7 +182,6 @@ public static class VRChat
                 }
                 else if (c == '/' && _position + 1 < _content.Length && _content[_position + 1] == '/')
                 {
-                    // Skip single line comments
                     _position += 2;
                     while (_position < _content.Length && _content[_position] != '\n')
                     {
@@ -249,19 +199,19 @@ public static class VRChat
     [SupportedOSPlatform("windows")]
     public static bool ForceEnableOsc()
     {
-        // Set all registry keys containing osc in the name to 1 in Computer\HKEY_CURRENT_USER\Software\VRChat\VRChat
-        var regKey = Registry.CurrentUser.OpenSubKey("Software\\VRChat\\VRChat", true);
+        using RegistryKey? regKey = Registry.CurrentUser.OpenSubKey("Software\\VRChat\\VRChat", writable: true);
         if (regKey == null)
-            return true;    // Assume we already have osc enabled
-
-        var keys = regKey.GetValueNames().Where(x => x.StartsWith("VRC_INPUT_OSC") || x.StartsWith("UI.Settings.Osc"));
-
-        var wasOscForced = false;
-        foreach (var key in keys)
         {
-            if ((int)regKey.GetValue(key) == 0)
+            return true;
+        }
+
+        IEnumerable<string> keys = regKey.GetValueNames().Where(x => x.StartsWith("VRC_INPUT_OSC", StringComparison.Ordinal) || x.StartsWith("UI.Settings.Osc", StringComparison.Ordinal));
+
+        bool wasOscForced = false;
+        foreach (string key in keys)
+        {
+            if (regKey.GetValue(key) is 0)
             {
-                // Osc is likely not enabled
                 regKey.SetValue(key, 1);
                 wasOscForced = true;
             }

@@ -1,6 +1,6 @@
 namespace VRCFaceTracking.Tests;
 
-public class UserFolderTests
+public sealed class UserFolderTests
 {
     [Fact]
     public void PersistentDataUsesTheTestDataDirectory() =>

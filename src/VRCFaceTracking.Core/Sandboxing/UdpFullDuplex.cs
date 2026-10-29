@@ -1,64 +1,54 @@
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
-using System.Threading;
-using Microsoft.Extensions.Logging;
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 
 namespace VRCFaceTracking.Core.Sandboxing;
 
 
 public class UdpFullDuplex : IDisposable
 {
-    const int SIO_UDP_CONNRESET = -1744830452;
-    const int ETHERNET_FRAME_SIZE = 1500;
-    const int TIMEOUT_MILLISECONDS = 10000;
+    private const int SioUdpConnReset = -1744830452;
+    private const int EthernetFrameSize = 1500;
     internal const int ReceiveTimeoutMs = 250;
 
     public int Port
     {
-        get; protected set;
+        get;
     }
 
-    private readonly object _callbackLock;
+    private readonly Lock _callbackLock;
 
-    protected UdpClient _receivingUdpClient;
-    private readonly IPEndPoint _remoteIpEndPoint;
+    protected UdpClient ReceivingUdpClient { get; }
     private readonly ManualResetEvent _closingEvent;
-    protected bool _isConnected = false;
-    protected SimpleEventBus _eventBus;
+    protected bool IsConnected { get; set; }
+    protected SimpleEventBus EventBus { get; } = new();
     private readonly Thread _receiveThread;
-    private readonly int _maximumTransferUnit = ETHERNET_FRAME_SIZE;
     private readonly CancellationTokenSource _cts = new();
-    public int MTU => _maximumTransferUnit;
+    private bool _disposed;
+    public int Mtu { get; } = EthernetFrameSize;
 
-    public UdpFullDuplex(int port, int[] reservedPorts = null, IPEndPoint remoteIpEndPoint = null)
+    public UdpFullDuplex(int port, int[]? reservedPorts = null)
     {
-        Port = port;
-        _closingEvent = new ManualResetEvent(false);
-        _callbackLock = new object();
-        _eventBus = new SimpleEventBus();
+        _closingEvent = new ManualResetEvent(initialState: false);
+        _callbackLock = new Lock();
 
-        // try to open the port 10 times, else fail
-        for (var i = 0; i < 10; i++)
+        UdpClient? client = null;
+        for (int i = 0; i < 10; i++)
         {
             try
             {
-                _receivingUdpClient = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
-                // Disable crash from ICMP messages from modules which crashed. Windows only
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                client = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+                if (OperatingSystem.IsWindows())
                 {
-                    _receivingUdpClient.Client.IOControl((IOControlCode)SIO_UDP_CONNRESET, new byte[] { 0, 0, 0, 0 }, null);
+                    client.Client.IOControl((IOControlCode)SioUdpConnReset, [0, 0, 0, 0], optionOutValue: null);
                 }
-                _receivingUdpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, optionValue: true);
 
-                // Blacklist any reserved ports
-                var isReservedPort = false;
+                bool isReservedPort = false;
                 if (reservedPorts != null)
                 {
-                    var boundPort = ((IPEndPoint)_receivingUdpClient.Client.LocalEndPoint).Port;
-                    for (var j = 0; j < reservedPorts.Length; j++)
+                    int boundPort = LocalPortOf(client);
+                    for (int j = 0; j < reservedPorts.Length; j++)
                     {
                         if (boundPort == reservedPorts[j])
                         {
@@ -69,44 +59,26 @@ public class UdpFullDuplex : IDisposable
                 }
                 if (isReservedPort)
                 {
-                    _receivingUdpClient.Close();
-                    _receivingUdpClient = null;
+                    client.Close();
+                    client = null;
                     continue;
                 }
 
                 break;
             }
-            catch (Exception)
+            catch (SocketException) when (i < 9)
             {
-                // Failed in ten tries, throw the exception and give up
-                if (i >= 9)
-                {
-                    throw;
-                }
-
                 Thread.Sleep(5);
             }
         }
 
-        if (_receivingUdpClient == null)
-        {
-            throw new InvalidOperationException("Failed to bind a UDP port outside the reserved set after 10 attempts.");
-        }
+        ReceivingUdpClient = client ?? throw new InvalidOperationException("Failed to bind a UDP port outside the reserved set after 10 attempts.");
+        Port = LocalPortOf(client);
 
-        // Receive from any IP on any port
-        if (remoteIpEndPoint == null)
-        {
-            _remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
-        }
-        else
-        {
-            _remoteIpEndPoint = remoteIpEndPoint;
-        }
-
-        _receivingUdpClient.Client.ReceiveTimeout = ReceiveTimeoutMs;
-        _receivingUdpClient.Client.SendTimeout = 10;
-        _maximumTransferUnit = 8192;
-        _receivingUdpClient.Client.ReceiveBufferSize = 1024 * 1024;
+        ReceivingUdpClient.Client.ReceiveTimeout = ReceiveTimeoutMs;
+        ReceivingUdpClient.Client.SendTimeout = 10;
+        Mtu = 8192;
+        ReceivingUdpClient.Client.ReceiveBufferSize = 1024 * 1024;
 
         _receiveThread = new Thread(Listen)
         {
@@ -116,43 +88,35 @@ public class UdpFullDuplex : IDisposable
         _receiveThread.Start();
     }
 
+    private static int LocalPortOf(UdpClient client) => client.Client.LocalEndPoint is IPEndPoint local ? local.Port : 0;
+
     private void Listen()
     {
         var remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
         while (!_cts.IsCancellationRequested)
         {
+            byte[] buffer;
             try
             {
-                var buffer = _receivingUdpClient.Receive(ref remoteEndPoint);
-
-                if (buffer.Length > 0)
-                {
-                    try
-                    {
-                        OnBytesReceived(buffer, remoteEndPoint);
-                    }
-                    catch (Exception ex)
-                    {
-                        OnReceiveError(ex);
-                    }
-                }
+                buffer = ReceivingUdpClient.Receive(ref remoteEndPoint);
             }
             catch (ObjectDisposedException)
             {
                 break;
             }
-            catch (SocketException)
+            catch (SocketException e) when (e.SocketErrorCode == SocketError.TimedOut)
             {
+                continue;
             }
-            catch (Exception ex)
+            catch (SocketException e)
             {
-                try
-                {
-                    OnReceiveError(ex);
-                }
-                catch
-                {
-                }
+                OnReceiveError(e);
+                continue;
+            }
+
+            if (buffer.Length > 0)
+            {
+                OnBytesReceived(buffer, remoteEndPoint);
             }
         }
     }
@@ -162,7 +126,7 @@ public class UdpFullDuplex : IDisposable
         _cts.Cancel();
         lock (_callbackLock)
         {
-            _receivingUdpClient?.Close();
+            ReceivingUdpClient?.Close();
         }
 
         _receiveThread.Join(TimeSpan.FromSeconds(1));
@@ -170,30 +134,37 @@ public class UdpFullDuplex : IDisposable
 
     public void Dispose()
     {
-        Close();
-        _cts.Dispose();
-        _closingEvent.Dispose();
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 
-    private void SendData(in byte[] message, in IPEndPoint remoteEndpoint)
+    protected virtual void Dispose(bool disposing)
     {
-        _receivingUdpClient.Send(message, message.Length, remoteEndpoint);
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        if (disposing)
+        {
+            Close();
+            _cts.Dispose();
+            _closingEvent.Dispose();
+        }
     }
-    private void SendData(in byte[] message, in int remotePort)
-    {
-        _receivingUdpClient.Send(message, message.Length, new IPEndPoint(IPAddress.Loopback, remotePort));
-    }
+
+    private void SendData(in byte[] message, in IPEndPoint remoteEndpoint) => ReceivingUdpClient.Send(message, message.Length, remoteEndpoint);
 
     public void SendData(in IpcPacket packet, in IPEndPoint remoteEndpoint)
     {
-        if (_isConnected || packet.GetPacketType() == IpcPacket.PacketType.Handshake)
+        if (IsConnected || packet.GetPacketType() == IpcPacket.PacketType.Handshake)
         {
-            var packetData = packet.GetBytes();
-            if (packetData.Length > _maximumTransferUnit)
+            byte[] packetData = packet.GetBytes();
+            if (packetData.Length > Mtu)
             {
-                // @TODO: Split packet into chunks
-                var packetChunkBytes = PartialPacket.SplitPacketIntoChunks(packetData, _maximumTransferUnit);
-                foreach (var packetChunk in packetChunkBytes)
+                byte[][] packetChunkBytes = PartialPacket.SplitPacketIntoChunks(packetData, Mtu);
+                foreach (byte[] packetChunk in packetChunkBytes)
                 {
                     SendData(packetChunk, remoteEndpoint);
                 }
@@ -205,20 +176,19 @@ public class UdpFullDuplex : IDisposable
         }
         else
         {
-            _eventBus.Push(packet);
+            EventBus.Push(packet);
         }
     }
 
     public void SendData(in IpcPacket packet, in int remotePort)
     {
-        if (_isConnected || packet.GetPacketType() == IpcPacket.PacketType.Handshake)
+        if (IsConnected || packet.GetPacketType() == IpcPacket.PacketType.Handshake)
         {
-            var packetData = packet.GetBytes();
-            if (packetData.Length > _maximumTransferUnit)
+            byte[] packetData = packet.GetBytes();
+            if (packetData.Length > Mtu)
             {
-                // @TODO: Split packet into chunks
-                var packetChunkBytes = PartialPacket.SplitPacketIntoChunks(packetData, _maximumTransferUnit);
-                foreach (var packetChunk in packetChunkBytes)
+                byte[][] packetChunkBytes = PartialPacket.SplitPacketIntoChunks(packetData, Mtu);
+                foreach (byte[] packetChunk in packetChunkBytes)
                 {
                     SendData(packetChunk, new IPEndPoint(IPAddress.Loopback, remotePort));
                 }
@@ -230,16 +200,15 @@ public class UdpFullDuplex : IDisposable
         }
         else
         {
-            _eventBus.Push(packet);
+            EventBus.Push(packet);
         }
     }
 
     public virtual void OnBytesReceived(in byte[] data, in IPEndPoint endpoint)
     {
-        // @NOTE: Here for a class to extend and read data and handle it as needed
     }
 
-    protected virtual void OnReceiveError(Exception ex)
+    protected virtual void OnReceiveError(SocketException ex)
     {
     }
 }

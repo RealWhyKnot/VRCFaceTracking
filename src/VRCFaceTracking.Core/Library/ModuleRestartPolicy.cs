@@ -1,25 +1,25 @@
 namespace VRCFaceTracking.Core.Library;
 
-public class ModuleRestartPolicy
+public sealed class ModuleRestartPolicy
 {
     public const int MaxAttempts = 3;
     public static readonly TimeSpan Window = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan[] Delays =
-    {
+    [
         TimeSpan.Zero,
         TimeSpan.FromSeconds(5),
         TimeSpan.FromSeconds(15),
-    };
+    ];
 
-    private readonly Dictionary<string, List<DateTime>> _attempts = new();
-    private readonly object _lock = new();
+    private readonly Dictionary<string, List<DateTime>> _attempts = [];
+    private readonly Lock _lock = new();
 
     public static bool IsRestartableExitCode(int exitCode) => exitCode switch
     {
         ModuleProcessExitCodes.OK => false,
-        ModuleProcessExitCodes.INVALID_ARGS => false,
-        ModuleProcessExitCodes.MODULE_LOAD_FAILED => false,
-        ModuleProcessExitCodes.PARENT_EXITED => false,
+        ModuleProcessExitCodes.InvalidArgs => false,
+        ModuleProcessExitCodes.ModuleLoadFailed => false,
+        ModuleProcessExitCodes.ParentExited => false,
         _ => true,
     };
 
@@ -27,9 +27,9 @@ public class ModuleRestartPolicy
     {
         lock (_lock)
         {
-            if (!_attempts.TryGetValue(moduleKey, out var history))
+            if (!_attempts.TryGetValue(moduleKey, out List<DateTime>? history))
             {
-                history = new List<DateTime>();
+                history = [];
                 _attempts[moduleKey] = history;
             }
 
@@ -39,7 +39,7 @@ public class ModuleRestartPolicy
                 return null;
             }
 
-            var delay = Delays[history.Count];
+            TimeSpan delay = Delays[history.Count];
             history.Add(nowUtc);
             return delay;
         }
@@ -49,7 +49,7 @@ public class ModuleRestartPolicy
     {
         lock (_lock)
         {
-            return _attempts.TryGetValue(moduleKey, out var history) ? history.Count : 0;
+            return _attempts.TryGetValue(moduleKey, out List<DateTime>? history) ? history.Count : 0;
         }
     }
 

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace VRCFaceTracking.Helpers;
 
-public class LogLevelBrushConverter : IValueConverter
+internal sealed class LogLevelBrushConverter : IValueConverter
 {
     public static readonly LogLevelBrushConverter Instance = new();
 
@@ -21,21 +21,19 @@ public class LogLevelBrushConverter : IValueConverter
                 LogLevel.Trace or LogLevel.Debug => Resolve(DimKey),
                 LogLevel.Warning => Resolve(WarningKey),
                 LogLevel.Error or LogLevel.Critical => Resolve(CriticalKey),
-                _ => AvaloniaProperty.UnsetValue
+                LogLevel.Information or LogLevel.None => AvaloniaProperty.UnsetValue,
+                _ => AvaloniaProperty.UnsetValue,
             }
             : AvaloniaProperty.UnsetValue;
 
     private static object Resolve(string key)
     {
-        var app = Application.Current;
-        if (app is not null && app.TryFindResource(key, app.ActualThemeVariant, out var brush) && brush is not null)
-        {
-            return brush;
-        }
-
-        return AvaloniaProperty.UnsetValue;
+        Application? app = Application.Current;
+        return app is not null && app.TryFindResource(key, app.ActualThemeVariant, out object? brush) && brush is not null
+            ? brush
+            : AvaloniaProperty.UnsetValue;
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
+        => throw new NotSupportedException();
 }

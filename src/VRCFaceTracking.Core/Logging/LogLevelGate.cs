@@ -8,18 +8,18 @@ public sealed class LogLevelGate
 
     public bool Verbose => Minimum <= LogLevel.Debug;
 
-    public event Action<bool>? VerboseChanged;
+    public event EventHandler? VerboseChanged;
 
     public void Set(bool verbose)
     {
-        var minimum = verbose ? LogLevel.Debug : LogLevel.Warning;
+        LogLevel minimum = verbose ? LogLevel.Debug : LogLevel.Warning;
         if (minimum == Minimum)
         {
             return;
         }
 
         Minimum = minimum;
-        VerboseChanged?.Invoke(verbose);
+        VerboseChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public bool IsEnabled(LogLevel level) => level != LogLevel.None && level >= Minimum;

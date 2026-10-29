@@ -1,192 +1,104 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
-public class ParameterAdjustment : TrackingMutation
+public sealed class ParameterAdjustment : TrackingMutation
 {
-    [MutationButton("Reset Values")]
-    public void Reset()
-    {
-        for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
-        {
-        }
-    }
+    private static readonly (Func<ParameterAdjustment, (float Floor, float Ceiling)> Range, UnifiedExpressions[] Shapes)[] ShapeRanges =
+    [
+        (a => a.EyeBrowRaiser, [UnifiedExpressions.BrowInnerUpLeft, UnifiedExpressions.BrowInnerUpRight, UnifiedExpressions.BrowOuterUpLeft, UnifiedExpressions.BrowOuterUpRight]),
+        (a => a.EyeBrowLower, [UnifiedExpressions.BrowLowererLeft, UnifiedExpressions.BrowLowererRight, UnifiedExpressions.BrowPinchLeft, UnifiedExpressions.BrowPinchRight]),
+        (a => a.CheekPuffSuck, [UnifiedExpressions.CheekPuffLeft, UnifiedExpressions.CheekPuffRight, UnifiedExpressions.CheekSuckLeft, UnifiedExpressions.CheekSuckRight]),
+        (a => a.CheekSquint, [UnifiedExpressions.CheekSquintLeft, UnifiedExpressions.CheekSquintRight]),
+        (a => a.EyeSquint, [UnifiedExpressions.EyeSquintLeft, UnifiedExpressions.EyeSquintRight]),
+        (a => a.EyeWide, [UnifiedExpressions.EyeWideLeft, UnifiedExpressions.EyeWideRight]),
+        (a => a.JawZ, [UnifiedExpressions.JawBackward, UnifiedExpressions.JawForward]),
+        (a => a.JawOpen, [UnifiedExpressions.JawClench, UnifiedExpressions.JawMandibleRaise, UnifiedExpressions.JawOpen]),
+        (a => a.MouthClosed, [UnifiedExpressions.MouthClosed]),
+        (a => a.JawX, [UnifiedExpressions.JawLeft, UnifiedExpressions.JawRight]),
+        (a => a.LipFunnel, [UnifiedExpressions.LipFunnelLowerLeft, UnifiedExpressions.LipFunnelLowerRight, UnifiedExpressions.LipFunnelUpperLeft, UnifiedExpressions.LipFunnelUpperRight]),
+        (a => a.LipPucker, [UnifiedExpressions.LipPuckerLowerLeft, UnifiedExpressions.LipPuckerLowerRight, UnifiedExpressions.LipPuckerUpperLeft, UnifiedExpressions.LipPuckerUpperRight]),
+        (a => a.LipSuck, [UnifiedExpressions.LipSuckCornerLeft, UnifiedExpressions.LipSuckCornerRight, UnifiedExpressions.LipSuckUpperLeft, UnifiedExpressions.LipSuckUpperRight, UnifiedExpressions.LipSuckLowerLeft, UnifiedExpressions.LipSuckLowerRight]),
+        (a => a.MouthOpener, [UnifiedExpressions.MouthUpperDeepenLeft, UnifiedExpressions.MouthUpperDeepenRight, UnifiedExpressions.MouthUpperUpLeft, UnifiedExpressions.MouthUpperUpRight, UnifiedExpressions.MouthLowerDownLeft, UnifiedExpressions.MouthLowerDownRight]),
+        (a => a.MouthSmile, [UnifiedExpressions.MouthCornerPullLeft, UnifiedExpressions.MouthCornerPullRight, UnifiedExpressions.MouthCornerSlantLeft, UnifiedExpressions.MouthCornerSlantRight]),
+        (a => a.MouthFrown, [UnifiedExpressions.MouthFrownLeft, UnifiedExpressions.MouthFrownRight]),
+        (a => a.MouthStretch, [UnifiedExpressions.MouthStretchLeft, UnifiedExpressions.MouthStretchRight]),
+        (a => a.MouthTightener, [UnifiedExpressions.MouthTightenerLeft, UnifiedExpressions.MouthTightenerRight]),
+        (a => a.MouthPress, [UnifiedExpressions.MouthPressRight, UnifiedExpressions.MouthPressLeft]),
+        (a => a.MouthX, [UnifiedExpressions.MouthUpperLeft, UnifiedExpressions.MouthUpperRight, UnifiedExpressions.MouthLowerLeft, UnifiedExpressions.MouthLowerRight]),
+        (a => a.MouthRaiser, [UnifiedExpressions.MouthRaiserLower, UnifiedExpressions.MouthRaiserUpper]),
+        (a => a.Nose, [UnifiedExpressions.NasalConstrictLeft, UnifiedExpressions.NasalConstrictRight, UnifiedExpressions.NasalDilationLeft, UnifiedExpressions.NasalDilationRight]),
+        (a => a.NoseSneer, [UnifiedExpressions.NoseSneerLeft, UnifiedExpressions.NoseSneerRight]),
+        (a => a.Neck, [UnifiedExpressions.NeckFlexLeft, UnifiedExpressions.NeckFlexRight, UnifiedExpressions.SoftPalateClose, UnifiedExpressions.ThroatSwallow]),
+        (a => a.TongueMove, [UnifiedExpressions.TongueBendDown, UnifiedExpressions.TongueCurlUp, UnifiedExpressions.TongueDown, UnifiedExpressions.TongueUp, UnifiedExpressions.TongueLeft, UnifiedExpressions.TongueRight]),
+        (a => a.TongueOther, [UnifiedExpressions.TongueTwistLeft, UnifiedExpressions.TongueTwistRight, UnifiedExpressions.TongueFlat, UnifiedExpressions.TongueSquish, UnifiedExpressions.TongueRoll]),
+        (a => a.TongueOut, [UnifiedExpressions.TongueOut]),
+    ];
 
-    [MutationProperty("Eyebrow Raiser", true, Group = "Brows and eyes")] public (float, float) eyeBrowRaiser = new(0, 1);
-    [MutationProperty("Eyebrow Lowerer", true, Group = "Brows and eyes")] public (float, float) eyeBrowLower = new(0, 1);
-    [MutationProperty("Eye Squint", true, Group = "Brows and eyes")] public (float, float) eyeSquint = new(0, 1);
-    [MutationProperty("Eye Wide", true, Group = "Brows and eyes")] public (float, float) eyeWide = new(0, 1);
-    [MutationProperty("Cheek", true, Group = "Cheeks")] public (float, float) cheekPuffSuck = new(0, 1);
-    [MutationProperty("Cheek Squint", true, Group = "Cheeks")] public (float, float) cheekSquint = new(0, 1);
-    [MutationProperty("Jaw", true, Group = "Jaw")] public (float, float) jawOpen = new(0, 1);
-    [MutationProperty("MouthClosed", true, Group = "Jaw")] public (float, float) mouthClosed = new(0, 1);
-    [MutationProperty("Jaw Sideways", true, Group = "Jaw")] public (float, float) jawX = new(0, 1);
-    [MutationProperty("Jaw Forward / Backward", true, Group = "Jaw")] public (float, float) jawZ = new(0, 1);
-    [MutationProperty("Lip Funnel", true, Group = "Lips")] public (float, float) lipFunnel = new(0, 1);
-    [MutationProperty("Lip Suck", true, Group = "Lips")] public (float, float) lipSuck = new(0, 1);
-    [MutationProperty("Lip Pucker", true, Group = "Lips")] public (float, float) lipPucker = new(0, 1);
-    [MutationProperty("Mouth Open", true, Group = "Mouth")] public (float, float) mouthOpener = new(0, 1);
-    [MutationProperty("Mouth Smile", true, Group = "Mouth")] public (float, float) mouthSmile = new(0, 1);
-    [MutationProperty("Mouth Frown", true, Group = "Mouth")] public (float, float) mouthFrown = new(0, 1);
-    [MutationProperty("Mouth Stretch", true, Group = "Mouth")] public (float, float) mouthStretch = new(0, 1);
-    [MutationProperty("Mouth Tightener", true, Group = "Mouth")] public (float, float) mouthTightener = new(0, 1);
-    [MutationProperty("Mouth Press", true, Group = "Mouth")] public (float, float) mouthPress = new(0, 1);
-    [MutationProperty("Mouth Sideways", true, Group = "Mouth")] public (float, float) mouthX = new(0, 1);
-    [MutationProperty("Mouth Raiser", true, Group = "Mouth")] public (float, float) mouthRaiser = new(0, 1);
-    [MutationProperty("Nose", true, Group = "Nose")] public (float, float) nose = new(0, 1);
-    [MutationProperty("Nose Sneer", true, Group = "Nose")] public (float, float) noseSneer = new(0, 1);
-    [MutationProperty("Tongue Out", true, Group = "Tongue")] public (float, float) tongueOut = new(0, 1);
-    [MutationProperty("Tongue Directions", true, Group = "Tongue")] public (float, float) tongueMove = new(0, 1);
-    [MutationProperty("Tongue Miscellaneous", true, Group = "Tongue")] public (float, float) tongueOther = new(0, 1);
+    [MutationProperty("Eyebrow Raiser", true, Group = "Brows and eyes")] public (float, float) EyeBrowRaiser { get; set; } = new(0, 1);
+    [MutationProperty("Eyebrow Lowerer", true, Group = "Brows and eyes")] public (float, float) EyeBrowLower { get; set; } = new(0, 1);
+    [MutationProperty("Eye Squint", true, Group = "Brows and eyes")] public (float, float) EyeSquint { get; set; } = new(0, 1);
+    [MutationProperty("Eye Wide", true, Group = "Brows and eyes")] public (float, float) EyeWide { get; set; } = new(0, 1);
+    [MutationProperty("Cheek", true, Group = "Cheeks")] public (float, float) CheekPuffSuck { get; set; } = new(0, 1);
+    [MutationProperty("Cheek Squint", true, Group = "Cheeks")] public (float, float) CheekSquint { get; set; } = new(0, 1);
+    [MutationProperty("Jaw", true, Group = "Jaw")] public (float, float) JawOpen { get; set; } = new(0, 1);
+    [MutationProperty("MouthClosed", true, Group = "Jaw")] public (float, float) MouthClosed { get; set; } = new(0, 1);
+    [MutationProperty("Jaw Sideways", true, Group = "Jaw")] public (float, float) JawX { get; set; } = new(0, 1);
+    [MutationProperty("Jaw Forward / Backward", true, Group = "Jaw")] public (float, float) JawZ { get; set; } = new(0, 1);
+    [MutationProperty("Lip Funnel", true, Group = "Lips")] public (float, float) LipFunnel { get; set; } = new(0, 1);
+    [MutationProperty("Lip Suck", true, Group = "Lips")] public (float, float) LipSuck { get; set; } = new(0, 1);
+    [MutationProperty("Lip Pucker", true, Group = "Lips")] public (float, float) LipPucker { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Open", true, Group = "Mouth")] public (float, float) MouthOpener { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Smile", true, Group = "Mouth")] public (float, float) MouthSmile { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Frown", true, Group = "Mouth")] public (float, float) MouthFrown { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Stretch", true, Group = "Mouth")] public (float, float) MouthStretch { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Tightener", true, Group = "Mouth")] public (float, float) MouthTightener { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Press", true, Group = "Mouth")] public (float, float) MouthPress { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Sideways", true, Group = "Mouth")] public (float, float) MouthX { get; set; } = new(0, 1);
+    [MutationProperty("Mouth Raiser", true, Group = "Mouth")] public (float, float) MouthRaiser { get; set; } = new(0, 1);
+    [MutationProperty("Nose", true, Group = "Nose")] public (float, float) Nose { get; set; } = new(0, 1);
+    [MutationProperty("Nose Sneer", true, Group = "Nose")] public (float, float) NoseSneer { get; set; } = new(0, 1);
+    [MutationProperty("Tongue Out", true, Group = "Tongue")] public (float, float) TongueOut { get; set; } = new(0, 1);
+    [MutationProperty("Tongue Directions", true, Group = "Tongue")] public (float, float) TongueMove { get; set; } = new(0, 1);
+    [MutationProperty("Tongue Miscellaneous", true, Group = "Tongue")] public (float, float) TongueOther { get; set; } = new(0, 1);
 
-    [MutationProperty("Neck", true, Group = "Head and neck")] public (float, float) neck = new(0, 1);
-    [MutationProperty("Head Rotation (Side-to-Side)", true, Group = "Head and neck")] public (float, float) headRotationYaw = new(-1, 1);
-    [MutationProperty("Head Rotation (Up-Down Tilt)", true, Group = "Head and neck")] public (float, float) headRotationPitch = new(-1, 1);
-    [MutationProperty("Head Rotation (Side Tilt)", true, Group = "Head and neck")] public (float, float) headRotationRoll = new(-1, 1);
-    [MutationProperty("Head Position (Side-to-Side)", true, Group = "Head and neck")] public (float, float) headPositionX = new(-1, 1);
-    [MutationProperty("Head Position (Up-Down)", true, Group = "Head and neck")] public (float, float) headPositionY = new(-1, 1);
-    [MutationProperty("Head Position (Forward-Back)", true, Group = "Head and neck")] public (float, float) headPositionZ = new(-1, 1);
+    [MutationProperty("Neck", true, Group = "Head and neck")] public (float, float) Neck { get; set; } = new(0, 1);
+    [MutationProperty("Head Rotation (Side-to-Side)", true, Group = "Head and neck")] public (float, float) HeadRotationYaw { get; set; } = new(-1, 1);
+    [MutationProperty("Head Rotation (Up-Down Tilt)", true, Group = "Head and neck")] public (float, float) HeadRotationPitch { get; set; } = new(-1, 1);
+    [MutationProperty("Head Rotation (Side Tilt)", true, Group = "Head and neck")] public (float, float) HeadRotationRoll { get; set; } = new(-1, 1);
+    [MutationProperty("Head Position (Side-to-Side)", true, Group = "Head and neck")] public (float, float) HeadPositionX { get; set; } = new(-1, 1);
+    [MutationProperty("Head Position (Up-Down)", true, Group = "Head and neck")] public (float, float) HeadPositionY { get; set; } = new(-1, 1);
+    [MutationProperty("Head Position (Forward-Back)", true, Group = "Head and neck")] public (float, float) HeadPositionZ { get; set; } = new(-1, 1);
 
     public override string Name => "Parameter Adjustment";
-
+    public override string Description => "Adjust VRCFaceTracking Parameters.";
+    public override MutationPriority Priority => MutationPriority.None;
     public override int PageOrder => 2;
 
-    public override string Description => "Adjust VRCFaceTracking Parameters.";
-
-    public override MutationPriority Step => MutationPriority.None;
-
-    float Range(float value, float floor, float ceil) => (value - floor) / (ceil - floor);
-
-    float SetRange(ref UnifiedExpressionShape shape, (float, float) ranges) => shape.Weight = Range(shape.Weight, ranges.Item1, ranges.Item2);
-    float SetRange(ref float value, (float, float) ranges) => value = Range(value, ranges.Item1, ranges.Item2);
-
+    [MutationButton("Reset Values")]
+    public static void Reset()
+    {
+    }
 
     public override void MutateData(ref UnifiedTrackingData data)
     {
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowInnerUpLeft], eyeBrowRaiser);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowInnerUpRight], eyeBrowRaiser);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowOuterUpLeft], eyeBrowRaiser);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowOuterUpRight], eyeBrowRaiser);
+        foreach ((Func<ParameterAdjustment, (float Floor, float Ceiling)> range, UnifiedExpressions[] shapes) in ShapeRanges)
+        {
+            (float floor, float ceiling) = range(this);
+            foreach (UnifiedExpressions shape in shapes)
+            {
+                ref float weight = ref data.Shapes[(int)shape].Weight;
+                weight = Rescale(weight, floor, ceiling);
+            }
+        }
 
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowLowererLeft], eyeBrowLower);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowLowererRight], eyeBrowLower);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowPinchLeft], eyeBrowLower);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.BrowPinchRight], eyeBrowLower);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.CheekPuffLeft], cheekPuffSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.CheekPuffRight], cheekPuffSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.CheekSuckLeft], cheekPuffSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.CheekSuckRight], cheekPuffSuck);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.CheekSquintLeft], cheekSquint);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.CheekSquintRight], cheekSquint);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.EyeSquintLeft], eyeSquint);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.EyeSquintRight], eyeSquint);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.EyeWideLeft], eyeWide);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.EyeWideRight], eyeWide);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.JawBackward], jawZ);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.JawForward], jawZ);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.JawClench], jawOpen);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.JawMandibleRaise], jawOpen);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.JawOpen], jawOpen);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthClosed], mouthClosed);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.JawLeft], jawX);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.JawRight], jawX);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipFunnelLowerLeft], lipFunnel);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipFunnelLowerRight], lipFunnel);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipFunnelUpperLeft], lipFunnel);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipFunnelUpperRight], lipFunnel);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipPuckerLowerLeft], lipPucker);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipPuckerLowerRight], lipPucker);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipPuckerUpperLeft], lipPucker);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipPuckerUpperRight], lipPucker);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipSuckCornerLeft], lipSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipSuckCornerRight], lipSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipSuckUpperLeft], lipSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipSuckUpperRight], lipSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipSuckLowerLeft], lipSuck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.LipSuckLowerRight], lipSuck);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthUpperDeepenLeft], mouthOpener);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthUpperDeepenRight], mouthOpener);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthUpperUpLeft], mouthOpener);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthUpperUpRight], mouthOpener);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthLowerDownLeft], mouthOpener);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthLowerDownRight], mouthOpener);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthCornerPullLeft], mouthSmile);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthCornerPullRight], mouthSmile);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthCornerSlantLeft], mouthSmile);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthCornerSlantRight], mouthSmile);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthFrownLeft], mouthFrown);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthFrownRight], mouthFrown);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthStretchLeft], mouthStretch);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthStretchRight], mouthStretch);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthTightenerLeft], mouthTightener);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthTightenerRight], mouthTightener);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthPressRight], mouthPress);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthPressLeft], mouthPress);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthUpperLeft], mouthX);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthUpperRight], mouthX);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthLowerLeft], mouthX);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthLowerRight], mouthX);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthRaiserLower], mouthRaiser);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.MouthRaiserUpper], mouthRaiser);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NasalConstrictLeft], nose);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NasalConstrictRight], nose);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NasalDilationLeft], nose);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NasalDilationRight], nose);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NoseSneerLeft], noseSneer);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NoseSneerRight], noseSneer);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NeckFlexLeft], neck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.NeckFlexRight], neck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.SoftPalateClose], neck);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.ThroatSwallow], neck);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueBendDown], tongueMove);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueCurlUp], tongueMove);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueDown], tongueMove);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueUp], tongueMove);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueLeft], tongueMove);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueRight], tongueMove);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueTwistLeft], tongueOther);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueTwistRight], tongueOther);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueOut], tongueOut);
-
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueFlat], tongueOther);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueSquish], tongueOther);
-        SetRange(ref data.Shapes[(int)UnifiedExpressions.TongueRoll], tongueOther);
-
-        SetRange(ref data.Head.HeadYaw, headRotationYaw);
-        SetRange(ref data.Head.HeadPitch, headRotationPitch);
-        SetRange(ref data.Head.HeadRoll, headRotationRoll);
-
-        SetRange(ref data.Head.HeadPosX, headPositionX);
-        SetRange(ref data.Head.HeadPosY, headPositionY);
-        SetRange(ref data.Head.HeadPosZ, headPositionZ);
+        data.Head.HeadYaw = Rescale(data.Head.HeadYaw, HeadRotationYaw.Item1, HeadRotationYaw.Item2);
+        data.Head.HeadPitch = Rescale(data.Head.HeadPitch, HeadRotationPitch.Item1, HeadRotationPitch.Item2);
+        data.Head.HeadRoll = Rescale(data.Head.HeadRoll, HeadRotationRoll.Item1, HeadRotationRoll.Item2);
+        data.Head.HeadPosX = Rescale(data.Head.HeadPosX, HeadPositionX.Item1, HeadPositionX.Item2);
+        data.Head.HeadPosY = Rescale(data.Head.HeadPosY, HeadPositionY.Item1, HeadPositionY.Item2);
+        data.Head.HeadPosZ = Rescale(data.Head.HeadPosZ, HeadPositionZ.Item1, HeadPositionZ.Item2);
     }
+
+    private static float Rescale(float value, float floor, float ceiling) => (value - floor) / (ceiling - floor);
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace VRCFaceTracking.Core.Updates;
@@ -28,9 +29,9 @@ public static class UpdateAssets
 
     public static (string Sha256, long Size) ParseArchiveEntry(string integrityTsv, string archiveName)
     {
-        var line = integrityTsv.Split('\n').Select(l => l.TrimEnd('\r')).FirstOrDefault(l => l.Length > 0)
+        string line = integrityTsv.Split('\n').Select(l => l.TrimEnd('\r')).FirstOrDefault(l => l.Length > 0)
             ?? throw new InvalidDataException("Integrity file is empty.");
-        var fields = line.Split('\t');
+        string[] fields = line.Split('\t');
         if (fields.Length != 3)
         {
             throw new InvalidDataException($"Integrity row has {fields.Length} fields, expected 3.");
@@ -41,18 +42,12 @@ public static class UpdateAssets
             throw new InvalidDataException($"Integrity row names '{fields[2]}', expected '{archiveName}'.");
         }
 
-        var hash = fields[0].Trim().ToLowerInvariant();
-        if (hash.Length != 64 || !hash.All(Uri.IsHexDigit))
-        {
-            throw new InvalidDataException("Integrity row hash is not 64 hex characters.");
-        }
-
-        if (!long.TryParse(fields[1], out var size) || size <= 0)
-        {
-            throw new InvalidDataException($"Integrity row size '{fields[1]}' is not a positive number.");
-        }
-
-        return (hash, size);
+        string hash = fields[0].Trim();
+        return hash.Length != 64 || !hash.All(Uri.IsHexDigit)
+            ? throw new InvalidDataException("Integrity row hash is not 64 hex characters.")
+            : !long.TryParse(fields[1], CultureInfo.InvariantCulture, out long size) || size <= 0
+            ? throw new InvalidDataException($"Integrity row size '{fields[1]}' is not a positive number.")
+            : ((string Sha256, long Size))(hash, size);
     }
 
     public static string ResolvePayloadRoot(string extractedDir)
@@ -62,7 +57,7 @@ public static class UpdateAssets
             return extractedDir;
         }
 
-        var candidates = Directory.GetDirectories(extractedDir).Where(d => File.Exists(Path.Combine(d, ExeName))).ToArray();
+        string[] candidates = [.. Directory.GetDirectories(extractedDir).Where(d => File.Exists(Path.Combine(d, ExeName)))];
         return candidates.Length == 1
             ? candidates[0]
             : throw new InvalidDataException($"{ExeName} not found in the extracted update.");

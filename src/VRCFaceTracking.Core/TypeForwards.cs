@@ -1,0 +1,27 @@
+using System.Runtime.CompilerServices;
+using VRCFaceTracking;
+using VRCFaceTracking.Core.Helpers;
+using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Params.Data;
+using VRCFaceTracking.Core.Params.Expressions;
+using VRCFaceTracking.Core.Types;
+
+[assembly: TypeForwardedTo(typeof(HappyEyeballsHttp))]
+[assembly: TypeForwardedTo(typeof(ExtTrackingModule))]
+[assembly: TypeForwardedTo(typeof(ModuleMetadata))]
+[assembly: TypeForwardedTo(typeof(ModuleState))]
+[assembly: TypeForwardedTo(typeof(UnifiedTracking))]
+[assembly: TypeForwardedTo(typeof(VRCFaceTracking.Core.Utils))]
+[assembly: TypeForwardedTo(typeof(Utils))]
+[assembly: TypeForwardedTo(typeof(UnifiedSingleEyeData))]
+[assembly: TypeForwardedTo(typeof(UnifiedEyeData))]
+[assembly: TypeForwardedTo(typeof(UnifiedExpressionShape))]
+[assembly: TypeForwardedTo(typeof(UnifiedHeadData))]
+[assembly: TypeForwardedTo(typeof(UnifiedTrackingData))]
+[assembly: TypeForwardedTo(typeof(UnifiedExpressions))]
+[assembly: TypeForwardedTo(typeof(UnifiedSimpleExpressions))]
+[assembly: TypeForwardedTo(typeof(UnifiedSimplifier))]
+[assembly: TypeForwardedTo(typeof(Vector2))]
+[assembly: TypeForwardedTo(typeof(Vector3))]
+[assembly: TypeForwardedTo(typeof(Vector4))]
+[assembly: TypeForwardedTo(typeof(Image))]

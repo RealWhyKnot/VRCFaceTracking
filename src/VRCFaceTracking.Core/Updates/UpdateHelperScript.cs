@@ -4,7 +4,7 @@ namespace VRCFaceTracking.Core.Updates;
 
 public static class UpdateHelperScript
 {
-    private static readonly UTF8Encoding Utf8WithBom = new(true);
+    private static readonly UTF8Encoding Utf8WithBom = new(encoderShouldEmitUTF8Identifier: true);
 
     public static void WritePowerShell(string path, string script) => File.WriteAllText(path, script, Utf8WithBom);
 
@@ -70,7 +70,7 @@ public static class UpdateHelperScript
         return sb.ToString();
     }
 
-    private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
+    private static string Quote(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
     public static string BuildSh(int processId, string payloadRoot, string stagingDir, string installDir, string exePath, string logPath)
     {
@@ -110,5 +110,5 @@ public static class UpdateHelperScript
         return sb.ToString();
     }
 
-    private static string ShQuote(string value) => "'" + value.Replace("'", "'\\''") + "'";
+    private static string ShQuote(string value) => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 }

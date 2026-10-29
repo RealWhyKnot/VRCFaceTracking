@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\Version.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,10 +8,10 @@
     <RootNamespace>VRCFaceTracking.ModuleProcess</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="System.CommandLine" Version="2.0.11" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VRCFaceTracking.Core\VRCFaceTracking.Core.csproj" />
-    <ProjectReference Include="..\VRCFaceTracking.SDK\VRCFaceTracking.SDK.csproj" />
+    <ProjectReference Include="..\..\vendor\VRCFaceTracking.SDK\VRCFaceTracking.SDK.csproj" />
   </ItemGroup>
 </Project>

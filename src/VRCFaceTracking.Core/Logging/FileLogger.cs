@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -29,14 +30,14 @@ public sealed class FileLogger : ILogger
             return;
         }
 
-        _provider.Write(logLevel, FormatLine(_categoryName, logLevel, formatter(state, exception), exception, DateTime.Now));
+        _provider.Write(logLevel, FormatLine(_categoryName, logLevel, formatter(state, exception), exception, _provider.TimeProvider.GetLocalNow().DateTime));
     }
 
     public static string FormatLine(string category, LogLevel level, string message, Exception? exception, DateTime now)
     {
         var sb = new StringBuilder(message.Length + 64);
-        sb.Append(now.ToString("HH:mm:ss.fff")).Append(' ');
-        if (category == PassthroughCategory)
+        sb.Append(now.ToString("HH:mm:ss.fff", CultureInfo.InvariantCulture)).Append(' ');
+        if (string.Equals(category, PassthroughCategory, StringComparison.Ordinal))
         {
             sb.Append(message);
         }
@@ -62,6 +63,7 @@ public sealed class FileLogger : ILogger
         LogLevel.Warning => "WRN",
         LogLevel.Error => "ERR",
         LogLevel.Critical => "CRT",
-        _ => "???"
+        LogLevel.None => "???",
+        _ => "???",
     };
 }

@@ -3,7 +3,7 @@ using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class ModuleInitProgressTests
+public sealed class ModuleInitProgressTests
 {
     private sealed class InlineDispatcher : IDispatcherService
     {
@@ -13,9 +13,9 @@ public class ModuleInitProgressTests
     private static ModuleInitProgress NewProgress() => new(new InlineDispatcher());
 
     [Fact]
-    public void AllEntriesAddedBeforeFirstResolve_NoneMissed()
+    public void AllEntriesAddedBeforeFirstResolveNoneMissed()
     {
-        var progress = NewProgress();
+        ModuleInitProgress progress = NewProgress();
         progress.Begin();
         progress.Add("a.dll", "a");
         progress.Add("b.dll", "b");
@@ -34,9 +34,9 @@ public class ModuleInitProgressTests
     }
 
     [Fact]
-    public void AddAfterLastResolve_IsIgnored()
+    public void AddAfterLastResolveIsIgnored()
     {
-        var progress = NewProgress();
+        ModuleInitProgress progress = NewProgress();
         progress.Begin();
         progress.Add("a.dll", "a");
         progress.Resolve("a.dll");
@@ -47,9 +47,9 @@ public class ModuleInitProgressTests
     }
 
     [Fact]
-    public void TimeOutPending_KeepsEntriesButClearsPending()
+    public void TimeOutPendingKeepsEntriesButClearsPending()
     {
-        var progress = NewProgress();
+        ModuleInitProgress progress = NewProgress();
         progress.Begin();
         progress.Add("a.dll", "a");
         progress.Advance("a.dll", ModuleInitStage.Initializing);
@@ -62,9 +62,9 @@ public class ModuleInitProgressTests
     }
 
     [Fact]
-    public void FinishAfterTimeOutPending_ClearsEverything()
+    public void FinishAfterTimeOutPendingClearsEverything()
     {
-        var progress = NewProgress();
+        ModuleInitProgress progress = NewProgress();
         progress.Begin();
         progress.Add("a.dll", "a");
         progress.TimeOutPending();

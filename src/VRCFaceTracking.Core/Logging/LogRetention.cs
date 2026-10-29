@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace VRCFaceTracking.Core.Logging;
 
 public static class LogRetention
@@ -9,25 +11,23 @@ public static class LogRetention
             return 0;
         }
 
-        var files = Directory.EnumerateFiles(directory, searchPattern)
+        IEnumerable<FileInfo> files = Directory.EnumerateFiles(directory, searchPattern)
             .Select(path => new FileInfo(path))
             .OrderByDescending(file => file.CreationTimeUtc)
             .ThenByDescending(file => file.Name, StringComparer.Ordinal)
             .Skip(keep);
 
-        var deleted = 0;
-        foreach (var file in files)
+        int deleted = 0;
+        foreach (FileInfo? file in files)
         {
             try
             {
                 file.Delete();
                 deleted++;
             }
-            catch (IOException)
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-            }
-            catch (UnauthorizedAccessException)
-            {
+                Trace.TraceWarning($"Old log {file.Name} could not be deleted: {e.Message}");
             }
         }
 

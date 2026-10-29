@@ -2,7 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace VRCFaceTracking.ViewModels;
 
-public partial class ParameterViewModel : ObservableRecipient
+internal sealed partial class ParameterViewModel : ObservableRecipient
 {
     public string? ParameterName
     {

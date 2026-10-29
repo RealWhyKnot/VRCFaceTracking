@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,9 +14,11 @@ using VRCFaceTracking.Services;
 
 namespace VRCFaceTracking.ViewModels;
 
-public partial class SettingsViewModel : ObservableRecipient
+internal sealed partial class SettingsViewModel : ObservableRecipient
 {
     public const string ThemeSettingKey = "AppTheme";
+
+    private static readonly CompositeFormat LogFolderPendingFormat = CompositeFormat.Parse(Strings.Resources.LogFolderPendingDescription);
 
     private readonly LoggingSettings _loggingSettings;
     private readonly LogLevelGate _logGate;
@@ -79,7 +83,7 @@ public partial class SettingsViewModel : ObservableRecipient
         set
         {
             _openVRService.ExitWithSteamVr = value;
-            _ = _localSettingsService.Save(_openVRService);
+            _ = _localSettingsService.SaveAsync(_openVRService, CancellationToken.None);
             OnPropertyChanged();
         }
     }
@@ -91,7 +95,7 @@ public partial class SettingsViewModel : ObservableRecipient
         {
             _loggingSettings.VerboseLogging = value;
             _logGate.Set(_loggingSettings.VerboseEffective);
-            _ = _localSettingsService.Save(_loggingSettings);
+            _ = _localSettingsService.SaveAsync(_loggingSettings, CancellationToken.None);
             OnPropertyChanged();
         }
     }
@@ -107,31 +111,31 @@ public partial class SettingsViewModel : ObservableRecipient
         get => _loggingSettings.LogFilesToKeep;
         set
         {
-            var clamped = (int)Math.Clamp(value, 1, 200);
+            int clamped = (int)Math.Clamp(value, 1, 200);
             if (clamped == _loggingSettings.LogFilesToKeep)
             {
                 return;
             }
 
             _loggingSettings.LogFilesToKeep = clamped;
-            _ = _localSettingsService.Save(_loggingSettings);
+            _ = _localSettingsService.SaveAsync(_loggingSettings, CancellationToken.None);
             OnPropertyChanged();
         }
     }
 
-    public static string LogDirectory => Core.Utils.LogDirectory;
+    public static string LogDirectory => LogDirectories.Current;
 
-    [ObservableProperty] private string _pendingLogDirectory = Core.Utils.LogDirectory;
+    [ObservableProperty] private string _pendingLogDirectory = LogDirectories.Current;
 
-    public string LogFolderDescription => PendingLogDirectory == Core.Utils.LogDirectory
-        ? Core.Utils.LogDirectory
-        : string.Format(Strings.Resources.LogFolderPendingDescription, PendingLogDirectory);
+    public string LogFolderDescription => string.Equals(PendingLogDirectory, LogDirectories.Current, StringComparison.Ordinal)
+        ? LogDirectories.Current
+        : string.Format(CultureInfo.CurrentCulture, LogFolderPendingFormat, PendingLogDirectory);
 
-    public bool HasCustomLogFolder => PendingLogDirectory != Core.Utils.DefaultLogDirectory;
+    public bool HasCustomLogFolder => !string.Equals(PendingLogDirectory, LogDirectories.Default, StringComparison.Ordinal);
 
-    public async Task SetLogDirectoryAsync(string path)
+    public async Task SetLogDirectoryAsync(string path, CancellationToken cancellationToken)
     {
-        await _localSettingsService.SaveSettingAsync(Core.Utils.LogDirectorySettingKey, path);
+        await _localSettingsService.SaveSettingAsync(LogDirectories.SettingKey, path, forceLocal: false, cancellationToken);
         PendingLogDirectory = path;
         OnPropertyChanged(nameof(LogFolderDescription));
         OnPropertyChanged(nameof(HasCustomLogFolder));
@@ -150,7 +154,7 @@ public partial class SettingsViewModel : ObservableRecipient
         set
         {
             _updateSettings.CheckOnStartup = value;
-            _ = _localSettingsService.Save(_updateSettings);
+            _ = _localSettingsService.SaveAsync(_updateSettings, CancellationToken.None);
             OnPropertyChanged();
         }
     }
@@ -158,7 +162,6 @@ public partial class SettingsViewModel : ObservableRecipient
     public static string VersionText => $"{BuildInfo.VersionString} ({BuildInfo.ChannelName})";
 
     public SettingsViewModel(
-        GithubService githubService,
         OpenVRService openVRService,
         DeveloperSettings developerSettings,
         IOscTarget oscTarget,
@@ -181,34 +184,30 @@ public partial class SettingsViewModel : ObservableRecipient
 
         OpenLogsCommand = new RelayCommand(() =>
         {
-            Directory.CreateDirectory(Core.Utils.LogDirectory);
-            Process.Start(new ProcessStartInfo(Core.Utils.LogDirectory) { UseShellExecute = true });
+            Directory.CreateDirectory(LogDirectories.Current);
+            Process.Start(new ProcessStartInfo(LogDirectories.Current) { UseShellExecute = true });
         });
 
-        CheckUpdatesCommand = new AsyncRelayCommand(() => _updateService.CheckAsync(true));
-        ResetLogDirectoryCommand = new AsyncRelayCommand(() => SetLogDirectoryAsync(Core.Utils.DefaultLogDirectory));
+        CheckUpdatesCommand = new AsyncRelayCommand(cancellationToken => _updateService.CheckAsync(manual: true, cancellationToken));
+        ResetLogDirectoryCommand = new AsyncRelayCommand(cancellationToken => SetLogDirectoryAsync(LogDirectories.Default, cancellationToken));
 
-        LoadContributors(githubService);
+        _ = LoadContributorsAsync(CancellationToken.None);
     }
 
-    public Task<string?> ReadThemeAsync() => _localSettingsService.ReadSettingAsync<string?>(ThemeSettingKey);
+    public Task<string?> ReadThemeAsync(CancellationToken cancellationToken) =>
+        _localSettingsService.ReadSettingAsync<string?>(ThemeSettingKey, defaultValue: null, forceLocal: false, cancellationToken);
 
-    public Task SaveThemeAsync(string theme) => _localSettingsService.SaveSettingAsync(ThemeSettingKey, theme);
+    public Task SaveThemeAsync(string theme, CancellationToken cancellationToken) =>
+        _localSettingsService.SaveSettingAsync(ThemeSettingKey, theme, forceLocal: false, cancellationToken);
 
-    private async void LoadContributors(GithubService githubService)
+    private async Task LoadContributorsAsync(CancellationToken cancellationToken)
     {
-        try
+        List<GithubContributor> bundled = GithubService.GetBundledContributors();
+        if (bundled.Count > 0)
         {
-            var bundled = githubService.GetBundledContributors();
-            if (bundled.Count > 0)
-            {
-                Contributors = bundled;
-                return;
-            }
-            Contributors = await githubService.GetContributors("benaclejames/VRCFaceTracking");
+            Contributors = bundled;
+            return;
         }
-        catch
-        {
-        }
+        Contributors = await GithubService.GetContributorsAsync("benaclejames/VRCFaceTracking", cancellationToken);
     }
 }

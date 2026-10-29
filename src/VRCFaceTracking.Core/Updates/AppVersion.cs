@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace VRCFaceTracking.Core.Updates;
 
 public readonly record struct AppVersion(int Year, int Month, int Day, int Revision, bool IsBeta) : IComparable<AppVersion>
@@ -10,25 +12,25 @@ public readonly record struct AppVersion(int Year, int Month, int Day, int Revis
             return false;
         }
 
-        var trimmed = text.Trim();
+        string trimmed = text.Trim();
         if (trimmed.StartsWith('v') || trimmed.StartsWith('V'))
         {
             trimmed = trimmed[1..];
         }
 
-        var dash = trimmed.IndexOf('-');
-        var numeric = dash < 0 ? trimmed : trimmed[..dash];
-        var suffix = dash < 0 ? string.Empty : trimmed[(dash + 1)..];
-        var parts = numeric.Split('.');
+        int dash = trimmed.IndexOf('-', StringComparison.Ordinal);
+        string numeric = dash < 0 ? trimmed : trimmed[..dash];
+        string suffix = dash < 0 ? string.Empty : trimmed[(dash + 1)..];
+        string[] parts = numeric.Split('.');
         if (parts.Length != 4)
         {
             return false;
         }
 
-        var values = new int[4];
-        for (var i = 0; i < 4; i++)
+        int[] values = new int[4];
+        for (int i = 0; i < 4; i++)
         {
-            if (!int.TryParse(parts[i], out values[i]) || values[i] < 0)
+            if (!int.TryParse(parts[i], CultureInfo.InvariantCulture, out values[i]) || values[i] < 0)
             {
                 return false;
             }
@@ -40,8 +42,28 @@ public readonly record struct AppVersion(int Year, int Month, int Day, int Revis
 
     public int CompareTo(AppVersion other)
     {
-        var numeric = (Year, Month, Day, Revision).CompareTo((other.Year, other.Month, other.Day, other.Revision));
+        int numeric = (Year, Month, Day, Revision).CompareTo((other.Year, other.Month, other.Day, other.Revision));
         return numeric != 0 ? numeric : (IsBeta ? 0 : 1).CompareTo(other.IsBeta ? 0 : 1);
+    }
+
+    public static bool operator <(AppVersion left, AppVersion right)
+    {
+        return left.CompareTo(right) < 0;
+    }
+
+    public static bool operator <=(AppVersion left, AppVersion right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
+
+    public static bool operator >(AppVersion left, AppVersion right)
+    {
+        return left.CompareTo(right) > 0;
+    }
+
+    public static bool operator >=(AppVersion left, AppVersion right)
+    {
+        return left.CompareTo(right) >= 0;
     }
 
     public override string ToString() => $"{Year}.{Month}.{Day}.{Revision}{(IsBeta ? "-beta" : string.Empty)}";

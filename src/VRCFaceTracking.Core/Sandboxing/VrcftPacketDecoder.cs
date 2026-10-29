@@ -1,142 +1,64 @@
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using System.Diagnostics.CodeAnalysis;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 
 namespace VRCFaceTracking.Core.Sandboxing;
 
-public class VrcftPacketDecoder
+public sealed class VrcftPacketDecoder
 {
-    /// <summary>
-    /// Attempts to decode an incoming stream of bytes into an IpcPacket structure
-    /// </summary>
-    /// <param name="data">The incoming byte stream</param>
-    /// <param name="packet">The output packet, if successfully decoded</param>
-    /// <returns>Whether decoding was successful. If it was not, the data stored in packet should be discarded.</returns>
-    public static bool TryDecodePacket(in byte[] data, out IpcPacket packet)
+    public static bool TryDecodePacket(in byte[] data, [NotNullWhen(true)] out IpcPacket? packet)
     {
         packet = null;
 
-        if (data == null || data.Length < IpcPacket.SIZE_PACKET_MAGIC + IpcPacket.SIZE_PACKET_TYPE)
+        if (data == null || data.Length < IpcPacket.PacketMagicSize + IpcPacket.PacketTypeSize)
         {
             return false;
         }
 
-        // Verify magic numbers
-        for (var i = 0; i < IpcPacket.SIZE_PACKET_TYPE; i++)
+        for (int i = 0; i < IpcPacket.PacketMagicSize; i++)
         {
-            if (data[i] != IpcPacket.HANDSHAKE_MAGIC[i])
+            if (data[i] != IpcPacket.HandshakeMagic[i])
             {
                 return false;
             }
         }
 
-        // Read packet type
-        IpcPacket.PacketType packetType = (IpcPacket.PacketType)(BitConverter.ToUInt32(data, 4));
-
-        // Based on packet type, switch to specific packet decoder
-        try
-        {
-            switch (packetType)
-            {
-                // Handshake
-                case IpcPacket.PacketType.Handshake:
-                    packet = new HandshakePacket();
-                    packet.Decode(data);
-                    break;
-
-                // SplitPacketChunk
-                case IpcPacket.PacketType.SplitPacketChunk:
-                    packet = new PartialPacket();
-                    packet.Decode(data);
-                    break;
-
-
-                // EventGetSupported
-                case IpcPacket.PacketType.EventGetSupported:
-                    packet = new EventInitGetSupported();
-                    packet.Decode(data);
-                    break;
-
-                // EventInit
-                case IpcPacket.PacketType.EventInit:
-                    packet = new EventInitPacket();
-                    packet.Decode(data);
-                    break;
-
-                // EventTeardown
-                case IpcPacket.PacketType.EventTeardown:
-                    packet = new EventTeardownPacket();
-                    packet.Decode(data);
-                    break;
-
-                // EventUpdate
-                case IpcPacket.PacketType.EventUpdate:
-                    packet = new EventUpdatePacket();
-                    packet.Decode(data);
-                    break;
-
-                // EventLog
-                case IpcPacket.PacketType.EventLog:
-                    packet = new EventLogPacket();
-                    packet.Decode(data);
-                    break;
-
-                case IpcPacket.PacketType.EventSetVerbose:
-                    packet = new EventSetVerbosePacket();
-                    packet.Decode(data);
-                    break;
-
-                case IpcPacket.PacketType.EventSetImageStream:
-                    packet = new EventSetImageStreamPacket();
-                    packet.Decode(data);
-                    break;
-
-                case IpcPacket.PacketType.DebugStreamFrame:
-                    packet = new ImageFrameUpdatePacket();
-                    packet.Decode(data);
-                    break;
-
-
-
-                // EventGetSupported
-                case IpcPacket.PacketType.ReplyGetSupported:
-                    packet = new ReplySupportedPacket();
-                    packet.Decode(data);
-                    break;
-
-                // ReplyInit
-                case IpcPacket.PacketType.ReplyInit:
-                    packet = new ReplyInitPacket();
-                    packet.Decode(data);
-                    break;
-
-                // ReplyUpdate
-                case IpcPacket.PacketType.ReplyUpdate:
-                    packet = new ReplyUpdatePacket();
-                    packet.Decode(data);
-                    break;
-
-                // ReplyTeardown
-                case IpcPacket.PacketType.ReplyTeardown:
-                    packet = new ReplyTeardownPacket();
-                    packet.Decode(data);
-                    break;
-
-                // EventUpdateStatus
-                case IpcPacket.PacketType.EventUpdateStatus:
-                    packet = new EventStatusUpdatePacket();
-                    packet.Decode(data);
-                    break;
-
-                // Invalid packet
-                case IpcPacket.PacketType.Unknown:
-                default:
-                    return false;
-            }
-        }
-        catch (Exception)
+        IpcPacket? candidate = CreatePacket((IpcPacket.PacketType)BitConverter.ToUInt32(data, IpcPacket.PacketMagicSize));
+        if (candidate == null)
         {
             return false;
         }
 
+        try
+        {
+            candidate.Decode(data);
+        }
+        catch (Exception e) when (e is ArgumentException or IndexOutOfRangeException or InvalidDataException)
+        {
+            return false;
+        }
+
+        packet = candidate;
         return true;
     }
+
+    private static IpcPacket? CreatePacket(IpcPacket.PacketType type) => type switch
+    {
+        IpcPacket.PacketType.Handshake => new HandshakePacket(),
+        IpcPacket.PacketType.SplitPacketChunk => new PartialPacket(),
+        IpcPacket.PacketType.EventGetSupported => new EventInitGetSupported(),
+        IpcPacket.PacketType.EventInit => new EventInitPacket(),
+        IpcPacket.PacketType.EventTeardown => new EventTeardownPacket(),
+        IpcPacket.PacketType.EventUpdate => new EventUpdatePacket(),
+        IpcPacket.PacketType.EventUpdateStatus => new EventStatusUpdatePacket(),
+        IpcPacket.PacketType.EventLog => new EventLogPacket(),
+        IpcPacket.PacketType.EventSetVerbose => new EventSetVerbosePacket(),
+        IpcPacket.PacketType.EventSetImageStream => new EventSetImageStreamPacket(),
+        IpcPacket.PacketType.ReplyGetSupported => new ReplySupportedPacket(),
+        IpcPacket.PacketType.ReplyInit => new ReplyInitPacket(),
+        IpcPacket.PacketType.ReplyUpdate => new ReplyUpdatePacket(),
+        IpcPacket.PacketType.ReplyTeardown => new ReplyTeardownPacket(),
+        IpcPacket.PacketType.DebugStreamFrame => new ImageFrameUpdatePacket(),
+        IpcPacket.PacketType.Unknown => null,
+        _ => null,
+    };
 }

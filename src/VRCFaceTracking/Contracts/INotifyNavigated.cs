@@ -1,6 +1,6 @@
 namespace VRCFaceTracking.Contracts;
 
-public interface INotifyNavigated
+internal interface INotifyNavigated
 {
     void OnNavigatedTo();
 

@@ -2,19 +2,19 @@ namespace VRCFaceTracking.Core.Contracts;
 
 public interface IAvatarInfo
 {
-    public string Name
+    string Name
     {
         get;
     }
-    public string Id
+    string Id
     {
         get;
     }
-    public IParameterDefinition[] Parameters
+    IReadOnlyList<IParameterDefinition> Parameters
     {
         get;
     }
-    public bool FullFaceTracking
+    bool FullFaceTracking
     {
         get;
     }

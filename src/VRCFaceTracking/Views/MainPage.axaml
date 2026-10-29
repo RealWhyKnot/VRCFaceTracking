@@ -4,7 +4,7 @@
     xmlns:ui="using:FluentAvalonia.UI.Controls"
     xmlns:s="using:VRCFaceTracking.Strings"
     xmlns:vm="using:VRCFaceTracking.ViewModels"
-    xmlns:model="clr-namespace:VRCFaceTracking;assembly=VRCFaceTracking.Core"
+    xmlns:model="clr-namespace:VRCFaceTracking.Core.Library;assembly=VRCFaceTracking.Core"
     x:DataType="vm:MainViewModel"
     x:Class="VRCFaceTracking.Views.MainPage">
 

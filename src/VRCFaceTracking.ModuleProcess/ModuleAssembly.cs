@@ -1,33 +1,27 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace VRCFaceTracking.ModuleProcess;
 
-public class ModuleAssembly
+internal sealed partial class ModuleAssembly
 {
-    public Assembly Assembly;
-    public string ModulePath;
-    public bool Loaded;
+    public string ModulePath { get; set; }
+    public bool Loaded { get; set; }
     private readonly ILogger<ModuleProcessMain> _logger;
-    private readonly ILoggerFactory? _loggerFactory;
-    public ExtTrackingModule TrackingModule;
-    public CancellationTokenSource _updateCts;
+    private readonly ILoggerFactory _loggerFactory;
+    public ExtTrackingModule? TrackingModule { get; private set; }
+    public CancellationTokenSource? UpdateCts { get; set; }
 
     public ModuleAssembly(ILogger<ModuleProcessMain> logger, ILoggerFactory loggerFactory, string dllPath)
     {
         if (!File.Exists(dllPath))
         {
-            throw new ArgumentException($"Invalid file path: \"{dllPath}\" does not exist!");
+            throw new ArgumentException($"Invalid file path: \"{dllPath}\" does not exist!", nameof(dllPath));
         }
-        if (Path.GetExtension(dllPath.ToLowerInvariant()) != ".dll" && Path.GetExtension(dllPath.ToLowerInvariant()) != "dll")
+        if (!string.Equals(Path.GetExtension(dllPath), ".dll", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException($"{dllPath} is not a DLL file and cannot be loaded.");
+            throw new ArgumentException($"{dllPath} is not a DLL file and cannot be loaded.", nameof(dllPath));
         }
 
         _logger = logger;
@@ -36,7 +30,7 @@ public class ModuleAssembly
         Loaded = false;
     }
 
-    public void TryLoadAssembly()
+    public void LoadAssembly()
     {
         if (Loaded)
         {
@@ -45,18 +39,18 @@ public class ModuleAssembly
 
         try
         {
-            var alc = new AssemblyLoadContext(ModulePath, true);
-            Assembly = alc.LoadFromAssemblyPath(ModulePath);
+            var alc = new AssemblyLoadContext(ModulePath, isCollectible: true);
+            Assembly assembly = alc.LoadFromAssemblyPath(ModulePath);
 
-            var references = Assembly.GetReferencedAssemblies();
-            var oldRefs = false;
-            foreach (var reference in references)
+            AssemblyName[] references = assembly.GetReferencedAssemblies();
+            bool oldRefs = false;
+            foreach (AssemblyName reference in references)
             {
-                if (reference.Name == "VRCFaceTracking" || reference.Name == "VRCFaceTracking.Core")
+                if (reference.Name is "VRCFaceTracking" or "VRCFaceTracking.Core")
                 {
                     if (reference.Version < new Version(5, 0, 0, 0))
                     {
-                        _logger.LogWarning("Module {dll} references an older version of VRCFaceTracking. Skipping.", Path.GetFileName(ModulePath));
+                        LogModuleReferencesOlderVersionVRCFaceTracking(_logger, Path.GetFileName(ModulePath));
                         oldRefs = true;
                     }
                 }
@@ -66,53 +60,54 @@ public class ModuleAssembly
                 return;
             }
 
-            foreach (var type in Assembly.GetExportedTypes())
+            foreach (Type type in assembly.GetExportedTypes())
             {
                 if (!type.IsSubclassOf(typeof(ExtTrackingModule)))
                 {
                     continue;
                 }
 
-                _logger.LogDebug("{module} properly implements ExtTrackingModule.", type.Name);
+                LogProperlyImplementsExtTrackingModule(_logger, type.Name);
                 Loaded = true;
-                TrackingModule = LoadExternalModule();
+                TrackingModule = CreateModule(type);
                 break;
             }
         }
-        catch (Exception e)
+        catch (Exception e) when (e is IOException or BadImageFormatException or ReflectionTypeLoadException or TypeLoadException)
         {
-            _logger.LogWarning("{error} Assembly not able to be loaded. Skipping.", e.Message);
+            LogAssemblyNotAbleLoadedSkipping(_logger, e.Message);
         }
     }
 
-    private ExtTrackingModule LoadExternalModule()
+    private ExtTrackingModule? CreateModule(Type type)
     {
-        if (Assembly == null)
-        {
-            throw new Exception("Assembly failed to load but tried setting up module!");
-        }
-
-        _logger.LogInformation("Loading External Module " + Assembly.FullName);
+        LogLoadingExternalModule(_logger, type.Assembly.FullName);
 
         try
         {
-            // Get the first class that implements ExtTrackingModule
-            var module = Assembly.GetTypes().FirstOrDefault(t => t.IsSubclassOf(typeof(ExtTrackingModule)));
-            if (module == null)
-            {
-                throw new Exception("Failed to get module's ExtTrackingModule impl");
-            }
-            var moduleObj = (ExtTrackingModule)Activator.CreateInstance(module);
-            var logger = _loggerFactory.CreateLogger(moduleObj.GetType().Name);
-            moduleObj.Logger = logger;
-
-            return moduleObj;
+            var module = (ExtTrackingModule)Activator.CreateInstance(type)!;
+            module.Logger = _loggerFactory.CreateLogger(type.Name);
+            return module;
         }
-        catch (Exception e)
+        catch (Exception e) when (e is MemberAccessException or TargetInvocationException)
         {
-            _logger.LogError("Exception loading {dll}. Skipping. {e}", Assembly.FullName, e);
+            LogExceptionLoadingModule(_logger, e, type.Assembly.FullName);
+            return null;
         }
-
-        return null;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Module {Dll} references an older version of VRCFaceTracking. Skipping.")]
+    private static partial void LogModuleReferencesOlderVersionVRCFaceTracking(ILogger logger, string dll);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "{Module} properly implements ExtTrackingModule.")]
+    private static partial void LogProperlyImplementsExtTrackingModule(ILogger logger, string module);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Error} Assembly not able to be loaded. Skipping.")]
+    private static partial void LogAssemblyNotAbleLoadedSkipping(ILogger logger, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Loading External Module {Assembly}")]
+    private static partial void LogLoadingExternalModule(ILogger logger, string? assembly);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Exception loading {Dll}. Skipping.")]
+    private static partial void LogExceptionLoadingModule(ILogger logger, Exception exception, string? dll);
 }

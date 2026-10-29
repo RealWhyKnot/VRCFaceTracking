@@ -4,86 +4,44 @@ using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Core.Library;
 
-public enum ModuleInitStage
+public sealed class ModuleInitProgress : INotifyPropertyChanged
 {
-    Handshake,
-    Capabilities,
-    Initializing,
-    TimedOut,
-}
-
-public class ModuleInitEntry : INotifyPropertyChanged
-{
-    public event PropertyChangedEventHandler PropertyChanged;
-
-    public ModuleInitEntry(string name, ModuleInitStage stage)
-    {
-        Name = name;
-        _stage = stage;
-    }
-
-    public string Name
-    {
-        get;
-    }
-
-    private ModuleInitStage _stage;
-
-    public ModuleInitStage Stage
-    {
-        get => _stage;
-        set
-        {
-            if (_stage == value)
-            {
-                return;
-            }
-            _stage = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Stage)));
-        }
-    }
-}
-
-public class ModuleInitProgress : INotifyPropertyChanged
-{
-    public event PropertyChangedEventHandler PropertyChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     private readonly IDispatcherService _dispatcher;
-    private readonly Dictionary<string, ModuleInitEntry> _byPath = new();
-    private bool _isInitializing;
-    private bool _hasPending;
+    private readonly Dictionary<string, ModuleInitEntry> _byPath = [];
 
     public ModuleInitProgress(IDispatcherService dispatcher)
     {
         _dispatcher = dispatcher;
     }
 
-    public ObservableCollection<ModuleInitEntry> Modules { get; } = new();
+    public ObservableCollection<ModuleInitEntry> Modules { get; } = [];
 
     public bool IsInitializing
     {
-        get => _isInitializing;
+        get;
         private set
         {
-            if (_isInitializing == value)
+            if (field == value)
             {
                 return;
             }
-            _isInitializing = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsInitializing)));
         }
     }
 
     public bool HasPending
     {
-        get => _hasPending;
+        get;
         private set
         {
-            if (_hasPending == value)
+            if (field == value)
             {
                 return;
             }
-            _hasPending = value;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasPending)));
         }
     }
@@ -109,7 +67,7 @@ public class ModuleInitProgress : INotifyPropertyChanged
 
     public void Advance(string path, ModuleInitStage stage) => _dispatcher.Run(() =>
     {
-        if (_byPath.TryGetValue(path, out var entry))
+        if (_byPath.TryGetValue(path, out ModuleInitEntry? entry))
         {
             entry.Stage = stage;
         }
@@ -117,7 +75,7 @@ public class ModuleInitProgress : INotifyPropertyChanged
 
     public void Resolve(string path) => _dispatcher.Run(() =>
     {
-        if (!_byPath.Remove(path, out var entry))
+        if (!_byPath.Remove(path, out ModuleInitEntry? entry))
         {
             return;
         }
@@ -143,7 +101,7 @@ public class ModuleInitProgress : INotifyPropertyChanged
 
     public void TimeOutPending() => _dispatcher.Run(() =>
     {
-        foreach (var entry in Modules)
+        foreach (ModuleInitEntry entry in Modules)
         {
             if (entry.Stage != ModuleInitStage.TimedOut)
             {

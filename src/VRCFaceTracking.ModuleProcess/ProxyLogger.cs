@@ -3,13 +3,11 @@ using VRCFaceTracking.Core.Logging;
 
 namespace VRCFaceTracking.ModuleProcess;
 
-public delegate void OnLog(LogLevel level, string msg);
-
-public class ProxyLogger : ILogger
+internal sealed class ProxyLogger : ILogger
 {
     private readonly string _categoryName;
     private readonly LogLevelGate _gate;
-    public static OnLog OnLog;
+    public static OnLog? OnLog;
 
     public ProxyLogger(string categoryName, LogLevelGate gate)
     {
@@ -28,14 +26,14 @@ public class ProxyLogger : ILogger
         Exception? exception,
         Func<TState, Exception?, string> formatter)
     {
-        if (!IsEnabled(logLevel) || OnLog == null)
+        if (!IsEnabled(logLevel) || OnLog is not { } onLog)
         {
             return;
         }
 
-        var message = exception == null
+        string message = exception == null
             ? formatter(state, exception)
             : $"{formatter(state, exception)}{Environment.NewLine}{exception}";
-        OnLog(logLevel, $"[{FileLogger.Abbreviate(logLevel)}] [{_categoryName}] {message}");
+        onLog(logLevel, $"[{FileLogger.Abbreviate(logLevel)}] [{_categoryName}] {message}");
     }
 }

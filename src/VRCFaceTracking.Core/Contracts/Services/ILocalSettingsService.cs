@@ -1,31 +1,13 @@
 namespace VRCFaceTracking.Core.Contracts.Services;
 
-public class SavedSettingAttribute : Attribute
-{
-    private readonly string _settingName;
-    private readonly object? _defaultValue;
-    private readonly bool _forceLocal;
-
-    public SavedSettingAttribute(string settingName, object? defaultValue = default, bool forceLocal = false)
-    {
-        _settingName = settingName;
-        _defaultValue = defaultValue;
-        _forceLocal = forceLocal;
-    }
-
-    public string GetName() => _settingName;
-    public object? Default() => _defaultValue;
-    public bool ForceLocal() => _forceLocal;
-}
-
 public interface ILocalSettingsService
 {
-    Task<T> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false);
+    Task<T?> ReadSettingAsync<T>(string key, T? defaultValue, bool forceLocal, CancellationToken cancellationToken);
 
-    Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false);
+    Task SaveSettingAsync<T>(string key, T value, bool forceLocal, CancellationToken cancellationToken);
 
-    Task Save(object target);
-    Task Load(object target);
+    Task SaveAsync(object target, CancellationToken cancellationToken);
+    Task LoadAsync(object target, CancellationToken cancellationToken);
 
-    Task FlushAsync();
+    Task FlushAsync(CancellationToken cancellationToken);
 }

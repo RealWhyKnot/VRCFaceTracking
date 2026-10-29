@@ -7,17 +7,26 @@ using VRCFaceTracking.Models;
 
 namespace VRCFaceTracking.Services.Logging;
 
-public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
+internal sealed class OutputPageLogger : ILogger
 {
     public static readonly BoundedObservableCollection<LogLine> AllLogs = new(10000);
 
     internal static readonly ConcurrentQueue<LogLine> Pending = new();
-    private static DispatcherTimer? _flushTimer;
-    private static int _timerStarted;
+    private static DispatcherTimer? FlushTimer;
+    private static int TimerStarted;
+
+    private readonly string _categoryName;
+    private readonly LogLevelGate _gate;
+
+    public OutputPageLogger(string categoryName, LogLevelGate gate)
+    {
+        _categoryName = categoryName;
+        _gate = gate;
+    }
 
     public IDisposable BeginScope<TState>(TState state) where TState : notnull => default!;
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information || gate.Verbose;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information || _gate.Verbose;
 
     public void Log<TState>(
         LogLevel logLevel,
@@ -27,12 +36,13 @@ public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
         Func<TState, Exception?, string> formatter)
     {
         if (!IsEnabled(logLevel))
+        {
             return;
+        }
 
-        var line = categoryName == "\0VRCFT\0"
-            // Log events from sub-processes have the unique category name "\0VRCFT\0", so skip category name
+        LogLine line = string.Equals(_categoryName, "\0VRCFT\0", StringComparison.Ordinal)
             ? new LogLine($"{formatter(state, exception)}", logLevel)
-            : new LogLine($"[{categoryName}] {logLevel}: {formatter(state, exception)}", logLevel);
+            : new LogLine($"[{_categoryName}] {logLevel}: {formatter(state, exception)}", logLevel);
 
         Pending.Enqueue(line);
         EnsureFlushTimer();
@@ -40,30 +50,32 @@ public class OutputPageLogger(string categoryName, LogLevelGate gate) : ILogger
 
     private static void EnsureFlushTimer()
     {
-        if (Interlocked.CompareExchange(ref _timerStarted, 1, 0) != 0)
+        if (Interlocked.CompareExchange(ref TimerStarted, 1, 0) != 0)
+        {
             return;
+        }
 
         Dispatcher.UIThread.Post(() =>
         {
-            _flushTimer ??= new DispatcherTimer(
+            FlushTimer ??= new DispatcherTimer(
                 TimeSpan.FromMilliseconds(50),
                 DispatcherPriority.Background,
                 Flush);
-            _flushTimer.Start();
+            FlushTimer.Start();
         });
     }
 
     private static void Flush(object? sender, EventArgs e)
     {
-        while (Pending.TryDequeue(out var line))
+        while (Pending.TryDequeue(out LogLine? line))
         {
             AllLogs.Add(line);
         }
 
         if (Pending.IsEmpty)
         {
-            _flushTimer?.Stop();
-            Interlocked.Exchange(ref _timerStarted, 0);
+            FlushTimer?.Stop();
+            Interlocked.Exchange(ref TimerStarted, 0);
         }
     }
 }

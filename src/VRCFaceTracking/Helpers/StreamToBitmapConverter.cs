@@ -4,7 +4,7 @@ using Avalonia.Media.Imaging;
 
 namespace VRCFaceTracking.Helpers;
 
-public class StreamToBitmapConverter : IValueConverter
+internal sealed class StreamToBitmapConverter : IValueConverter
 {
     public static readonly StreamToBitmapConverter Instance = new();
 
@@ -24,16 +24,5 @@ public class StreamToBitmapConverter : IValueConverter
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
-}
-
-public class HasModuleImagesConverter : IValueConverter
-{
-    public static readonly HasModuleImagesConverter Instance = new();
-
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is List<Stream> { Count: > 0 };
-
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
+        => throw new NotSupportedException();
 }

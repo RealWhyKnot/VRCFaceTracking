@@ -1,18 +1,12 @@
 using System.Diagnostics;
 using System.Runtime;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
-using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Params.Data;
-
-[assembly: TypeForwardedTo(typeof(VRCFaceTracking.ExtTrackingModule))]
-[assembly: TypeForwardedTo(typeof(VRCFaceTracking.ModuleMetadata))]
-[assembly: TypeForwardedTo(typeof(ModuleState))]
 
 namespace VRCFaceTracking.Core;
 
-public class MainStandalone : IMainService
+public sealed partial class MainStandalone : IMainService
 {
     private readonly ILogger<MainStandalone> _logger;
     private readonly ILibManager _libManager;
@@ -31,70 +25,107 @@ public class MainStandalone : IMainService
         _mutator = mutator;
     }
 
-    public async Task Teardown()
+    public async Task TeardownAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("VRCFT Standalone Exiting!");
-        await _mutator.Save();
+        LogVrcftStandaloneExiting(_logger);
+        await _mutator.SaveAsync(cancellationToken).ConfigureAwait(false);
 
         _libManager.TeardownAllAndReset();
 
-        _logger.LogDebug("Teardown complete. Awaiting exit...");
+        LogTeardownCompleteAwaitingExit(_logger);
     }
 
-    public async Task InitializeAsync()
+    public async Task InitializeAsync(CancellationToken cancellationToken)
     {
         try
         {
             VRChat.EnsureVRCOSCDirectory();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogWarning("Could not locate the VRChat OSC directory: {message}", ex.Message);
+            LogCouldNotLocateVRChatOsc(_logger, ex.Message);
         }
 
         if (string.IsNullOrEmpty(VRChat.VRCOSCDirectory))
         {
-            _logger.LogInformation("No local VRChat install found; avatar configs will come from OSCQuery only.");
+            LogNoLocalVRChatInstallFound(_logger);
         }
 
-        // Ensure OSC is enabled
-        var isWindows = OperatingSystem.IsWindows();
+        bool isWindows = OperatingSystem.IsWindows();
 
-        if (isWindows && VRChat.ForceEnableOsc()) // If osc was previously not enabled
+        if (isWindows && VRChat.ForceEnableOsc())
         {
-            _logger.LogWarning("VRCFT detected OSC was disabled and automatically enabled it.");
-            // If we were launched after VRChat
+            LogVrcftDetectedOscDisabledAutomatically(_logger);
             if (VRChat.IsVrChatRunning())
-                _logger.LogError(
-                    "However, VRChat was running while this change was made.\n" +
-                    "If parameters do not update, please restart VRChat or manually enable OSC yourself in your avatar's expressions menu.");
+            {
+                LogHoweverVRChatRunningWhileChange(_logger);
+            }
         }
 
-        await _mutator.Load();
+        await _mutator.LoadAsync(cancellationToken).ConfigureAwait(false);
 
-        // Begin main OSC update loop
-        _logger.LogDebug("Starting OSC update loop...");
-        _logger.LogDebug("GC latency mode is {Mode}", GCSettings.LatencyMode);
+        LogStartingOscUpdateLoop(_logger);
+        LogGCLatencyMode(_logger, GCSettings.LatencyMode);
 
         if (isWindows)
         {
-            if (Utils.OptOutOfPowerThrottling(out var mask, out var error))
+            if (PowerThrottling.TryOptOut(out uint mask, out int error))
             {
-                _logger.LogDebug("Opted out of power throttling mask 0x{Mask:X}, {State}", mask, Utils.DescribePowerThrottling());
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    string state = PowerThrottling.Describe();
+                    LogOptedOutPowerThrottlingMask(_logger, mask, state);
+                }
             }
             else
             {
-                _logger.LogWarning("Could not opt out of power throttling (error {Error}); update rate drops to 64 Hz while the window is covered", error);
+                LogCouldNotOptOutPower(_logger, error);
             }
-            var priority = Process.GetCurrentProcess().PriorityClass;
+            ProcessPriorityClass priority = Process.GetCurrentProcess().PriorityClass;
             if (priority == ProcessPriorityClass.AboveNormal)
             {
-                _logger.LogDebug("Process priority class is {Priority}", priority);
+                LogProcessPriorityClass(_logger, priority);
             }
             else
             {
-                _logger.LogWarning("Process priority class is {Priority}; tracking may stall while the window is in the background", priority);
+                LogProcessPriorityClassTrackingMay(_logger, priority);
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "VRCFT Standalone Exiting!")]
+    private static partial void LogVrcftStandaloneExiting(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Teardown complete. Awaiting exit...")]
+    private static partial void LogTeardownCompleteAwaitingExit(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not locate the VRChat OSC directory: {Message}")]
+    private static partial void LogCouldNotLocateVRChatOsc(ILogger logger, string message);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "No local VRChat install found; avatar configs will come from OSCQuery only.")]
+    private static partial void LogNoLocalVRChatInstallFound(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "VRCFT detected OSC was disabled and automatically enabled it.")]
+    private static partial void LogVrcftDetectedOscDisabledAutomatically(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "However, VRChat was running while this change was made.\nIf parameters do not update, please restart VRChat or manually enable OSC yourself in your avatar's expressions menu.")]
+    private static partial void LogHoweverVRChatRunningWhileChange(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Starting OSC update loop...")]
+    private static partial void LogStartingOscUpdateLoop(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "GC latency mode is {Mode}")]
+    private static partial void LogGCLatencyMode(ILogger logger, GCLatencyMode mode);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Opted out of power throttling mask 0x{Mask:X}, {State}")]
+    private static partial void LogOptedOutPowerThrottlingMask(ILogger logger, uint mask, string state);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not opt out of power throttling (error {Error}); update rate drops to 64 Hz while the window is covered")]
+    private static partial void LogCouldNotOptOutPower(ILogger logger, int error);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Process priority class is {Priority}")]
+    private static partial void LogProcessPriorityClass(ILogger logger, ProcessPriorityClass priority);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Process priority class is {Priority}; tracking may stall while the window is in the background")]
+    private static partial void LogProcessPriorityClassTrackingMay(ILogger logger, ProcessPriorityClass priority);
 }

@@ -1,9 +1,10 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace VRCFaceTracking.Perf.Module;
+namespace VRCFaceTracking.Perf.Synthetic;
 
 public sealed class SyntheticModule : ExtTrackingModule
 {
@@ -23,22 +24,22 @@ public sealed class SyntheticModule : ExtTrackingModule
 
     public override (bool eyeSuccess, bool expressionSuccess) Initialize(bool eyeAvailable, bool expressionAvailable)
     {
-        var tracking = Type.GetType("VRCFaceTracking.UnifiedTracking, VRCFaceTracking.Core", throwOnError: true)!;
-        var data = tracking.GetField("Data", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+        Type tracking = Type.GetType("VRCFaceTracking.UnifiedTracking, VRCFaceTracking.Core", throwOnError: true)!;
+        object data = tracking.GetField("Data", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
         _shapes = (Array)data.GetType().GetField("Shapes")!.GetValue(data)!;
         if (Marshal.SizeOf(_shapes.GetType().GetElementType()!) != sizeof(float))
         {
             throw new InvalidOperationException("Unexpected shape layout");
         }
 
-        _stream = Environment.GetEnvironmentVariable(ModeVariable) != IdleMode;
+        _stream = !string.Equals(Environment.GetEnvironmentVariable(ModeVariable), IdleMode, StringComparison.Ordinal);
         if (Environment.GetEnvironmentVariable(PidFileVariable) is { Length: > 0 } pidFile)
         {
-            File.WriteAllText(pidFile, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            File.WriteAllText(pidFile, Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
         }
         _nextFrameTicks = Stopwatch.GetTimestamp();
         ModuleInformation.Name = "Synthetic Perf Module";
-        ModuleInformation.StaticImages = new List<Stream>();
+        ModuleInformation.StaticImages = [];
         return (eyeAvailable, expressionAvailable);
     }
 
@@ -50,7 +51,7 @@ public sealed class SyntheticModule : ExtTrackingModule
             return;
         }
 
-        var now = Stopwatch.GetTimestamp();
+        long now = Stopwatch.GetTimestamp();
         if (_nextFrameTicks > now)
         {
             Thread.Sleep(TimeSpan.FromTicks((_nextFrameTicks - now) * TimeSpan.TicksPerSecond / Stopwatch.Frequency));
@@ -58,9 +59,9 @@ public sealed class SyntheticModule : ExtTrackingModule
         _nextFrameTicks += Stopwatch.Frequency / StreamHz;
 
         _frame++;
-        ref var first = ref Unsafe.As<byte, float>(ref MemoryMarshal.GetArrayDataReference(_shapes));
-        var weight = (_frame % 100) / 100f;
-        for (var i = 0; i < _shapes.Length; i++)
+        ref float first = ref Unsafe.As<byte, float>(ref MemoryMarshal.GetArrayDataReference(_shapes));
+        float weight = _frame % 100 / 100f;
+        for (int i = 0; i < _shapes.Length; i++)
         {
             Unsafe.Add(ref first, i) = weight;
         }

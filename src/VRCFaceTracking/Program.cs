@@ -1,10 +1,9 @@
-using System.Diagnostics;
 using System.Runtime;
 using Avalonia;
 
 namespace VRCFaceTracking;
 
-internal class Program
+internal sealed class Program
 {
     [STAThread]
     public static void Main(string[] args)
@@ -18,13 +17,7 @@ internal class Program
         GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
         if (OperatingSystem.IsWindows())
         {
-            try
-            {
-                Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
-            }
-            catch (Exception)
-            {
-            }
+            _ = Core.ProcessPriority.TryRaiseToAboveNormal();
         }
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

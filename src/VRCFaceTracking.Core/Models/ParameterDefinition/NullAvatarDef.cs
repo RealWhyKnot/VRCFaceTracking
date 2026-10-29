@@ -2,28 +2,22 @@ using VRCFaceTracking.Core.Contracts;
 
 namespace VRCFaceTracking.Core.Models.ParameterDefinition;
 
-/// <summary>
-/// NullAvatarDef is used when we don't really have a legitimate avatar definition and need to construct one at runtime.
-/// This allows us to ensure the UI has something to display to the user about the avatar.
-/// </summary>
-public class NullAvatarDef : IAvatarInfo
+public sealed class NullAvatarDef : IAvatarInfo
 {
-    private readonly string _name, _id;
-
     public NullAvatarDef(string name, string id)
     {
-        _name = name;
-        _id = id;
+        Name = name;
+        Id = id;
     }
 
-    public string Name => _name;
+    public string Name { get; }
 
-    public string Id => _id;
+    public string Id { get; }
 
-    public IParameterDefinition[] Parameters
+    public IReadOnlyList<IParameterDefinition> Parameters
     {
         get;
-    }
+    } = [];
 
     public bool FullFaceTracking => false;
 }

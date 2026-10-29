@@ -28,10 +28,10 @@ internal static class SteamVrCommand
 
         try
         {
-            var manifest = Path.GetFullPath(args.Length > 1 ? args[1] : Path.Combine(AppContext.BaseDirectory, "app.vrmanifest"));
+            string manifest = Path.GetFullPath(args.Length > 1 ? args[1] : Path.Combine(AppContext.BaseDirectory, "app.vrmanifest"));
             return register ? Register(manifest) : Unregister(manifest);
         }
-        catch (Exception e)
+        catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException or DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
         {
             Console.Out.WriteLine($"SteamVR registration failed: {e.Message}");
             return Failed;
@@ -40,7 +40,7 @@ internal static class SteamVrCommand
 
     private static int Register(string manifest)
     {
-        var appKey = SteamVrManifests.AppKey(manifest);
+        string? appKey = SteamVrManifests.AppKey(manifest);
         if (appKey == null)
         {
             Console.Out.WriteLine($"{manifest} has no app key");
@@ -53,7 +53,7 @@ internal static class SteamVrCommand
             return NotInstalled;
         }
 
-        var plan = SteamVrManifests.Plan(manifest, appKey, SteamVrManifests.Registered(SteamVrManifests.OpenVrPathsFile), SteamVrManifests.AppKey);
+        SteamVrManifestPlan plan = SteamVrManifests.Plan(manifest, appKey, SteamVrManifests.Registered(SteamVrManifests.OpenVrPathsFile), SteamVrManifests.AppKey);
         if (plan.Registered && plan.Rivals.Count == 0)
         {
             Console.Out.WriteLine($"{manifest} is already the registered {appKey}");
@@ -62,12 +62,12 @@ internal static class SteamVrCommand
 
         return WithOpenVr(applications =>
         {
-            foreach (var rival in plan.Rivals)
+            foreach (string rival in plan.Rivals)
             {
                 Console.Out.WriteLine($"Removing other {appKey} copy {rival}: {applications.RemoveApplicationManifest(rival)}");
             }
 
-            var result = applications.AddApplicationManifest(manifest, false);
+            EVRApplicationError result = applications.AddApplicationManifest(manifest, bTemporary: false);
             Console.Out.WriteLine($"Registering {manifest}: {result}");
             return result == EVRApplicationError.None ? Ok : Failed;
         });
@@ -75,7 +75,7 @@ internal static class SteamVrCommand
 
     private static int Unregister(string manifest)
     {
-        var registered = SteamVrManifests.Registered(SteamVrManifests.OpenVrPathsFile).FirstOrDefault(p => SteamVrManifests.SamePath(p, manifest));
+        string? registered = SteamVrManifests.Registered(SteamVrManifests.OpenVrPathsFile).FirstOrDefault(p => SteamVrManifests.SamePath(p, manifest));
         if (registered == null)
         {
             Console.Out.WriteLine($"{manifest} is not registered with SteamVR");
@@ -90,7 +90,7 @@ internal static class SteamVrCommand
 
         return WithOpenVr(applications =>
         {
-            var result = applications.RemoveApplicationManifest(registered);
+            EVRApplicationError result = applications.RemoveApplicationManifest(registered);
             Console.Out.WriteLine($"Unregistering {registered}: {result}");
             return result == EVRApplicationError.None ? Ok : Failed;
         });
@@ -111,7 +111,7 @@ internal static class SteamVrCommand
 
     private static int WithOpenVr(Func<CVRApplications, int> action)
     {
-        var error = EVRInitError.None;
+        EVRInitError error = EVRInitError.None;
         OpenVR.Init(ref error, EVRApplicationType.VRApplication_Utility);
         if (error != EVRInitError.None)
         {

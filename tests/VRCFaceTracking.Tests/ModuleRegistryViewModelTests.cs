@@ -4,18 +4,27 @@ using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking.Tests;
 
-public class ModuleRegistryViewModelTests
+public sealed class ModuleRegistryViewModelTests
 {
     private static readonly Guid ModuleId = Guid.Parse("5d2b8f0e-7c1a-4e3b-9a6d-0f4c2e8b1a37");
 
-    private sealed class FakeModuleData(InstallableTrackingModule remote, InstallableTrackingModule installed) : IModuleDataService
+    private sealed class FakeModuleData : IModuleDataService
     {
-        public Task<IEnumerable<InstallableTrackingModule>> GetRemoteModules() => Task.FromResult<IEnumerable<InstallableTrackingModule>>(new[] { remote });
-        public IEnumerable<InstallableTrackingModule> GetInstalledModules() => new[] { installed };
-        public IEnumerable<InstallableTrackingModule> GetLegacyModules() => Array.Empty<InstallableTrackingModule>();
-        public Task<int?> GetMyRatingAsync(TrackingModuleMetadata moduleMetadata) => throw new NotSupportedException();
-        public Task SetMyRatingAsync(TrackingModuleMetadata moduleMetadata, int rating) => throw new NotSupportedException();
-        public Task IncrementDownloadsAsync(TrackingModuleMetadata moduleMetadata) => throw new NotSupportedException();
+        private readonly InstallableTrackingModule _remote;
+        private readonly InstallableTrackingModule _installed;
+
+        public FakeModuleData(InstallableTrackingModule remote, InstallableTrackingModule installed)
+        {
+            _remote = remote;
+            _installed = installed;
+        }
+
+        public Task<IEnumerable<InstallableTrackingModule>> GetRemoteModulesAsync(CancellationToken cancellationToken) => Task.FromResult<IEnumerable<InstallableTrackingModule>>([_remote]);
+        public IEnumerable<InstallableTrackingModule> GetInstalledModules() => [_installed];
+        public IEnumerable<InstallableTrackingModule> GetLegacyModules() => [];
+        public Task<int?> GetMyRatingAsync(TrackingModuleMetadata moduleMetadata, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SetMyRatingAsync(TrackingModuleMetadata moduleMetadata, int rating, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task IncrementDownloadsAsync(TrackingModuleMetadata moduleMetadata, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     [Theory]
@@ -32,9 +41,9 @@ public class ModuleRegistryViewModelTests
         var installed = new InstallableTrackingModule { ModuleId = ModuleId, ModuleName = "Virtual Desktop", Version = installedVersion, IsLocal = isLocal };
         var viewModel = new ModuleRegistryViewModel(new FakeModuleData(remote, installed));
 
-        await viewModel.OnNavigatedTo();
+        await viewModel.LoadModulesAsync(CancellationToken.None);
 
-        var shown = Assert.Single(viewModel.ModuleInfos);
+        InstallableTrackingModule shown = Assert.Single(viewModel.ModuleInfos);
         Assert.Same(remote, shown);
         Assert.Equal(expected, shown.InstallationState);
     }

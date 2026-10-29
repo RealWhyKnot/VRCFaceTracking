@@ -4,7 +4,7 @@ using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking.Helpers;
 
-public class ModuleInitStageConverter : IValueConverter
+internal sealed class ModuleInitStageConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {

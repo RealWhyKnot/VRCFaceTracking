@@ -7,10 +7,7 @@ using VRCFaceTracking.Core.Params.Data.Mutation;
 
 namespace VRCFaceTracking.Core.Params.Data;
 
-/// <summary>
-/// Container of all functions and structures retaining to mutating the incoming Expression Data to be usable for output parameters.
-/// </summary>
-public partial class UnifiedTrackingMutator : ObservableObject
+public sealed partial class UnifiedTrackingMutator : ObservableObject
 {
     [ObservableProperty]
     [property: SavedSetting("MutatorEnabled", true)]
@@ -19,13 +16,13 @@ public partial class UnifiedTrackingMutator : ObservableObject
     private readonly ILogger<UnifiedTrackingMutator> _logger;
     private readonly ILocalSettingsService _localSettingsService;
     private readonly IDispatcherService _dispatcherService;
-    private readonly object _mutationsLock = new();
+    private readonly Lock _mutationsLock = new();
     private UnifiedTrackingData _inputBuffer;
-    public ObservableCollection<TrackingMutation> _mutations = new();
+    public ObservableCollection<TrackingMutation> Mutations { get; } = [];
 
     public UnifiedTrackingMutator(ILogger<UnifiedTrackingMutator> logger, ILocalSettingsService localSettingsService, IDispatcherService dispatcherService)
     {
-        UnifiedTracking.Mutator = this;
+        TrackingOutput.Mutator = this;
         _logger = logger;
         _localSettingsService = localSettingsService;
         _dispatcherService = dispatcherService;
@@ -34,29 +31,25 @@ public partial class UnifiedTrackingMutator : ObservableObject
         _inputBuffer = new UnifiedTrackingData();
     }
 
-    /// <summary>
-    /// Takes in the latest base expression Weight data from modules and mutates into the Weight data for output parameters.
-    /// </summary>
-    /// <returns> Mutated Expression Data. </returns>
     public UnifiedTrackingData MutateData(UnifiedTrackingData input)
     {
-        lock (UnifiedTracking.DataLock)
+        using (UnifiedTracking.LockData())
         {
             _inputBuffer.CopyPropertiesOf(input);
         }
 
-        var rawLeft = _inputBuffer.Eye.Left.Openness;
-        var rawRight = _inputBuffer.Eye.Right.Openness;
+        float rawLeft = _inputBuffer.Eye.Left.Openness;
+        float rawRight = _inputBuffer.Eye.Right.Openness;
 
         if (Enabled)
         {
             lock (_mutationsLock)
             {
-                for (var i = 0; i < _mutations.Count; i++)
+                for (int i = 0; i < Mutations.Count; i++)
                 {
-                    if (_mutations[i].IsActive)
+                    if (Mutations[i].IsActive)
                     {
-                        _mutations[i].MutateData(ref _inputBuffer);
+                        Mutations[i].MutateData(ref _inputBuffer);
                     }
                 }
             }
@@ -71,83 +64,92 @@ public partial class UnifiedTrackingMutator : ObservableObject
         get; private set;
     }
 
-    public async Task Save()
+    public async Task SaveAsync(CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Saving mutation configuration...");
-        await _localSettingsService.Save(this);
+        LogSavingMutationConfiguration(_logger);
+        await _localSettingsService.SaveAsync(this, cancellationToken).ConfigureAwait(false);
 
-        // This is cringe but since the collection can change mid-save, we'll just make a quick copy of em
         List<TrackingMutation> mutationsToSave;
         lock (_mutationsLock)
         {
-            mutationsToSave = _mutations.ToList();
+            mutationsToSave = [.. Mutations];
         }
 
-        foreach (var mutation in mutationsToSave)
+        foreach (TrackingMutation mutation in mutationsToSave)
         {
-            _logger.LogInformation($"Saving {mutation.Name} data.");
-            await _localSettingsService.SaveSettingAsync(mutation.Name, mutation, true);
+            LogSavingData(_logger, mutation.Name);
+            await _localSettingsService.SaveSettingAsync(mutation.Name, mutation, forceLocal: true, cancellationToken).ConfigureAwait(false);
         }
 
-        _logger.LogDebug("Mutation data saved.");
+        LogMutationDataSaved(_logger);
     }
 
     public void Initialize()
     {
-        // Try to load config and propogate data into Unified if they exist.
-        _logger.LogDebug("Initializing mutations...");
+        LogInitializingMutations(_logger);
         lock (_mutationsLock)
         {
-            foreach (var mutation in _mutations)
+            foreach (TrackingMutation mutation in Mutations)
             {
-                _logger.LogInformation($"Initializing {mutation.Name}");
+                LogInitializing(_logger, mutation.Name);
                 mutation.Initialize(UnifiedTracking.Data);
             }
         }
 
-        _logger.LogDebug("Mutations initialized successfully.");
+        LogMutationsInitializedSuccessfully(_logger);
     }
 
-    private async Task CreateMutation(TrackingMutation mutation)
+    private static readonly MethodInfo ReadSavedMutationMethod =
+        typeof(UnifiedTrackingMutator).GetMethod(nameof(ReadSavedMutationAsync), BindingFlags.NonPublic | BindingFlags.Instance)
+        ?? throw new MissingMethodException(nameof(UnifiedTrackingMutator), nameof(ReadSavedMutationAsync));
+
+    private async Task<TrackingMutation?> ReadSavedMutationAsync<T>(T mutation, CancellationToken cancellationToken)
+        where T : TrackingMutation
+    {
+        T? saved = await _localSettingsService.ReadSettingAsync(mutation.Name, mutation, forceLocal: true, cancellationToken).ConfigureAwait(false);
+        return saved;
+    }
+
+    private async Task CreateMutationAsync(TrackingMutation mutation, CancellationToken cancellationToken)
     {
         try
         {
-            _logger.LogInformation($"Loading {mutation.Name}");
+            LogLoading(_logger, mutation.Name);
 
-            Type mutationType = mutation.GetType();
+            if (ReadSavedMutationMethod.MakeGenericMethod(mutation.GetType()).Invoke(this, [mutation, cancellationToken]) is not Task<TrackingMutation?> read)
+            {
+                throw new InvalidOperationException($"{nameof(ReadSavedMutationAsync)} did not return a task");
+            }
 
-            MethodInfo readSettingMethod = typeof(ILocalSettingsService)
-                .GetMethod("ReadSettingAsync")
-                .MakeGenericMethod(mutationType);
-
-            var task = (Task)readSettingMethod.Invoke(_localSettingsService, new object[] { mutation.Name, mutation, true });
-            await task.ConfigureAwait(false);
-
-            PropertyInfo resultProperty = task.GetType().GetProperty("Result");
-            var typedMutation = resultProperty.GetValue(task);
-
-            mutation = (TrackingMutation)typedMutation;
+            if (await read.ConfigureAwait(false) is { } loaded)
+            {
+                mutation = loaded;
+            }
 
             mutation.Logger = _logger;
             mutation.LocalSettingsService = _localSettingsService;
             if (mutation is EyeAssists eyeAssists)
             {
-                await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(_localSettingsService).ConfigureAwait(false);
+                await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(_localSettingsService, cancellationToken).ConfigureAwait(false);
             }
 
             mutation.CreateProperties();
-            _logger.LogInformation("{Name} settings {Settings}", mutation.Name, mutation.DescribeSettings());
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                string settings = mutation.DescribeSettings();
+                LogSettings(_logger, mutation.Name, settings);
+            }
             _dispatcherService.Run(() =>
             {
                 lock (_mutationsLock)
                 {
-                    _mutations.Add(mutation);
+                    Mutations.Add(mutation);
                 }
             });
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogError($"Creating new mutation data. {ex.Message}");
+            LogCreatingNewMutationData(_logger, ex.Message);
             mutation.Logger = _logger;
             mutation.LocalSettingsService = _localSettingsService;
             mutation.CreateProperties();
@@ -155,46 +157,72 @@ public partial class UnifiedTrackingMutator : ObservableObject
             {
                 lock (_mutationsLock)
                 {
-                    _mutations.Add(mutation);
+                    Mutations.Add(mutation);
                 }
             });
         }
     }
 
-    public async Task Load()
+    public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        // Try to load config and propogate data into Unified if they exist.
-        _logger.LogDebug("Loading mutation data...");
+        LogLoadingMutationData(_logger);
         _dispatcherService.Run(() =>
         {
             lock (_mutationsLock)
             {
-                _mutations.Clear();
+                Mutations.Clear();
             }
         });
-        TrackingMutation[] mutations;
-        try
-        {
-            mutations = TrackingMutation.GetImplementingMutations(true);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to discover mutations");
-            mutations = Array.Empty<TrackingMutation>();
-        }
+        TrackingMutation[] mutations = TrackingMutation.GetImplementingMutations(ordered: true);
 
         if (mutations.Length == 0)
         {
-            _logger.LogWarning("No mutations were discovered. Calibration and filtering are unavailable for this session.");
+            LogNoMutationsWereDiscoveredCalibration(_logger);
         }
-        await _localSettingsService.Load(this);
+        await _localSettingsService.LoadAsync(this, cancellationToken).ConfigureAwait(false);
 
-        foreach (var mutation in mutations)
+        foreach (TrackingMutation mutation in mutations)
         {
-            await CreateMutation(mutation);
+            await CreateMutationAsync(mutation, cancellationToken).ConfigureAwait(false);
         }
 
-        _logger.LogDebug("Mutation data loaded.");
+        LogMutationDataLoaded(_logger);
         Initialize();
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Saving mutation configuration...")]
+    private static partial void LogSavingMutationConfiguration(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Saving {MutationName} data.")]
+    private static partial void LogSavingData(ILogger logger, string mutationName);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutation data saved.")]
+    private static partial void LogMutationDataSaved(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Initializing mutations...")]
+    private static partial void LogInitializingMutations(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Initializing {MutationName}")]
+    private static partial void LogInitializing(ILogger logger, string mutationName);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutations initialized successfully.")]
+    private static partial void LogMutationsInitializedSuccessfully(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Loading {MutationName}")]
+    private static partial void LogLoading(ILogger logger, string mutationName);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{Name} settings {Settings}")]
+    private static partial void LogSettings(ILogger logger, string name, string settings);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Creating new mutation data. {ErrorMessage}")]
+    private static partial void LogCreatingNewMutationData(ILogger logger, string errorMessage);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Loading mutation data...")]
+    private static partial void LogLoadingMutationData(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No mutations were discovered. Calibration and filtering are unavailable for this session.")]
+    private static partial void LogNoMutationsWereDiscoveredCalibration(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Mutation data loaded.")]
+    private static partial void LogMutationDataLoaded(ILogger logger);
 }

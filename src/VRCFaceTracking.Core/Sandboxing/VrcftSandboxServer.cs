@@ -1,59 +1,34 @@
-using System;
-using System.Collections.Generic;
-using System.IO.Pipes;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.Intrinsics.Arm;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using VRCFaceTracking.Core.Library;
-using VRCFaceTracking.Core.Models;
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 
 namespace VRCFaceTracking.Core.Sandboxing;
 
-public delegate void OnPacketReceived(in IpcPacket packet, in int port);
-
-public class VrcftSandboxServer : UdpFullDuplex
+public sealed partial class VrcftSandboxServer : UdpFullDuplex
 {
-    private static readonly Random Random = new();
-
-    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<VrcftSandboxServer> _logger;
-    public OnPacketReceived OnPacketReceived;
-    public VrcftSandboxServer(ILoggerFactory factory, int[] reservedPorts) : base(0, reservedPorts) // 0 is reserved for the OS to pick for us
+    public OnPacketReceived? OnPacketReceived { get; set; }
+    public VrcftSandboxServer(ILoggerFactory factory, int[] reservedPorts) : base(0, reservedPorts)
     {
-        // Init loggers
-        _loggerFactory = factory;
         _logger = factory.CreateLogger<VrcftSandboxServer>();
 
-        Port = ((IPEndPoint)_receivingUdpClient.Client.LocalEndPoint).Port;
-        _logger.LogInformation($"Starting sandbox host on port {Port}...");
-        _isConnected = true;
+        LogStartingSandboxHostPort(_logger, Port);
+        IsConnected = true;
     }
 
-    protected override void OnReceiveError(Exception ex)
-    {
-        _logger.LogError(ex, "Failed to handle a sandbox packet");
-    }
+    protected override void OnReceiveError(SocketException ex) => LogSandboxReceiveFailed(_logger, ex.SocketErrorCode);
 
     public override void OnBytesReceived(in byte[] data, in IPEndPoint endpoint)
     {
-        var decodeResult = VrcftPacketDecoder.TryDecodePacket(data, out IpcPacket packet);
-
-        // @TODO: Use packet
-        if (decodeResult)
+        if (VrcftPacketDecoder.TryDecodePacket(data, out IpcPacket? packet))
         {
             if (packet.GetPacketType() == IpcPacket.PacketType.Handshake)
             {
-                // Handshake request
                 var handshakePacket = (HandshakePacket)packet;
                 if (handshakePacket.IsValid)
                 {
-                    _logger.LogInformation($"Received handshake from port {endpoint.Port}. Sending ACK...");
-                    // Return ACK
+                    LogReceivedHandshakePortSendingAck(_logger, endpoint.Port);
                     SendData(in packet, in endpoint);
                 }
             }
@@ -61,7 +36,7 @@ public class VrcftSandboxServer : UdpFullDuplex
             {
                 if (packet.GetPacketType() == IpcPacket.PacketType.SplitPacketChunk)
                 {
-                    PartialPacket.DecodePacket(data, out var combinedData, endpoint.Port);
+                    PartialPacket.DecodePacket(data, out byte[]? combinedData, endpoint.Port);
                     if (combinedData.Length > 0)
                     {
                         OnBytesReceived(combinedData, endpoint);
@@ -75,4 +50,13 @@ public class VrcftSandboxServer : UdpFullDuplex
         }
 
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Starting sandbox host on port {Port}...")]
+    private static partial void LogStartingSandboxHostPort(ILogger logger, int port);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Sandbox socket receive failed ({Error})")]
+    private static partial void LogSandboxReceiveFailed(ILogger logger, SocketError error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Received handshake from port {EndpointPort}. Sending ACK...")]
+    private static partial void LogReceivedHandshakePortSendingAck(ILogger logger, int endpointPort);
 }

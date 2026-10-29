@@ -1,21 +1,21 @@
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 
 namespace VRCFaceTracking.Core.Tests;
 
 [Collection("UnifiedTrackingState")]
-public class ReplyUpdatePacketCaptureTests
+public sealed class ReplyUpdatePacketCaptureTests
 {
     private const int ShapeCount = (int)UnifiedExpressions.Max + 1;
 
     private static UnifiedTrackingData Sample()
     {
         var data = new UnifiedTrackingData();
-        for (var i = 0; i < ShapeCount; i++)
+        for (int i = 0; i < ShapeCount; i++)
         {
-            data.Shapes[i].Weight = 0.1f + i * 0.003f;
+            data.Shapes[i].Weight = 0.1f + (i * 0.003f);
         }
         data.Eye.Left.Gaze.x = 0.11f;
         data.Eye.Left.Gaze.y = 0.12f;
@@ -40,26 +40,26 @@ public class ReplyUpdatePacketCaptureTests
         packet.GetBytes().AsSpan(12, ReplyUpdatePacket.PayloadSize).ToArray();
 
     [Fact]
-    public void Wire_CarriesEveryScalarAndShapeThenTheStamps()
+    public void WireCarriesEveryScalarAndShapeThenTheStamps()
     {
-        var bytes = ReplyUpdatePacket.Capture(new UnifiedTrackingData(), 1).GetBytes();
+        byte[] bytes = ReplyUpdatePacket.Capture(new UnifiedTrackingData(), 1).GetBytes();
 
         Assert.Equal((16 + ShapeCount) * sizeof(float), ReplyUpdatePacket.PayloadSize);
         Assert.Equal(ReplyUpdatePacket.PayloadSize, BitConverter.ToInt32(bytes, 8));
-        Assert.Equal(12 + ReplyUpdatePacket.PayloadSize + 2 * sizeof(long), bytes.Length);
+        Assert.Equal(12 + ReplyUpdatePacket.PayloadSize + (2 * sizeof(long)), bytes.Length);
     }
 
     [Fact]
-    public void MalformedPacket_LeavesTrackingDataAlone()
+    public void MalformedPacketLeavesTrackingDataAlone()
     {
-        var bytes = ReplyUpdatePacket.Capture(Sample(), 7).GetBytes();
+        byte[] bytes = ReplyUpdatePacket.Capture(Sample(), 7).GetBytes();
         BitConverter.TryWriteBytes(bytes.AsSpan(8), ReplyUpdatePacket.PayloadSize - 4);
         var packet = new ReplyUpdatePacket();
         packet.Decode(bytes);
 
         UnifiedTracking.Data = new UnifiedTrackingData();
         UnifiedTracking.Data.Shapes[3].Weight = 0.75f;
-        var version = UnifiedTracking.DataVersion;
+        int version = UnifiedTracking.DataVersion;
         packet.UpdateGlobalState(TrackingCapability.All);
 
         Assert.Equal(0.75f, UnifiedTracking.Data.Shapes[3].Weight);
@@ -67,17 +67,17 @@ public class ReplyUpdatePacketCaptureTests
     }
 
     [Fact]
-    public void Capture_RoundTripsEveryMergedField()
+    public void CaptureRoundTripsEveryMergedField()
     {
-        var source = Sample();
+        UnifiedTrackingData source = Sample();
         var packet = new ReplyUpdatePacket();
         packet.Decode(ReplyUpdatePacket.Capture(source, 42).GetBytes());
 
         UnifiedTracking.Data = new UnifiedTrackingData();
         packet.UpdateGlobalState(TrackingCapability.All);
-        var merged = UnifiedTracking.Data;
+        UnifiedTrackingData merged = UnifiedTracking.Data;
 
-        for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
+        for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
         {
             Assert.Equal(source.Shapes[i].Weight, merged.Shapes[i].Weight);
         }
@@ -101,12 +101,12 @@ public class ReplyUpdatePacketCaptureTests
     }
 
     [Fact]
-    public void CaptureIfChanged_UnchangedData_ReturnsNull()
+    public void CaptureIfChangedUnchangedDataReturnsNull()
     {
-        var data = Sample();
-        var scratch = new byte[ReplyUpdatePacket.PayloadSize];
+        UnifiedTrackingData data = Sample();
+        byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
 
-        var first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, null);
+        var first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, previous: null);
 
         Assert.NotNull(first);
         Assert.Null(ReplyUpdatePacket.CaptureIfChanged(data, 2, scratch, first));
@@ -118,11 +118,11 @@ public class ReplyUpdatePacketCaptureTests
     [InlineData("gaze")]
     [InlineData("head")]
     [InlineData("dilation")]
-    public void CaptureIfChanged_AnySingleFieldChange_ReturnsPacket(string field)
+    public void CaptureIfChangedAnySingleFieldChangeReturnsPacket(string field)
     {
-        var data = Sample();
-        var scratch = new byte[ReplyUpdatePacket.PayloadSize];
-        var first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, null);
+        UnifiedTrackingData data = Sample();
+        byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
+        var first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, previous: null);
 
         switch (field)
         {
@@ -141,6 +141,8 @@ public class ReplyUpdatePacketCaptureTests
             case "dilation":
                 data.Eye._minDilation += 0.001f;
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(field), field, message: null);
         }
 
         var second = ReplyUpdatePacket.CaptureIfChanged(data, 2, scratch, first);
@@ -150,24 +152,24 @@ public class ReplyUpdatePacketCaptureTests
     }
 
     [Fact]
-    public void CaptureIfChanged_NaNStaysUnchanged()
+    public void CaptureIfChangedNaNStaysUnchanged()
     {
-        var data = Sample();
+        UnifiedTrackingData data = Sample();
         data.Eye.Left.Openness = float.NaN;
-        var scratch = new byte[ReplyUpdatePacket.PayloadSize];
+        byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
 
-        var first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, null);
+        var first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, previous: null);
 
         Assert.Null(ReplyUpdatePacket.CaptureIfChanged(data, 2, scratch, first));
     }
 
     [Fact]
-    public void CaptureIfChanged_PacketKeepsItsOwnCopy()
+    public void CaptureIfChangedPacketKeepsItsOwnCopy()
     {
-        var data = Sample();
-        var scratch = new byte[ReplyUpdatePacket.PayloadSize];
-        var first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, null)!;
-        var before = Payload(first);
+        UnifiedTrackingData data = Sample();
+        byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
+        ReplyUpdatePacket first = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, previous: null)!;
+        byte[] before = Payload(first);
 
         data.Shapes[0].Weight = 0.99f;
         Assert.NotNull(ReplyUpdatePacket.CaptureIfChanged(data, 2, scratch, first));
@@ -176,6 +178,6 @@ public class ReplyUpdatePacketCaptureTests
     }
 
     [Fact]
-    public void GetBytes_WithoutCapture_Throws() =>
+    public void GetBytesWithoutCaptureThrows() =>
         Assert.Throws<InvalidOperationException>(() => new ReplyUpdatePacket().GetBytes());
 }

@@ -1,22 +1,30 @@
+using System.Security.Cryptography;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Sandboxing;
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 using Xunit.Abstractions;
 
 namespace VRCFaceTracking.Perf.Tests;
 
-public sealed class IpcTests(ITestOutputHelper output)
+public sealed class IpcTests
 {
     private const double DecodeAndMergeBudgetUs = 40;
     private const long DecodeAndMergeBudgetBytes = 256;
     private const long CaptureBudgetBytes = ReplyUpdatePacket.PayloadSize + 128;
     private const long WireBudgetBytes = ReplyUpdatePacket.PayloadSize + 64;
 
+    private readonly ITestOutputHelper _output;
+
+    public IpcTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
     private static UnifiedTrackingData Sample(int frame)
     {
         var data = new UnifiedTrackingData();
-        for (var i = 0; i < data.Shapes.Length; i++)
+        for (int i = 0; i < data.Shapes.Length; i++)
         {
             data.Shapes[i].Weight = (frame + i) % 100 / 100f;
         }
@@ -26,83 +34,83 @@ public sealed class IpcTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ModuleCapture_UnchangedSample_AllocatesNothing()
+    public void ModuleCaptureUnchangedSampleAllocatesNothing()
     {
-        var data = Sample(1);
-        var scratch = new byte[ReplyUpdatePacket.PayloadSize];
-        var previous = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, null);
+        UnifiedTrackingData data = Sample(1);
+        byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
+        var previous = ReplyUpdatePacket.CaptureIfChanged(data, 1, scratch, previous: null);
         ReplyUpdatePacket? result = null;
 
-        var bytes = Measure.AllocatedBytes(() => result = ReplyUpdatePacket.CaptureIfChanged(data, 2, scratch, previous), 10_000);
+        long bytes = Measure.AllocatedBytes(() => result = ReplyUpdatePacket.CaptureIfChanged(data, 2, scratch, previous), 10_000);
 
-        output.Report("capture unchanged", $"{bytes} B over 10000 captures");
+        _output.Report("capture unchanged", $"{bytes} B over 10000 captures");
         Assert.NotNull(previous);
         Assert.Null(result);
         Assert.Equal(0, bytes);
     }
 
     [Fact]
-    public void ModuleCapture_ChangedSample_AllocatesOneSnapshot()
+    public void ModuleCaptureChangedSampleAllocatesOneSnapshot()
     {
-        var samples = new[] { Sample(1), Sample(2) };
-        var scratch = new byte[ReplyUpdatePacket.PayloadSize];
+        UnifiedTrackingData[] samples = [Sample(1), Sample(2)];
+        byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
         ReplyUpdatePacket? previous = null;
-        var frame = 0;
+        int frame = 0;
 
-        var bytes = Measure.AllocatedBytes(() =>
+        long bytes = Measure.AllocatedBytes(() =>
         {
             previous = ReplyUpdatePacket.CaptureIfChanged(samples[frame++ & 1], frame, scratch, previous);
         }, 1000);
 
-        output.Report("capture changed", $"{bytes / 1000} B per capture, budget {CaptureBudgetBytes} B");
+        _output.Report("capture changed", $"{bytes / 1000} B per capture, budget {CaptureBudgetBytes} B");
         Assert.True(bytes / 1000 <= CaptureBudgetBytes, $"{bytes / 1000} B per capture");
     }
 
     [Fact]
-    public void ModuleSend_EncodesOneDatagram()
+    public void ModuleSendEncodesOneDatagram()
     {
         var packet = ReplyUpdatePacket.Capture(Sample(1), 1);
 
-        var bytes = Measure.AllocatedBytes(() => packet.GetBytes(), 1000);
+        long bytes = Measure.AllocatedBytes(() => packet.GetBytes(), 1000);
 
-        output.Report("reply wire encode", $"{bytes / 1000} B per send, budget {WireBudgetBytes} B");
+        _output.Report("reply wire encode", $"{bytes / 1000} B per send, budget {WireBudgetBytes} B");
         Assert.True(bytes / 1000 <= WireBudgetBytes, $"{bytes / 1000} B per send");
     }
 
     [Fact]
-    public void HostDecodeAndMerge_StaysWithinCpuAndMemoryBudget()
+    public void HostDecodeAndMergeStaysWithinCpuAndMemoryBudget()
     {
-        var wire = ReplyUpdatePacket.Capture(Sample(3), 42).GetBytes();
+        byte[] wire = ReplyUpdatePacket.Capture(Sample(3), 42).GetBytes();
         void DecodeAndMerge()
         {
-            VrcftPacketDecoder.TryDecodePacket(wire, out var packet);
-            lock (UnifiedTracking.DataLock)
+            Assert.True(VrcftPacketDecoder.TryDecodePacket(wire, out IpcPacket? packet));
+            using (UnifiedTracking.LockData())
             {
                 ((ReplyUpdatePacket)packet).UpdateGlobalState(TrackingCapability.All);
             }
         }
 
-        var us = Measure.BestMicrosecondsPerOp(DecodeAndMerge, 2000);
-        var bytes = Measure.AllocatedBytes(DecodeAndMerge, 1000);
+        double us = Measure.BestMicrosecondsPerOp(DecodeAndMerge, 2000);
+        long bytes = Measure.AllocatedBytes(DecodeAndMerge, 1000);
 
-        output.Report("host decode+merge", $"{us:N2} us and {bytes / 1000} B per sample, budget {DecodeAndMergeBudgetUs} us / {DecodeAndMergeBudgetBytes} B");
+        _output.Report("host decode+merge", $"{us:N2} us and {bytes / 1000} B per sample, budget {DecodeAndMergeBudgetUs} us / {DecodeAndMergeBudgetBytes} B");
         Assert.True(us < DecodeAndMergeBudgetUs, $"{us:N2} us per sample");
         Assert.True(bytes / 1000 <= DecodeAndMergeBudgetBytes, $"{bytes / 1000} B per sample");
         Assert.Equal(Sample(3).Shapes[5].Weight, UnifiedTracking.Data.Shapes[5].Weight);
     }
 
     [Fact]
-    public void PartialPacketReassembly_ScalesLinearlyInChunkCount()
+    public void PartialPacketReassemblyScalesLinearlyInChunkCount()
     {
-        var payload = new byte[256 * 1024];
-        Random.Shared.NextBytes(payload);
+        byte[] payload = new byte[256 * 1024];
+        RandomNumberGenerator.Fill(payload);
         double Reassemble(int chunks)
         {
-            var split = PartialPacket.SplitPacketIntoChunks(payload, payload.Length / chunks + 16 + 128);
+            byte[][] split = PartialPacket.SplitPacketIntoChunks(payload, (payload.Length / chunks) + 16 + 128);
             return Measure.BestMicrosecondsPerOp(() =>
             {
-                var combined = Array.Empty<byte>();
-                foreach (var chunk in split)
+                byte[]? combined = [];
+                foreach (byte[] chunk in split)
                 {
                     PartialPacket.DecodePacket(chunk, out combined);
                 }
@@ -110,11 +118,11 @@ public sealed class IpcTests(ITestOutputHelper output)
             }, 5, rounds: 7);
         }
 
-        var few = Reassemble(128);
-        var many = Reassemble(1024);
-        var exponent = Math.Log(many / few) / Math.Log(8);
+        double few = Reassemble(128);
+        double many = Reassemble(1024);
+        double exponent = Math.Log(many / few) / Math.Log(8);
 
-        output.Report("partial reassembly", $"128 chunks {few:N0} us, 1024 chunks {many:N0} us, exponent {exponent:N2}");
+        _output.Report("partial reassembly", $"128 chunks {few:N0} us, 1024 chunks {many:N0} us, exponent {exponent:N2}");
         Assert.True(exponent < 1.5, $"reassembly grows with exponent {exponent:N2} in the chunk count");
     }
 }

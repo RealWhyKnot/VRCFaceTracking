@@ -10,15 +10,15 @@ public static class ReleaseSelector
         }
 
         GithubRelease? best = null;
-        var bestVersion = current;
-        foreach (var release in releases)
+        AppVersion bestVersion = current;
+        foreach (GithubRelease release in releases)
         {
             if (release.Draft || (channel == BuildChannel.Release && release.Prerelease))
             {
                 continue;
             }
 
-            if (!AppVersion.TryParse(release.TagName, out var version) || version.CompareTo(bestVersion) <= 0)
+            if (!AppVersion.TryParse(release.TagName, out AppVersion version) || version <= bestVersion)
             {
                 continue;
             }

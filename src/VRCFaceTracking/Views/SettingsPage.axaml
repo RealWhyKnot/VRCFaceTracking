@@ -264,12 +264,12 @@
                                                 HorizontalContentAlignment="Left"
                                                 Margin="0,2"
                                                 Padding="10,6"
-                                                Tag="{Binding html_url}"
+                                                Tag="{Binding HtmlUrl}"
                                                 Click="ContributorButton_Click">
                                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                                    <TextBlock Text="{Binding login}" FontSize="13" />
+                                                    <TextBlock Text="{Binding Login}" FontSize="13" />
                                                     <TextBlock
-                                                        Text="{Binding contributions, StringFormat='{}{0} commits'}"
+                                                        Text="{Binding Contributions, StringFormat='{}{0} commits'}"
                                                         FontSize="12"
                                                         Opacity="0.55"
                                                         VerticalAlignment="Center" />

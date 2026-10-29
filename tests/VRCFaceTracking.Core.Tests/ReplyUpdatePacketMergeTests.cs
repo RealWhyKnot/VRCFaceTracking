@@ -1,23 +1,23 @@
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
-using VRCFaceTracking.Core.Sandboxing.IPC;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 
 namespace VRCFaceTracking.Core.Tests;
 
 [Collection("UnifiedTrackingState")]
-public class ReplyUpdatePacketMergeTests
+public sealed class ReplyUpdatePacketMergeTests
 {
     private const float Invalid = 0xFFFFFFFF;
     private const int ShapeCount = (int)UnifiedExpressions.Max + 1;
 
-    private static float ShapeValue(int index) => 0.25f + index * 0.001f;
+    private static float ShapeValue(int index) => 0.25f + (index * 0.001f);
 
     private static ReplyUpdatePacket CapturePacket(Action<UnifiedTrackingData> fill)
     {
         var data = new UnifiedTrackingData();
         fill(data);
-        var bytes = ReplyUpdatePacket.Capture(data, 1).GetBytes();
+        byte[] bytes = ReplyUpdatePacket.Capture(data, 1).GetBytes();
         UnifiedTracking.Data = new UnifiedTrackingData();
 
         var packet = new ReplyUpdatePacket();
@@ -27,7 +27,7 @@ public class ReplyUpdatePacketMergeTests
 
     private static void FillEverything(UnifiedTrackingData data)
     {
-        for (var i = 0; i < ShapeCount; i++)
+        for (int i = 0; i < ShapeCount; i++)
         {
             data.Shapes[i].Weight = ShapeValue(i);
         }
@@ -53,13 +53,13 @@ public class ReplyUpdatePacketMergeTests
 
     private static IEnumerable<int> IndicesFor(TrackingCapability capability)
     {
-        foreach (var (rangeCapability, start, endInclusive) in TrackingCapabilities.ShapeRanges)
+        foreach ((TrackingCapability rangeCapability, int start, int endInclusive) in TrackingCapabilities.ShapeRanges)
         {
             if (!capability.HasFlag(rangeCapability))
             {
                 continue;
             }
-            for (var i = start; i <= endInclusive; i++)
+            for (int i = start; i <= endInclusive; i++)
             {
                 yield return i;
             }
@@ -67,13 +67,13 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void ShapeRanges_AreDisjointAndCoverEveryShape()
+    public void ShapeRangesAreDisjointAndCoverEveryShape()
     {
         var covered = new HashSet<int>();
-        foreach (var (_, start, endInclusive) in TrackingCapabilities.ShapeRanges)
+        foreach ((TrackingCapability _, int start, int endInclusive) in TrackingCapabilities.ShapeRanges)
         {
             Assert.True(start <= endInclusive);
-            for (var i = start; i <= endInclusive; i++)
+            for (int i = start; i <= endInclusive; i++)
             {
                 Assert.True(covered.Add(i));
             }
@@ -83,7 +83,7 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void ShapeRanges_MatchExpectedBoundaries()
+    public void ShapeRangesMatchExpectedBoundaries()
     {
         Assert.Contains((TrackingCapability.Eyes, (int)UnifiedExpressions.EyeSquintRight, (int)UnifiedExpressions.EyeWideLeft), TrackingCapabilities.ShapeRanges);
         Assert.Contains((TrackingCapability.Brows, (int)UnifiedExpressions.BrowPinchRight, (int)UnifiedExpressions.BrowOuterUpLeft), TrackingCapabilities.ShapeRanges);
@@ -99,14 +99,14 @@ public class ReplyUpdatePacketMergeTests
     [InlineData(TrackingCapability.Tongue)]
     [InlineData(TrackingCapability.Eyes | TrackingCapability.Brows)]
     [InlineData(TrackingCapability.Mouth | TrackingCapability.Tongue)]
-    public void UpdateGlobalState_WritesOnlyAllowedShapeRanges(TrackingCapability allowed)
+    public void UpdateGlobalStateWritesOnlyAllowedShapeRanges(TrackingCapability allowed)
     {
-        var packet = CapturePacket(FillEverything);
+        ReplyUpdatePacket packet = CapturePacket(FillEverything);
 
         packet.UpdateGlobalState(allowed);
 
         var expected = IndicesFor(allowed).ToHashSet();
-        for (var i = 0; i < (int)UnifiedExpressions.Max; i++)
+        for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
         {
             if (expected.Contains(i))
             {
@@ -120,9 +120,9 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void Stamps_RoundTrip()
+    public void StampsRoundTrip()
     {
-        var bytes = ReplyUpdatePacket.Capture(new UnifiedTrackingData(), 100).GetBytes();
+        byte[] bytes = ReplyUpdatePacket.Capture(new UnifiedTrackingData(), 100).GetBytes();
 
         var packet = new ReplyUpdatePacket();
         packet.Decode(bytes);
@@ -131,14 +131,14 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void Stamps_MissingTrailerDecodesAsZeroAndStillMerges()
+    public void StampsMissingTrailerDecodesAsZeroAndStillMerges()
     {
         var data = new UnifiedTrackingData();
         FillEverything(data);
-        var full = ReplyUpdatePacket.Capture(data, 5).GetBytes();
+        byte[] full = ReplyUpdatePacket.Capture(data, 5).GetBytes();
         UnifiedTracking.Data = new UnifiedTrackingData();
-        var structSize = BitConverter.ToInt32(full, 8);
-        var truncated = full.Take(12 + structSize).ToArray();
+        int structSize = BitConverter.ToInt32(full, 8);
+        byte[] truncated = [.. full.Take(12 + structSize)];
 
         var received = new ReplyUpdatePacket { SampleTicks = 5, ReplySentTicks = 7 };
         received.Decode(truncated);
@@ -150,13 +150,13 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void UpdateGlobalState_None_WritesNothing()
+    public void UpdateGlobalStateNoneWritesNothing()
     {
-        var packet = CapturePacket(FillEverything);
+        ReplyUpdatePacket packet = CapturePacket(FillEverything);
 
         packet.UpdateGlobalState(TrackingCapability.None);
 
-        for (var i = 0; i < ShapeCount; i++)
+        for (int i = 0; i < ShapeCount; i++)
         {
             Assert.Equal(0f, UnifiedTracking.Data.Shapes[i].Weight);
         }
@@ -165,9 +165,9 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void UpdateGlobalState_Eyes_WritesEyeStructWithoutHeadOrMouth()
+    public void UpdateGlobalStateEyesWritesEyeStructWithoutHeadOrMouth()
     {
-        var packet = CapturePacket(FillEverything);
+        ReplyUpdatePacket packet = CapturePacket(FillEverything);
 
         packet.UpdateGlobalState(TrackingCapability.Eyes);
 
@@ -179,27 +179,27 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void UpdateGlobalState_Head_WritesHeadOnly()
+    public void UpdateGlobalStateHeadWritesHeadOnly()
     {
-        var packet = CapturePacket(FillEverything);
+        ReplyUpdatePacket packet = CapturePacket(FillEverything);
 
         packet.UpdateGlobalState(TrackingCapability.Head);
 
         Assert.Equal(0.31f, UnifiedTracking.Data.Head.HeadYaw);
         Assert.Equal(0.43f, UnifiedTracking.Data.Head.HeadPosZ);
         Assert.Equal(1f, UnifiedTracking.Data.Eye.Left.Openness);
-        for (var i = 0; i < ShapeCount; i++)
+        for (int i = 0; i < ShapeCount; i++)
         {
             Assert.Equal(0f, UnifiedTracking.Data.Shapes[i].Weight);
         }
     }
 
     [Fact]
-    public void UpdateGlobalState_BrowOuterUpLeft_IsWrittenOnlyByBrows()
+    public void UpdateGlobalStateBrowOuterUpLeftIsWrittenOnlyByBrows()
     {
-        var index = (int)UnifiedExpressions.BrowOuterUpLeft;
+        int index = (int)UnifiedExpressions.BrowOuterUpLeft;
 
-        var packet = CapturePacket(FillEverything);
+        ReplyUpdatePacket packet = CapturePacket(FillEverything);
         packet.UpdateGlobalState(TrackingCapability.Mouth | TrackingCapability.Tongue | TrackingCapability.Eyes);
         Assert.Equal(0f, UnifiedTracking.Data.Shapes[index].Weight);
 
@@ -208,10 +208,10 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void UpdateGlobalState_SkipsSentinelFields()
+    public void UpdateGlobalStateSkipsSentinelFields()
     {
-        var jawOpen = (int)UnifiedExpressions.JawOpen;
-        var packet = CapturePacket(data =>
+        int jawOpen = (int)UnifiedExpressions.JawOpen;
+        ReplyUpdatePacket packet = CapturePacket(data =>
         {
             FillEverything(data);
             data.Shapes[jawOpen].Weight = Invalid;
@@ -232,10 +232,10 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void UpdateGlobalState_SentinelHead_KeepsHeadFromAnotherModule()
+    public void UpdateGlobalStateSentinelHeadKeepsHeadFromAnotherModule()
     {
-        var withHead = CapturePacket(FillEverything);
-        var withoutHead = CapturePacket(data =>
+        ReplyUpdatePacket withHead = CapturePacket(FillEverything);
+        ReplyUpdatePacket withoutHead = CapturePacket(data =>
         {
             FillEverything(data);
             data.Head = new UnifiedHeadData
@@ -245,14 +245,14 @@ public class ReplyUpdatePacketMergeTests
                 HeadRoll = Invalid,
                 HeadPosX = Invalid,
                 HeadPosY = Invalid,
-                HeadPosZ = Invalid
+                HeadPosZ = Invalid,
             };
         });
 
         withHead.UpdateGlobalState(TrackingCapability.Head);
         withoutHead.UpdateGlobalState(TrackingCapability.Head);
 
-        var head = UnifiedTracking.Data.Head;
+        UnifiedHeadData head = UnifiedTracking.Data.Head;
         Assert.Equal(0.31f, head.HeadYaw);
         Assert.Equal(0.32f, head.HeadPitch);
         Assert.Equal(0.33f, head.HeadRoll);
@@ -262,21 +262,21 @@ public class ReplyUpdatePacketMergeTests
     }
 
     [Fact]
-    public void UpdateGlobalState_AdvancesDataVersion()
+    public void UpdateGlobalStateAdvancesDataVersion()
     {
-        var packet = CapturePacket(FillEverything);
+        ReplyUpdatePacket packet = CapturePacket(FillEverything);
 
-        var before = UnifiedTracking.DataVersion;
+        int before = UnifiedTracking.DataVersion;
         packet.UpdateGlobalState(TrackingCapability.All);
-        var after = UnifiedTracking.DataVersion;
+        int after = UnifiedTracking.DataVersion;
 
         Assert.True(after > before, $"expected DataVersion to advance, was {before} and is {after}");
     }
 
     [Fact]
-    public void DataVersion_IsStableWhenNoModulePublishes()
+    public void DataVersionIsStableWhenNoModulePublishes()
     {
-        var before = UnifiedTracking.DataVersion;
+        int before = UnifiedTracking.DataVersion;
         UnifiedTracking.Data.Shapes[0].Weight = 0.9f;
         Assert.Equal(before, UnifiedTracking.DataVersion);
     }
@@ -286,7 +286,7 @@ public class ReplyUpdatePacketMergeTests
     [InlineData(float.PositiveInfinity)]
     [InlineData(float.NegativeInfinity)]
     [InlineData(Invalid)]
-    public void IsValid_RejectsNonFiniteAndSentinel(float value) =>
+    public void IsValidRejectsNonFiniteAndSentinel(float value) =>
         Assert.False(ReplyUpdatePacket.IsValid(value));
 
     [Theory]
@@ -294,15 +294,15 @@ public class ReplyUpdatePacketMergeTests
     [InlineData(1f)]
     [InlineData(-1f)]
     [InlineData(0.5f)]
-    public void IsValid_AcceptsOrdinaryValues(float value) =>
+    public void IsValidAcceptsOrdinaryValues(float value) =>
         Assert.True(ReplyUpdatePacket.IsValid(value));
 
     [Fact]
-    public void UpdateGlobalState_DoesNotPublishNonFiniteValues()
+    public void UpdateGlobalStateDoesNotPublishNonFiniteValues()
     {
-        var jawOpen = (int)UnifiedExpressions.JawOpen;
+        int jawOpen = (int)UnifiedExpressions.JawOpen;
 
-        var packet = CapturePacket(data =>
+        ReplyUpdatePacket packet = CapturePacket(data =>
         {
             FillEverything(data);
             data.Shapes[jawOpen].Weight = float.NaN;

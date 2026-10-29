@@ -5,7 +5,7 @@ using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking.Views;
 
-public partial class MainWindow : Window
+internal sealed partial class MainWindow : Window
 {
     private bool _isClosing;
 
@@ -13,29 +13,34 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "WindowIcon.ico");
         try
         {
-            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "WindowIcon.ico");
             if (File.Exists(iconPath))
             {
-                using var stream = File.OpenRead(iconPath);
+                using FileStream stream = File.OpenRead(iconPath);
                 Icon = new WindowIcon(stream);
             }
         }
-        catch { }
-
-        Closing += async (_, args) =>
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            if (_isClosing)
-            {
-                return;
-            }
-            args.Cancel = true;
-            await CloseAfterTeardown();
-        };
+            LogWindowIconNotLoaded(App.GetService<ILoggerFactory>().CreateLogger<MainWindow>(), iconPath, e.Message);
+        }
+
+        Closing += OnClosing;
     }
 
-    public async Task CloseAfterTeardown()
+    private async void OnClosing(object? sender, WindowClosingEventArgs args)
+    {
+        if (_isClosing)
+        {
+            return;
+        }
+        args.Cancel = true;
+        await CloseAfterTeardownAsync(CancellationToken.None);
+    }
+
+    public async Task CloseAfterTeardownAsync(CancellationToken cancellationToken)
     {
         if (_isClosing)
         {
@@ -43,38 +48,32 @@ public partial class MainWindow : Window
         }
         _isClosing = true;
 
-        UnifiedLibManager.MarkAppShutdown();
         try
         {
-            App.GetService<Services.OpenVRService>().StopService();
+            await TeardownAsync(cancellationToken);
         }
-        catch (Exception)
+        finally
         {
+            Close();
         }
-        try
-        {
-            await App.GetService<IMainService>().Teardown();
-        }
-        catch (Exception ex)
-        {
-            App.GetService<ILoggerFactory>().CreateLogger<MainWindow>().LogError(ex, "Teardown failed; closing anyway");
-        }
-        try
-        {
-            await App.GetService<ILocalSettingsService>().FlushAsync();
-        }
-        catch (Exception ex)
-        {
-            App.GetService<ILoggerFactory>().CreateLogger<MainWindow>().LogError(ex, "Flushing settings failed; closing anyway");
-        }
-        await App.StopHostAsync();
-        try
-        {
-            UnifiedLibManager.ShutdownSandboxServer();
-        }
-        catch (Exception)
-        {
-        }
-        Close();
     }
+
+    private static async Task TeardownAsync(CancellationToken cancellationToken)
+    {
+        UnifiedLibManager.MarkAppShutdown();
+        App.GetService<Services.OpenVRService>().StopService();
+        try
+        {
+            await App.GetService<IMainService>().TeardownAsync(cancellationToken);
+        }
+        finally
+        {
+            await App.GetService<ILocalSettingsService>().FlushAsync(cancellationToken);
+        }
+        await App.StopHostAsync(cancellationToken);
+        UnifiedLibManager.ShutdownSandboxServer();
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Window icon {Path} could not be loaded: {Message}")]
+    private static partial void LogWindowIconNotLoaded(ILogger logger, string path, string message);
 }

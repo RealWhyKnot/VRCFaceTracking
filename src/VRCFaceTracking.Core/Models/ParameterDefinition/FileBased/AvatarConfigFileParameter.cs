@@ -1,27 +1,24 @@
 using System.Text.Json.Serialization;
 using VRCFaceTracking.Core.Contracts;
-using VRCFaceTracking.Core.Models.Osc.FileBased;
 
 namespace VRCFaceTracking.Core.Models.ParameterDefinition.FileBased;
 
-public class AvatarConfigFileParameter : IParameterDefinition
+public sealed class AvatarConfigFileParameter : IParameterDefinition
 {
-    public string name
-    {
-        get; set;
-    }
-    public AvatarConfigFileIODef input
-    {
-        get; set;
-    }
-    public AvatarConfigFileIODef output
-    {
-        get; set;
-    }
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
 
-    [JsonIgnore] public string Address => input.address;
+    [JsonPropertyName("input")]
+    public AvatarConfigFileIODefinition? Input { get; set; }
 
-    [JsonIgnore] public string Name => name;
+    [JsonPropertyName("output")]
+    public AvatarConfigFileIODefinition? Output { get; set; }
 
-    [JsonIgnore] public Type Type => input.Type;
+    [JsonIgnore]
+    public string Address => RequiredInput.Address;
+
+    [JsonIgnore]
+    public Type Type => RequiredInput.Type;
+
+    private AvatarConfigFileIODefinition RequiredInput => Input ?? throw new InvalidOperationException($"Parameter {Name} has no input");
 }

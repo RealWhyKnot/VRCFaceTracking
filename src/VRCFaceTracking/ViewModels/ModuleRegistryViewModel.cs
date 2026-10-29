@@ -6,7 +6,7 @@ using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.ViewModels;
 
-public partial class ModuleRegistryViewModel : ObservableRecipient
+internal sealed partial class ModuleRegistryViewModel : ObservableRecipient
 {
     private readonly IModuleDataService _moduleDataService;
     [ObservableProperty] private InstallableTrackingModule? _selected;
@@ -18,8 +18,8 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
     [ObservableProperty] private string _uninstallButtonText = Strings.Resources.ModuleActionUninstall;
     private bool _loading;
 
-    public ObservableCollection<InstallableTrackingModule> ModuleInfos { get; } = new();
-    public ObservableCollection<InstallableTrackingModule> FilteredModuleInfos { get; } = new();
+    public ObservableCollection<InstallableTrackingModule> ModuleInfos { get; } = [];
+    public ObservableCollection<InstallableTrackingModule> FilteredModuleInfos { get; } = [];
 
     public ModuleRegistryViewModel(IModuleDataService moduleDataService)
     {
@@ -33,7 +33,7 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
 
     public void RefreshActionState()
     {
-        var state = Selected?.InstallationState;
+        InstallState? state = Selected?.InstallationState;
         CanInstall = state is not null and not InstallState.Installed;
         CanUninstall = state is InstallState.Installed or InstallState.Outdated;
         IsBusy = false;
@@ -43,14 +43,14 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
 
     private void ApplyFilter()
     {
-        var query = SearchQuery?.Trim();
+        string? query = SearchQuery?.Trim();
         var desired = (string.IsNullOrEmpty(query)
             ? ModuleInfos
             : ModuleInfos.Where(m =>
                 (m.ModuleName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (m.AuthorName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))).ToList();
 
-        for (var i = FilteredModuleInfos.Count - 1; i >= 0; i--)
+        for (int i = FilteredModuleInfos.Count - 1; i >= 0; i--)
         {
             if (!desired.Contains(FilteredModuleInfos[i]))
             {
@@ -58,10 +58,10 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
             }
         }
 
-        for (var i = 0; i < desired.Count; i++)
+        for (int i = 0; i < desired.Count; i++)
         {
-            var module = desired[i];
-            var current = FilteredModuleInfos.IndexOf(module);
+            InstallableTrackingModule module = desired[i];
+            int current = FilteredModuleInfos.IndexOf(module);
             if (current < 0)
             {
                 FilteredModuleInfos.Insert(i, module);
@@ -73,7 +73,7 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
         }
     }
 
-    public async Task OnNavigatedTo()
+    public async Task LoadModulesAsync(CancellationToken cancellationToken)
     {
         if (_loading)
         {
@@ -85,30 +85,22 @@ public partial class ModuleRegistryViewModel : ObservableRecipient
         {
             ModuleInfos.Clear();
 
-            IEnumerable<InstallableTrackingModule> data;
-            try
-            {
-                data = await _moduleDataService.GetRemoteModules();
-            }
-            catch
-            {
-                data = [];
-            }
+            IEnumerable<InstallableTrackingModule> data = await _moduleDataService.GetRemoteModulesAsync(cancellationToken);
 
             var remoteModules = data
-                .OrderByDescending(x => x.AuthorName == "VRCFT Team")
-                .ThenBy(x => x.ModuleName)
+                .OrderByDescending(x => string.Equals(x.AuthorName, "VRCFT Team", StringComparison.Ordinal))
+                .ThenBy(x => x.ModuleName, StringComparer.Ordinal)
                 .ToList();
-            foreach (var module in remoteModules)
+            foreach (InstallableTrackingModule? module in remoteModules)
             {
                 module.InstallationState = InstallState.NotInstalled;
                 ModuleInfos.Add(module);
             }
 
-            var installedModules = _moduleDataService.GetInstalledModules().Concat(_moduleDataService.GetLegacyModules());
-            foreach (var installedModule in installedModules)
+            IEnumerable<InstallableTrackingModule> installedModules = _moduleDataService.GetInstalledModules().Concat(_moduleDataService.GetLegacyModules());
+            foreach (InstallableTrackingModule? installedModule in installedModules)
             {
-                var remoteModule = ModuleInfos.FirstOrDefault(x => x.ModuleId == installedModule.ModuleId);
+                InstallableTrackingModule? remoteModule = ModuleInfos.FirstOrDefault(x => x.ModuleId == installedModule.ModuleId);
                 if (remoteModule == null)
                 {
                     installedModule.InstallationState = InstallState.Installed;

@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <Platforms>x86;x64;arm64;AnyCPU</Platforms>
+    <VftBuildChannel Condition="'$(VftBuildChannel)' == ''">dev</VftBuildChannel>
+    <VftVersionFile>$(MSBuildThisFileDirectory)version.txt</VftVersionFile>
+    <VftVersion Condition="'$(VftVersion)' == '' And Exists('$(VftVersionFile)')">$([System.IO.File]::ReadAllText('$(VftVersionFile)').Trim())</VftVersion>
+    <VftVersion Condition="'$(VftVersion)' == ''">0.0.0.0-local</VftVersion>
+    <VftNumericVersion>$([System.Text.RegularExpressions.Regex]::Replace('$(VftVersion)', '-.*$', ''))</VftNumericVersion>
+    <AssemblyVersion>$(VftNumericVersion)</AssemblyVersion>
+    <FileVersion>$(VftNumericVersion)</FileVersion>
+    <Version>$(VftNumericVersion)</Version>
+    <InformationalVersion>$(VftVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="VftBuildChannel" Value="$(VftBuildChannel)" />
+  </ItemGroup>
+</Project>

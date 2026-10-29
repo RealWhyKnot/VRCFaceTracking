@@ -2,16 +2,16 @@ namespace VRCFaceTracking.Core.Contracts;
 
 public interface IParameterDefinition
 {
-    public string Address
+    string Address
     {
         get;
     }
-    public string Name
+    string Name
     {
         get;
     }
 
-    public Type Type
+    Type Type
     {
         get;
     }

@@ -2,9 +2,14 @@ using System.Collections.ObjectModel;
 
 namespace VRCFaceTracking.Helpers;
 
-public class BoundedObservableCollection<T>(int capacity) : ObservableCollection<T>
+internal sealed class BoundedObservableCollection<T> : ObservableCollection<T>
 {
-    public int Capacity { get; } = capacity;
+    public BoundedObservableCollection(int capacity)
+    {
+        Capacity = capacity;
+    }
+
+    public int Capacity { get; }
 
     protected override void InsertItem(int index, T item)
     {

@@ -5,50 +5,53 @@ using VRCFaceTracking.Services.Logging;
 
 namespace VRCFaceTracking.Tests;
 
-public class LoggingTests
+public sealed partial class LoggingTests
 {
     [AvaloniaFact]
     public void OutputPageQueuesDebugOnlyWhenVerbose()
     {
         var gate = new LogLevelGate();
         var logger = new OutputPageLogger(nameof(LoggingTests), gate);
-        var quiet = Guid.NewGuid().ToString("N");
-        var info = Guid.NewGuid().ToString("N");
-        var verbose = Guid.NewGuid().ToString("N");
+        string quiet = Guid.NewGuid().ToString("N");
+        string info = Guid.NewGuid().ToString("N");
+        string verbose = Guid.NewGuid().ToString("N");
 
-        logger.LogDebug(quiet);
-        logger.LogInformation(info);
-        gate.Set(true);
-        logger.LogDebug(verbose);
+        LogLine(logger, LogLevel.Debug, quiet);
+        LogLine(logger, LogLevel.Information, info);
+        gate.Set(verbose: true);
+        LogLine(logger, LogLevel.Debug, verbose);
 
         var queued = OutputPageLogger.Pending.Select(line => line.Message).ToList();
-        Assert.DoesNotContain(queued, message => message.Contains(quiet));
-        Assert.Contains(queued, message => message.Contains(info));
-        Assert.Contains(queued, message => message.Contains(verbose));
+        Assert.DoesNotContain(queued, message => message.Contains(quiet, StringComparison.Ordinal));
+        Assert.Contains(queued, message => message.Contains(info, StringComparison.Ordinal));
+        Assert.Contains(queued, message => message.Contains(verbose, StringComparison.Ordinal));
     }
 
     [AvaloniaFact]
     public void HostDebugFollowsVerbose()
     {
-        var gate = App.GetService<LogLevelGate>();
-        var logger = App.GetService<ILoggerFactory>().CreateLogger(nameof(LoggingTests));
+        LogLevelGate gate = App.GetService<LogLevelGate>();
+        ILogger logger = App.GetService<ILoggerFactory>().CreateLogger(nameof(LoggingTests));
         try
         {
-            gate.Set(false);
+            gate.Set(verbose: false);
             Assert.False(logger.IsEnabled(LogLevel.Debug));
-            gate.Set(true);
+            gate.Set(verbose: true);
             Assert.True(logger.IsEnabled(LogLevel.Debug));
         }
         finally
         {
-            gate.Set(false);
+            gate.Set(verbose: false);
         }
     }
 
     [AvaloniaFact]
     public void FileLogWritesToTheTestLogDirectory()
     {
-        var path = App.GetService<FileLoggerProvider>().FilePath;
-        Assert.Equal(Environment.GetEnvironmentVariable(Core.Utils.LogDirectoryEnvironmentVariable), Path.GetDirectoryName(path));
+        string? path = App.GetService<FileLoggerProvider>().FilePath;
+        Assert.Equal(Environment.GetEnvironmentVariable(LogDirectories.EnvironmentVariable), Path.GetDirectoryName(path));
     }
+
+    [LoggerMessage(Message = "{Message}")]
+    private static partial void LogLine(ILogger logger, LogLevel level, string message);
 }

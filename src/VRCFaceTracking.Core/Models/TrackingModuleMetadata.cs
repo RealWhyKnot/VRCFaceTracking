@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace VRCFaceTracking.Core.Models;
 
 public class TrackingModuleMetadata
@@ -12,7 +10,7 @@ public class TrackingModuleMetadata
     public DateTime LastUpdated
     {
         get; set;
-    } = DateTime.Now;
+    } = TimeProvider.System.GetLocalNow().DateTime;
 
     public string Version
     {
@@ -60,23 +58,23 @@ public class TrackingModuleMetadata
         get; set;
     } = "(No usage instructions provided. Check the module page for more information.)";
 
-    public string DownloadUrl
+    public Uri? DownloadUrl
     {
         get; set;
-    } = "(No download provided)";
+    }
 
-    public string ModulePageUrl
+    public Uri? ModulePageUrl
     {
         get;
         set;
     }
 
-    public string DllFileName
+    public string? DllFileName
     {
         get; set;
     } = "(No DLL provided)";
 
-    public string FileHash
+    public string? FileHash
     {
         get; set;
     }

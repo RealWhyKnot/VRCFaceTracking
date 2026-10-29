@@ -2,7 +2,7 @@ using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Core.Logging;
 
-public class LoggingSettings
+public sealed class LoggingSettings
 {
     public const int DefaultLogFilesToKeep = 20;
 

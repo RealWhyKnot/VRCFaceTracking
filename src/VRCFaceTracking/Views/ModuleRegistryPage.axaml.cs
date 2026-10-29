@@ -11,7 +11,7 @@ using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking.Views;
 
-public partial class ModuleRegistryPage : UserControl, INotifyNavigated
+internal sealed partial class ModuleRegistryPage : UserControl, INotifyNavigated
 {
     private ModuleRegistryViewModel ViewModel => (ModuleRegistryViewModel)DataContext!;
     private readonly ModuleInstaller _moduleInstaller;
@@ -27,32 +27,35 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
         _logger = Ioc.Default.GetRequiredService<ILoggerFactory>().CreateLogger<ModuleRegistryPage>();
     }
 
-    public async void OnNavigatedTo() => await ViewModel.OnNavigatedTo();
+    public void OnNavigatedTo() => _ = ViewModel.LoadModulesAsync(CancellationToken.None);
 
-    private void ModuleSelection_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void ModuleSelection_Click(object? sender, RoutedEventArgs e)
         => ViewModel.RefreshActionState();
 
-    private async void InstallButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void InstallButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (ViewModel.Selected is not InstallableTrackingModule module) return;
+        if (ViewModel.Selected is not InstallableTrackingModule module)
+        {
+            return;
+        }
 
         ViewModel.IsBusy = true;
         ViewModel.InstallButtonText = Strings.Resources.ModuleActionInstalling;
 
         try
         {
-            await Task.Run(() => _libManager.TeardownAllAndReset());
-            var path = await _moduleInstaller.InstallRemoteModule(module);
+            await Task.Run(_libManager.TeardownAllAndReset);
+            string? path = await _moduleInstaller.InstallRemoteModuleAsync(module, CancellationToken.None);
             if (path != null)
             {
                 module.InstallationState = InstallState.Installed;
             }
             _libManager.Initialize();
-            await ViewModel.OnNavigatedTo();
+            await ViewModel.LoadModulesAsync(CancellationToken.None);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogError(ex, "Installing module {ModuleId} failed", module.ModuleId);
+            LogInstallingModuleFailed(_logger, ex, module.ModuleId);
         }
         finally
         {
@@ -60,9 +63,12 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
         }
     }
 
-    private async void UninstallButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void UninstallButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (ViewModel.Selected is not InstallableTrackingModule module) return;
+        if (ViewModel.Selected is not InstallableTrackingModule module)
+        {
+            return;
+        }
 
         ViewModel.IsBusy = true;
         ViewModel.UninstallButtonText = Strings.Resources.ModuleActionUninstalling;
@@ -76,11 +82,11 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
             });
             module.InstallationState = InstallState.NotInstalled;
             _libManager.Initialize();
-            await ViewModel.OnNavigatedTo();
+            await ViewModel.LoadModulesAsync(CancellationToken.None);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogError(ex, "Uninstalling module {ModuleId} failed", module.ModuleId);
+            LogUninstallingModuleFailed(_logger, ex, module.ModuleId);
         }
         finally
         {
@@ -88,68 +94,78 @@ public partial class ModuleRegistryPage : UserControl, INotifyNavigated
         }
     }
 
-    private async void OpenModulePage_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OpenModulePage_Click(object? sender, RoutedEventArgs e)
     {
-        if (ViewModel.Selected?.ModulePageUrl is not { Length: > 0 } url) return;
-
-        try
+        if (ViewModel.Selected?.ModulePageUrl is not { IsAbsoluteUri: true } uri)
         {
-            var launcher = TopLevel.GetTopLevel(this)?.Launcher;
-            if (launcher != null)
-                await launcher.LaunchUriAsync(new Uri(url));
+            return;
         }
-        catch { }
+
+        ILauncher? launcher = TopLevel.GetTopLevel(this)?.Launcher;
+        if (launcher != null)
+        {
+            await launcher.LaunchUriAsync(uri);
+        }
     }
 
     private async void Button_OnClick(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        IReadOnlyList<IStorageFile> files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = Strings.Resources.InstallFromZipTooltip,
             AllowMultiple = false,
-            FileTypeFilter = [
+            FileTypeFilter =
+            [
                 new FilePickerFileType("Zip Files")
                 {
-                    Patterns = (IReadOnlyList<string>)
+                    Patterns = ["*.zip"],
+                    AppleUniformTypeIdentifiers = ["public.zip"],
+                    MimeTypes =
                     [
-                        "*.zip"
+                        "application/zip",
+                        "application/x-zip",
+                        "application/x-zip-compressed",
+                        "application/zip-compressed",
+                        "multipart/x-zip",
                     ],
-                    AppleUniformTypeIdentifiers = (IReadOnlyList<string>)
-                    [
-                        "public.zip"
-                    ],
-                    MimeTypes = (IReadOnlyList<string>)
-                        [
-                            "application/zip",
-                            "application/x-zip",
-                            "application/x-zip-compressed",
-                            "application/zip-compressed",
-                            "multipart/x-zip"
-                        ]
-
-                }
-            ]
+                },
+            ],
         });
 
-        if (files.Count == 0) return;
+        if (files.Count == 0)
+        {
+            return;
+        }
 
         try
         {
-            foreach (var file in files)
+            foreach (IStorageFile file in files)
             {
-                await _moduleInstaller.InstallLocalModule(file.Path.LocalPath);
+                await _moduleInstaller.InstallLocalModuleAsync(file.Path.LocalPath, CancellationToken.None);
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or Newtonsoft.Json.JsonException)
         {
-            _logger.LogError(ex, "Installing a module from a zip failed");
+            LogInstallingModuleZipFailed(_logger, ex);
         }
         finally
         {
             _libManager.Initialize();
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Installing module {ModuleId} failed")]
+    private static partial void LogInstallingModuleFailed(ILogger logger, Exception exception, Guid moduleId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Uninstalling module {ModuleId} failed")]
+    private static partial void LogUninstallingModuleFailed(ILogger logger, Exception exception, Guid moduleId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Installing a module from a zip failed")]
+    private static partial void LogInstallingModuleZipFailed(ILogger logger, Exception exception);
 }

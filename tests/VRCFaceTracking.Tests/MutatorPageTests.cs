@@ -13,92 +13,92 @@ using VRCFaceTracking.Views;
 
 namespace VRCFaceTracking.Tests;
 
-public class MutatorPageTests
+public sealed class MutatorPageTests
 {
     private static readonly string[] CardOrder =
-    {
+    [
         "Eye Assists",
         "Mouth & Brow Assists",
         "Parameter Adjustment",
         "Calibration",
         "Unified Correctors",
         "Data Filter",
-    };
+    ];
 
     private static UnifiedTrackingMutator CreateMutator() =>
         new(NullLogger<UnifiedTrackingMutator>.Instance, App.GetService<ILocalSettingsService>(), App.GetService<IDispatcherService>());
 
     private static MutatorViewModel CreateViewModel(UnifiedTrackingMutator mutator) =>
-        new(mutator, App.GetService<DeveloperSettings>(), App.GetService<ILocalSettingsService>());
+        new(mutator, App.GetService<DeveloperSettings>());
 
     private static void AddMutations(UnifiedTrackingMutator mutator)
     {
-        foreach (var mutation in TrackingMutation.GetImplementingMutations())
+        foreach (TrackingMutation mutation in TrackingMutation.GetImplementingMutations())
         {
             mutation.Logger = NullLogger.Instance;
             mutation.CreateProperties();
-            mutator._mutations.Add(mutation);
+            mutator.Mutations.Add(mutation);
         }
     }
 
     [AvaloniaFact]
-    public void Cards_ShowAssistsFirst_WhenMutationsLoadAfterThePage()
+    public void CardsShowAssistsFirstWhenMutationsLoadAfterThePage()
     {
-        var mutator = CreateMutator();
-        var viewModel = CreateViewModel(mutator);
+        UnifiedTrackingMutator mutator = CreateMutator();
+        MutatorViewModel viewModel = CreateViewModel(mutator);
 
         AddMutations(mutator);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(CardOrder, viewModel.Mutations.Select(m => m.Name));
-        Assert.NotEqual(CardOrder, mutator._mutations.Select(m => m.Name));
+        Assert.Equal(CardOrder, viewModel.Mutations.Select(m => m.Name), StringComparer.Ordinal);
+        Assert.NotEqual(CardOrder, mutator.Mutations.Select(m => m.Name), StringComparer.Ordinal);
     }
 
     [AvaloniaFact]
-    public void Cards_ShowAssistsFirst_WhenMutationsLoadBeforeThePage()
+    public void CardsShowAssistsFirstWhenMutationsLoadBeforeThePage()
     {
-        var mutator = CreateMutator();
+        UnifiedTrackingMutator mutator = CreateMutator();
         AddMutations(mutator);
 
-        var viewModel = CreateViewModel(mutator);
+        MutatorViewModel viewModel = CreateViewModel(mutator);
 
-        Assert.Equal(CardOrder, viewModel.Mutations.Select(m => m.Name));
+        Assert.Equal(CardOrder, viewModel.Mutations.Select(m => m.Name), StringComparer.Ordinal);
     }
 
     [AvaloniaFact]
-    public void Cards_ClearAndRefill_WhenMutationsReload()
+    public void CardsClearAndRefillWhenMutationsReload()
     {
-        var mutator = CreateMutator();
+        UnifiedTrackingMutator mutator = CreateMutator();
         AddMutations(mutator);
-        var viewModel = CreateViewModel(mutator);
+        MutatorViewModel viewModel = CreateViewModel(mutator);
 
-        mutator._mutations.Clear();
+        mutator.Mutations.Clear();
         AddMutations(mutator);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(CardOrder, viewModel.Mutations.Select(m => m.Name));
+        Assert.Equal(CardOrder, viewModel.Mutations.Select(m => m.Name), StringComparer.Ordinal);
     }
 
     [AvaloniaFact]
-    public void EyeAssists_GroupsSettings_AndIndentsSubOptions_WithoutMovingControls()
+    public void EyeAssistsGroupsSettingsAndIndentsSubOptionsWithoutMovingControls()
     {
-        var mutator = CreateMutator();
+        UnifiedTrackingMutator mutator = CreateMutator();
         AddMutations(mutator);
         var page = new MutatorPage { DataContext = CreateViewModel(mutator) };
         var window = new Window { Content = page, Width = 900, Height = 800 };
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        var card = page.GetVisualDescendants().OfType<Expander>().First();
+        Expander card = page.GetVisualDescendants().OfType<Expander>().First();
         Assert.Equal("Eye Assists", ((TrackingMutation)card.DataContext!).Name);
         card.IsExpanded = true;
         Dispatcher.UIThread.RunJobs();
 
-        var headers = card.GetVisualDescendants()
+        IEnumerable<string?> headers = card.GetVisualDescendants()
             .OfType<TextBlock>()
             .Where(t => t.Classes.Contains("mutation-group") && t.IsEffectivelyVisible)
             .Select(t => t.Text);
-        Assert.Equal(new[] { "Gaze", "Eyelids" }, headers);
+        Assert.Equal(["Gaze", "Eyelids"], headers, StringComparer.Ordinal);
 
         var rows = card.GetVisualDescendants()
             .OfType<Border>()
@@ -107,7 +107,7 @@ public class MutatorPageTests
             .ToList();
         double LabelX(string name) => rows
             .Select(g => g.Children.OfType<TextBlock>().First(t => Grid.GetColumn(t) == 0))
-            .Single(t => t.Text == name)
+            .Single(t => string.Equals(t.Text, name, StringComparison.Ordinal))
             .TranslatePoint(new Point(0, 0), card)!.Value.X;
 
         Assert.Equal(LabelX("Eyelid Sync") + 20, LabelX("Eyelid Sync Strength"), 1);
@@ -126,22 +126,22 @@ public class MutatorPageTests
     [AvaloniaTheory]
     [InlineData(360)]
     [InlineData(600)]
-    public void EveryCard_FitsTheWindow_WhenNarrow(double width)
+    public void EveryCardFitsTheWindowWhenNarrow(double width)
     {
-        var mutator = CreateMutator();
+        UnifiedTrackingMutator mutator = CreateMutator();
         AddMutations(mutator);
         var page = new MutatorPage { DataContext = CreateViewModel(mutator) };
         var window = new Window { Content = page, Width = width, Height = 800 };
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        foreach (var expander in page.GetVisualDescendants().OfType<Expander>().ToList())
+        foreach (Expander? expander in page.GetVisualDescendants().OfType<Expander>().ToList())
         {
             expander.IsExpanded = true;
             Dispatcher.UIThread.RunJobs();
         }
 
-        var scroll = page.GetVisualDescendants().OfType<ScrollViewer>().First();
+        ScrollViewer scroll = page.GetVisualDescendants().OfType<ScrollViewer>().First();
         var content = (Control)scroll.Content!;
         var overflow = content.GetVisualDescendants()
             .OfType<Control>()

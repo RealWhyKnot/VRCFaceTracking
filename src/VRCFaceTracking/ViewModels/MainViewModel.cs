@@ -1,14 +1,13 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using VRCFaceTracking.Contracts;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
-using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.Models;
 using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.ViewModels;
 
-public partial class MainViewModel : ObservableRecipient
+internal sealed partial class MainViewModel : ObservableRecipient
 {
     public ILibManager LibManager
     {
@@ -42,7 +41,7 @@ public partial class MainViewModel : ObservableRecipient
 
     [ObservableProperty] private bool _oscWasDisabled;
 
-    private readonly DispatcherTimer msgCounterTimer;
+    private readonly DispatcherTimer _msgCounterTimer;
 
     public MainViewModel(
         ILibManager libManager,
@@ -53,7 +52,6 @@ public partial class MainViewModel : ObservableRecipient
         OscSendService oscSendService
         )
     {
-        //Services
         LibManager = libManager;
         ParameterOutputService = parameterOutputService;
         OscTarget = oscTarget;
@@ -61,28 +59,26 @@ public partial class MainViewModel : ObservableRecipient
         OscSendService = oscSendService;
         _moduleDataService = moduleDataService;
 
-        // Message Timer
         OscRecvService.OnMessagesReceived += MessageReceived;
         OscSendService.OnMessagesDispatched += MessageDispatched;
-        msgCounterTimer = new DispatcherTimer
+        _msgCounterTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(1)
+            Interval = TimeSpan.FromSeconds(1),
         };
-        msgCounterTimer.Tick += (_, _) =>
+        _msgCounterTimer.Tick += (_, _) =>
         {
             MessagesInPerSec = Interlocked.Exchange(ref _messagesRecvd, 0);
             MessagesOutPerSec = Interlocked.Exchange(ref _messagesSent, 0);
         };
-        msgCounterTimer.Start();
+        _msgCounterTimer.Start();
 
         OnNavigatedTo();
     }
 
     public void OnNavigatedTo()
     {
-        // Modules
-        var installedNewModules = _moduleDataService.GetInstalledModules();
-        var installedLegacyModules = _moduleDataService.GetLegacyModules().Count();
+        IEnumerable<InstallableTrackingModule> installedNewModules = _moduleDataService.GetInstalledModules();
+        int installedLegacyModules = _moduleDataService.GetLegacyModules().Count();
         NoModulesInstalled = !installedNewModules.Any() && installedLegacyModules == 0;
     }
 

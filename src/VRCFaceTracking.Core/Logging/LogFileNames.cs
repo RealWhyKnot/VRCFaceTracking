@@ -12,9 +12,9 @@ public static class LogFileNames
 
     public static string Sanitize(string name)
     {
-        const string invalid = "<>:\"/\\|?*";
-        var chars = name.Select(c => invalid.Contains(c) || char.IsControl(c) || c == ' ' ? '_' : c).ToArray();
-        var result = new string(chars).Trim('_');
+        const string Invalid = "<>:\"/\\|?*";
+        char[] chars = [.. name.Select(c => Invalid.Contains(c, StringComparison.Ordinal) || char.IsControl(c) || c == ' ' ? '_' : c)];
+        string result = new string(chars).Trim('_');
         return result.Length == 0 ? "module" : result;
     }
 }

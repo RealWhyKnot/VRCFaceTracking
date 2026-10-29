@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\Version.props" />
   <PropertyGroup>
-    <TargetFramework>$(VftTargetFramework)</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <RootNamespace>VRCFaceTracking.Perf.Synthetic</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\VRCFaceTracking.SDK\VRCFaceTracking.SDK.csproj" Private="false" />
+    <ProjectReference Include="..\..\vendor\VRCFaceTracking.SDK\VRCFaceTracking.SDK.csproj" Private="false" />
   </ItemGroup>
 </Project>

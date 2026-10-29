@@ -7,6 +7,6 @@ public interface IMainService
         get; set;
     }
 
-    Task Teardown();
-    Task InitializeAsync();
+    Task TeardownAsync(CancellationToken cancellationToken);
+    Task InitializeAsync(CancellationToken cancellationToken);
 }

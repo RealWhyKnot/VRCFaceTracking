@@ -1,22 +1,18 @@
 <Project>
+
   <PropertyGroup>
-    <VftTargetFramework>net10.0</VftTargetFramework>
-    <LangVersion>latest</LangVersion>
-    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Platforms>x86;x64;arm64;AnyCPU</Platforms>
-    <VftBuildChannel Condition="'$(VftBuildChannel)' == ''">dev</VftBuildChannel>
-    <VftVersionFile>$(MSBuildThisFileDirectory)version.txt</VftVersionFile>
-    <VftVersion Condition="'$(VftVersion)' == '' And Exists('$(VftVersionFile)')">$([System.IO.File]::ReadAllText('$(VftVersionFile)').Trim())</VftVersion>
-    <VftVersion Condition="'$(VftVersion)' == ''">0.0.0.0-local</VftVersion>
-    <VftNumericVersion>$([System.Text.RegularExpressions.Regex]::Replace('$(VftVersion)', '-.*$', ''))</VftNumericVersion>
-    <AssemblyVersion>$(VftNumericVersion)</AssemblyVersion>
-    <FileVersion>$(VftNumericVersion)</FileVersion>
-    <Version>$(VftNumericVersion)</Version>
-    <InformationalVersion>$(VftVersion)</InformationalVersion>
-    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+
   <ItemGroup>
-    <AssemblyMetadata Include="VftBuildChannel" Value="$(VftBuildChannel)" />
+    <PackageReference Include="AsyncFixer" Version="2.1.0" PrivateAssets="all" />
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.317" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.12.1" PrivateAssets="all" />
   </ItemGroup>
+
 </Project>

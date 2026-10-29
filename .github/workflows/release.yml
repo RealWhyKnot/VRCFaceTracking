@@ -157,7 +157,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Download contributors

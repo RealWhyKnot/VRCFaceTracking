@@ -2,7 +2,7 @@ using VRCFaceTracking.Core.Contracts.Services;
 
 namespace VRCFaceTracking.Core.Updates;
 
-public class UpdateSettings
+public sealed class UpdateSettings
 {
     [SavedSetting("UpdateCheckOnStartup", true)]
     public bool CheckOnStartup { get; set; } = true;

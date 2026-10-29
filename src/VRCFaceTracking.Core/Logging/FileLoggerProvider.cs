@@ -10,9 +10,9 @@ public sealed class FileLoggerProvider : ILoggerProvider
 {
     private readonly ConcurrentDictionary<string, FileLogger> _loggers = new(StringComparer.OrdinalIgnoreCase);
     private readonly LogLevelGate _gate;
-    private readonly StreamWriter? _writer;
+    private StreamWriter? _writer;
     private readonly Timer? _flushTimer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public string? FilePath
     {
@@ -21,13 +21,19 @@ public sealed class FileLoggerProvider : ILoggerProvider
 
     public bool IsOpen => _writer != null;
 
-    public FileLoggerProvider(string directory, string fileName, string header, LogLevelGate gate)
+    internal TimeProvider TimeProvider
+    {
+        get;
+    }
+
+    public FileLoggerProvider(string directory, string fileName, string header, LogLevelGate gate, TimeProvider timeProvider)
     {
         _gate = gate;
+        TimeProvider = timeProvider;
         try
         {
             Directory.CreateDirectory(directory);
-            var path = Path.Combine(directory, fileName);
+            string path = Path.Combine(directory, fileName);
             FileStream stream;
             try
             {
@@ -43,11 +49,11 @@ public sealed class FileLoggerProvider : ILoggerProvider
             _writer.Write(header);
             _writer.Flush();
             FilePath = path;
-            _flushTimer = new Timer(_ => Flush(), null, 1000, 1000);
+            _flushTimer = new Timer(_ => Flush(), state: null, 1000, 1000);
         }
-        catch (Exception e)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            Debug.WriteLine($"Log file could not be opened: {e}");
+            Trace.TraceWarning($"Log file could not be opened: {e.Message}");
         }
     }
 
@@ -63,8 +69,9 @@ public sealed class FileLoggerProvider : ILoggerProvider
                 _writer?.WriteLine(line);
                 _writer?.Flush();
             }
-            catch (Exception)
+            catch (IOException e)
             {
+                Trace.TraceWarning($"Log file write failed: {e.Message}");
             }
         }
     }
@@ -81,8 +88,9 @@ public sealed class FileLoggerProvider : ILoggerProvider
                     _writer?.Flush();
                 }
             }
-            catch (Exception)
+            catch (IOException e)
             {
+                Trace.TraceWarning($"Log file write failed: {e.Message}");
             }
         }
     }
@@ -95,8 +103,9 @@ public sealed class FileLoggerProvider : ILoggerProvider
             {
                 _writer?.Flush();
             }
-            catch (Exception)
+            catch (IOException e)
             {
+                Trace.TraceWarning($"Log file write failed: {e.Message}");
             }
         }
     }
@@ -108,6 +117,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
         lock (_lock)
         {
             _writer?.Dispose();
+            _writer = null;
         }
 
         _loggers.Clear();

@@ -1,9 +1,9 @@
 using System.Text;
-using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.Osc;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class OscCodecTests
+public sealed class OscCodecTests
 {
     private static OscValue F(float v) => new() { Type = OscValueType.Float, FloatValue = v };
     private static OscValue I(int v) => new() { Type = OscValueType.Int, IntValue = v };
@@ -14,8 +14,8 @@ public class OscCodecTests
 
     private static string EncodeHex(string address, params OscValue[] values)
     {
-        var buffer = new byte[4096];
-        var length = OscCodec.EncodeMessage(buffer, new OscMessage(address, values));
+        byte[] buffer = new byte[4096];
+        int length = OscCodec.EncodeMessage(buffer, new OscMessage(address, values));
         Assert.True(length >= 0);
         return Convert.ToHexString(buffer, 0, length);
     }
@@ -23,32 +23,23 @@ public class OscCodecTests
     [Theory]
     [InlineData("2F746573742F666C6F6174002C6600003F000000", "/test/float")]
     [InlineData("2F6162002C6600003F000000", "/ab")]
-    public void EncodeMessage_Float_MatchesNativeFixture(string expected, string address)
+    public void EncodeMessageFloatMatchesNativeFixture(string expected, string address) => Assert.Equal(expected, EncodeHex(address, F(0.5f)));
+
+    [Fact]
+    public void EncodeMessageIntMatchesNativeFixture() => Assert.Equal("2F6100002C6900000000002A", EncodeHex("/a", I(42)));
+
+    [Fact]
+    public void EncodeMessageBoolMatchesNativeFixture()
     {
-        Assert.Equal(expected, EncodeHex(address, F(0.5f)));
+        Assert.Equal("2F622F74000000002C540000", EncodeHex("/b/t", B(v: true)));
+        Assert.Equal("2F622F66000000002C460000", EncodeHex("/b/f", B(v: false)));
     }
 
     [Fact]
-    public void EncodeMessage_Int_MatchesNativeFixture()
-    {
-        Assert.Equal("2F6100002C6900000000002A", EncodeHex("/a", I(42)));
-    }
+    public void EncodeMessageMultiValueMatchesNativeFixture() => Assert.Equal("2F6D00002C666669000000003F000000BFA000000000002A", EncodeHex("/m", F(0.5f), F(-1.25f), I(42)));
 
     [Fact]
-    public void EncodeMessage_Bool_MatchesNativeFixture()
-    {
-        Assert.Equal("2F622F74000000002C540000", EncodeHex("/b/t", B(true)));
-        Assert.Equal("2F622F66000000002C460000", EncodeHex("/b/f", B(false)));
-    }
-
-    [Fact]
-    public void EncodeMessage_MultiValue_MatchesNativeFixture()
-    {
-        Assert.Equal("2F6D00002C666669000000003F000000BFA000000000002A", EncodeHex("/m", F(0.5f), F(-1.25f), I(42)));
-    }
-
-    [Fact]
-    public void EncodeMessage_ArrayMarkers_MatchNativeFixture()
+    public void EncodeMessageArrayMarkersMatchNativeFixture()
     {
         Assert.Equal(
             "2F617272000000002C5B66665D0000003F000000BFA00000",
@@ -56,126 +47,113 @@ public class OscCodecTests
     }
 
     [Fact]
-    public void EncodeMessage_NoValues_MatchesNativeFixture()
-    {
-        Assert.Equal("2F6E76002C000000", EncodeHex("/nv"));
-    }
+    public void EncodeMessageNoValuesMatchesNativeFixture() => Assert.Equal("2F6E76002C000000", EncodeHex("/nv"));
 
     [Theory]
     [InlineData("2F7300002C73000061626300", "abc")]
     [InlineData("2F7300002C7300006162636400000000", "abcd")]
     [InlineData("2F7300002C73000068C3A96C6C6F0000", "héllo")]
-    public void EncodeMessage_String_MatchesOscSpec(string expected, string value)
-    {
-        Assert.Equal(expected, EncodeHex("/s", S(value)));
-    }
+    public void EncodeMessageStringMatchesOscSpec(string expected, string value) => Assert.Equal(expected, EncodeHex("/s", S(value)));
 
     [Theory]
     [InlineData("2F6200002C62000000000000", "")]
     [InlineData("2F6200002C6200000000000301020300", "010203")]
     [InlineData("2F6200002C6200000000000401020304", "01020304")]
-    public void EncodeMessage_Blob_MatchesOscSpec(string expected, string data)
-    {
-        Assert.Equal(expected, EncodeHex("/b", Blob(Convert.FromHexString(data))));
-    }
+    public void EncodeMessageBlobMatchesOscSpec(string expected, string data) => Assert.Equal(expected, EncodeHex("/b", Blob(Convert.FromHexString(data))));
 
     [Theory]
     [InlineData("2F6200002C62000000000000", "")]
     [InlineData("2F6200002C6200000000000301020300", "010203")]
     [InlineData("2F6200002C6200000000000401020304", "01020304")]
-    public void TryParse_Blob_RoundTrips(string hex, string data)
+    public void TryParseBlobRoundTrips(string hex, string data)
     {
-        var bytes = Convert.FromHexString(hex);
-        var index = 0;
-        var msg = OscCodec.TryParse(bytes, bytes.Length, ref index);
-        Assert.NotNull(msg);
-        Assert.Equal(OscValueType.Blob, Assert.Single(msg.Values).Type);
+        byte[] bytes = Convert.FromHexString(hex);
+        int index = 0;
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? msg));
+        Assert.Equal(OscValueType.Blob, Assert.Single(msg._values).Type);
         Assert.Equal(Convert.FromHexString(data), msg.Value);
         Assert.Equal(bytes.Length, index);
     }
 
     [Fact]
-    public void EncodeMessage_FaceTrackingBlob_IsPaddedTo132Bytes()
+    public void EncodeMessageFaceTrackingBlobIsPaddedTo132Bytes()
     {
-        var buffer = new byte[4096];
+        byte[] buffer = new byte[4096];
         Assert.Equal(132, OscCodec.EncodeMessage(buffer, OscMessage.CreateBlob("/tracking/face/v1", new byte[102])));
     }
 
     [Fact]
-    public void EncodeMessage_TooLargeForBuffer_ReturnsNegative()
+    public void EncodeMessageTooLargeForBufferReturnsNegative()
     {
-        var buffer = new byte[64];
-        var length = OscCodec.EncodeMessage(buffer, new OscMessage("/" + new string('a', 100), new[] { F(1f) }));
+        byte[] buffer = new byte[64];
+        int length = OscCodec.EncodeMessage(buffer, new OscMessage("/" + new string('a', 100), [F(1f)]));
         Assert.Equal(-1, length);
     }
 
     [Fact]
-    public void TryParse_Float_RoundTrips()
+    public void TryParseFloatRoundTrips()
     {
-        var bytes = Convert.FromHexString("2F746573742F666C6F6174002C6600003F000000");
-        var index = 0;
-        var msg = OscCodec.TryParse(bytes, bytes.Length, ref index);
-        Assert.NotNull(msg);
+        byte[] bytes = Convert.FromHexString("2F746573742F666C6F6174002C6600003F000000");
+        int index = 0;
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? msg));
         Assert.Equal("/test/float", msg.Address);
         Assert.Equal(0.5f, msg.Value);
         Assert.Equal(20, index);
     }
 
     [Fact]
-    public void TryParse_MultiValue_RoundTrips()
+    public void TryParseMultiValueRoundTrips()
     {
-        var bytes = Convert.FromHexString("2F6D00002C666669000000003F000000BFA000000000002A");
-        var index = 0;
-        var msg = OscCodec.TryParse(bytes, bytes.Length, ref index);
-        Assert.NotNull(msg);
+        byte[] bytes = Convert.FromHexString("2F6D00002C666669000000003F000000BFA000000000002A");
+        int index = 0;
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? msg));
         Assert.Equal("/m", msg.Address);
         Assert.Equal(24, index);
-        Assert.Equal(3, msg.Values.Length);
-        Assert.Equal(0.5f, msg.Values[0].FloatValue);
-        Assert.Equal(-1.25f, msg.Values[1].FloatValue);
-        Assert.Equal(42, msg.Values[2].IntValue);
+        Assert.Equal(3, msg._values.Length);
+        Assert.Equal(0.5f, msg._values[0].FloatValue);
+        Assert.Equal(-1.25f, msg._values[1].FloatValue);
+        Assert.Equal(42, msg._values[2].IntValue);
     }
 
     [Fact]
-    public void TryParse_Bools_RoundTrip()
+    public void TryParseBoolsRoundTrip()
     {
-        var index = 0;
-        var t = OscCodec.TryParse(Convert.FromHexString("2F622F74000000002C540000"), 12, ref index);
+        int index = 0;
+        Assert.True(OscCodec.TryParse(Convert.FromHexString("2F622F74000000002C540000"), 12, ref index, out OscMessage? t));
         Assert.Equal(true, t.Value);
         index = 0;
-        var f = OscCodec.TryParse(Convert.FromHexString("2F622F66000000002C460000"), 12, ref index);
+        Assert.True(OscCodec.TryParse(Convert.FromHexString("2F622F66000000002C460000"), 12, ref index, out OscMessage? f));
         Assert.Equal(false, f.Value);
     }
 
     [Fact]
-    public void TryParse_String_RoundTrips()
+    public void TryParseStringRoundTrips()
     {
-        var bytes = Convert.FromHexString("2F7300002C73000068C3A96C6C6F0000");
-        var index = 0;
-        var msg = OscCodec.TryParse(bytes, bytes.Length, ref index);
+        byte[] bytes = Convert.FromHexString("2F7300002C73000068C3A96C6C6F0000");
+        int index = 0;
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? msg));
         Assert.Equal("héllo", msg.Value);
         Assert.Equal(16, index);
     }
 
     [Fact]
-    public void TryParse_ArrayMarkers_RoundTrip()
+    public void TryParseArrayMarkersRoundTrip()
     {
-        var bytes = Convert.FromHexString("2F617272000000002C5B66665D0000003F000000BFA00000");
-        var index = 0;
-        var msg = OscCodec.TryParse(bytes, bytes.Length, ref index);
-        Assert.Equal(4, msg.Values.Length);
-        Assert.Equal(OscValueType.ArrayBegin, msg.Values[0].Type);
-        Assert.Equal(0.5f, msg.Values[1].FloatValue);
-        Assert.Equal(OscValueType.ArrayEnd, msg.Values[3].Type);
+        byte[] bytes = Convert.FromHexString("2F617272000000002C5B66665D0000003F000000BFA00000");
+        int index = 0;
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? msg));
+        Assert.Equal(4, msg._values.Length);
+        Assert.Equal(OscValueType.ArrayBegin, msg._values[0].Type);
+        Assert.Equal(0.5f, msg._values[1].FloatValue);
+        Assert.Equal(OscValueType.ArrayEnd, msg._values[3].Type);
     }
 
     [Fact]
-    public void TryParse_NoValues_ReturnsEmptyMessage()
+    public void TryParseNoValuesReturnsEmptyMessage()
     {
-        var bytes = Convert.FromHexString("2F6E76002C000000");
-        var index = 0;
-        var msg = OscCodec.TryParse(bytes, bytes.Length, ref index);
-        Assert.NotNull(msg);
+        byte[] bytes = Convert.FromHexString("2F6E76002C000000");
+        int index = 0;
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? msg));
         Assert.Equal("/nv", msg.Address);
         Assert.Null(msg.Value);
         Assert.Equal(8, index);
@@ -190,42 +168,42 @@ public class OscCodecTests
     [InlineData("2F6200002C620000FFFFFFFF")]
     [InlineData("2F6200002C620000000000")]
     [InlineData("2F6200002C62000000000003010203")]
-    public void TryParse_RejectsInvalidInput(string hex)
+    public void TryParseRejectsInvalidInput(string hex)
     {
-        var bytes = Convert.FromHexString(hex);
-        var index = 0;
-        Assert.Null(OscCodec.TryParse(bytes, bytes.Length, ref index));
+        byte[] bytes = Convert.FromHexString(hex);
+        int index = 0;
+        Assert.False(OscCodec.TryParse(bytes, bytes.Length, ref index, out _));
         Assert.Equal(0, index);
     }
 
     [Fact]
-    public void TryParse_SequentialMessages_AdvanceIndex()
+    public void TryParseSequentialMessagesAdvanceIndex()
     {
-        var bytes = Convert.FromHexString("2F746573742F666C6F6174002C6600003F0000002F6100002C6900000000002A");
-        var index = 0;
-        var first = OscCodec.TryParse(bytes, bytes.Length, ref index);
+        byte[] bytes = Convert.FromHexString("2F746573742F666C6F6174002C6600003F0000002F6100002C6900000000002A");
+        int index = 0;
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? first));
         Assert.Equal("/test/float", first.Address);
         Assert.Equal(20, index);
-        var second = OscCodec.TryParse(bytes, bytes.Length, ref index);
+        Assert.True(OscCodec.TryParse(bytes, bytes.Length, ref index, out OscMessage? second));
         Assert.Equal("/a", second.Address);
         Assert.Equal(32, index);
     }
 
     [Fact]
-    public void EncodeBundle_MatchesNativeFixture()
+    public void EncodeBundleMatchesNativeFixture()
     {
         var messages = new List<OscMessage>
         {
-            new("/test/float", new[] { F(0.5f) }),
-            new("/b/t", new[] { B(true) }),
-            new("/a", new[] { I(42) }),
+            new("/test/float", [F(0.5f)]),
+            new("/b/t", [B(v: true)]),
+            new("/a", [I(42)]),
         };
-        var buffer = new byte[4096];
-        var index = 0;
-        var length = OscCodec.EncodeBundle(buffer, messages, ref index);
+        byte[] buffer = new byte[4096];
+        int index = 0;
+        int length = OscCodec.EncodeBundle(buffer, messages, ref index);
         Assert.Equal(72, length);
         Assert.Equal(3, index);
-        for (var i = 8; i < 16; i++)
+        for (int i = 8; i < 16; i++)
         {
             buffer[i] = 0;
         }
@@ -235,18 +213,18 @@ public class OscCodecTests
     }
 
     [Fact]
-    public void EncodeBundle_ChunksLikeNative()
+    public void EncodeBundleChunksLikeNative()
     {
         var messages = Enumerable.Range(0, 200)
-            .Select(n => new OscMessage($"/avatar/parameters/LongParameterName{n:D3}", new[] { F(0.5f) }))
+            .Select(n => new OscMessage($"/avatar/parameters/LongParameterName{n:D3}", [F(0.5f)]))
             .ToList();
-        var buffer = new byte[4096];
-        var index = 0;
+        byte[] buffer = new byte[4096];
+        int index = 0;
         var passes = new List<(int Length, int Index)>();
         while (index < messages.Count)
         {
-            var last = index;
-            var length = OscCodec.EncodeBundle(buffer, messages, ref index);
+            int last = index;
+            int length = OscCodec.EncodeBundle(buffer, messages, ref index);
             Assert.True(index > last);
             passes.Add((length, index));
         }
@@ -254,12 +232,12 @@ public class OscCodecTests
     }
 
     [Fact]
-    public void EncodeBundle_MessageTooLarge_DoesNotAdvance()
+    public void EncodeBundleMessageTooLargeDoesNotAdvance()
     {
-        var messages = new List<OscMessage> { new("/" + new string('a', 5000), new[] { F(1f) }) };
-        var buffer = new byte[4096];
-        var index = 0;
-        var length = OscCodec.EncodeBundle(buffer, messages, ref index);
+        var messages = new List<OscMessage> { new("/" + new string('a', 5000), [F(1f)]) };
+        byte[] buffer = new byte[4096];
+        int index = 0;
+        int length = OscCodec.EncodeBundle(buffer, messages, ref index);
         Assert.Equal(16, length);
         Assert.Equal(0, index);
     }
@@ -271,21 +249,21 @@ public class OscCodecTests
     [InlineData("/avatar/change", "/avatar/changed", false)]
     [InlineData("/vrcft/settings/forceRelevant", "/vrcft/settings/forceRelevant", true)]
     [InlineData("/vrcft/settings/forceRelevant", "/vrcft/settings/forceRelevantX", false)]
-    public void AddressMatches_OnlyOnWholeAddress(string handled, string sent, bool expected)
+    public void AddressMatchesOnlyOnWholeAddress(string handled, string sent, bool expected)
     {
-        var buffer = new byte[4096];
-        var written = OscCodec.EncodeMessage(buffer, new OscMessage(sent, new[] { F(1f) }));
+        byte[] buffer = new byte[4096];
+        int written = OscCodec.EncodeMessage(buffer, new OscMessage(sent, [F(1f)]));
         Assert.True(written > 0);
 
         Assert.Equal(expected, OscCodec.AddressMatches(buffer.AsSpan(0, written), Encoding.UTF8.GetBytes(handled)));
     }
 
     [Fact]
-    public void AddressMatches_RejectsDatagramShorterThanAddress()
+    public void AddressMatchesRejectsDatagramShorterThanAddress()
     {
-        var address = Encoding.UTF8.GetBytes("/avatar/change");
+        byte[] address = Encoding.UTF8.GetBytes("/avatar/change");
         Assert.False(OscCodec.AddressMatches(Encoding.UTF8.GetBytes("/avatar"), address));
-        Assert.False(OscCodec.AddressMatches(ReadOnlySpan<byte>.Empty, address));
+        Assert.False(OscCodec.AddressMatches([], address));
         Assert.False(OscCodec.AddressMatches(address, address));
     }
 }

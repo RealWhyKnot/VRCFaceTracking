@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Script self-tests
@@ -49,14 +49,26 @@ jobs:
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore VRCFaceTracking.slnx -p:Platform=x64
-          if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
+          dotnet restore VRCFaceTracking.slnx -p:Platform=x64 --locked-mode
+          if ($LASTEXITCODE -ne 0) { throw "restore failed; if a package changed, restore without --locked-mode and commit packages.lock.json ($LASTEXITCODE)" }
 
       - name: Check formatting
         shell: pwsh
         run: |
           dotnet format VRCFaceTracking.slnx --verify-no-changes --no-restore
           if ($LASTEXITCODE -ne 0) { throw "formatting drift; run 'dotnet format VRCFaceTracking.slnx' and commit ($LASTEXITCODE)" }
+
+      - name: C# style rules
+        shell: pwsh
+        run: |
+          dotnet run .lint/CSharpStyle/Program.cs -- .
+          if ($LASTEXITCODE -ne 0) { throw "C# style rules failed ($LASTEXITCODE)" }
+
+      - name: Style check
+        shell: pwsh
+        run: |
+          python -B style_check.py
+          if ($LASTEXITCODE -ne 0) { throw "style check failed ($LASTEXITCODE)" }
 
   build:
     name: Build ${{ matrix.channel }} ${{ matrix.rid }}
@@ -97,7 +109,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore

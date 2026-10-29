@@ -6,43 +6,42 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
-using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.Osc;
 
 namespace VRCFaceTracking.Core.Services;
 
-public class OscRecvService : BackgroundService
+public sealed partial class OscRecvService : BackgroundService
 {
     private readonly ILogger<OscRecvService> _logger;
     private readonly IOscTarget _oscTarget;
     private readonly ILocalSettingsService _settingsService;
 
-    private const int SIO_UDP_CONNRESET = -1744830452;
+    private const int SioUdpConnReset = -1744830452;
     private const int ReceiveTimeoutMs = 250;
 
-    private Socket _recvSocket;
+    private Socket? _recvSocket;
     private readonly byte[] _recvBuffer = new byte[4096];
 
-    private CancellationTokenSource _cts, _linkedToken;
     private CancellationToken _stoppingToken;
 
-    public Action<OscMessage> OnMessageReceived = _ => { };
-    public Action<int> OnMessagesReceived = _ => { };
+    public Action<OscMessage> OnMessageReceived { get; set; } = _ => { };
+    public Action<int> OnMessagesReceived { get; set; } = _ => { };
 
     private readonly HashSet<string> _handledAddresses = new(StringComparer.Ordinal);
-    private byte[][] _handledAddressBytes = Array.Empty<byte[]>();
+    private byte[][] _handledAddressBytes = [];
 
     public void HandleAddress(string address)
     {
         if (_handledAddresses.Add(address))
         {
-            _handledAddressBytes = _handledAddresses.Select(Encoding.UTF8.GetBytes).ToArray();
+            _handledAddressBytes = [.. _handledAddresses.Select(Encoding.UTF8.GetBytes)];
         }
     }
 
     private bool IsHandled(byte[] buffer, int length)
     {
-        var span = buffer.AsSpan(0, Math.Min(length, buffer.Length));
-        foreach (var address in _handledAddressBytes)
+        Span<byte> span = buffer.AsSpan(0, Math.Min(length, buffer.Length));
+        foreach (byte[] address in _handledAddressBytes)
         {
             if (OscCodec.AddressMatches(span, address))
             {
@@ -60,57 +59,57 @@ public class OscRecvService : BackgroundService
     )
     {
         _logger = logger;
-        _cts = new CancellationTokenSource();
-
         _oscTarget = oscTarget;
         _settingsService = settingsService;
 
         _oscTarget.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(_oscTarget.IsConnected))
+            if (string.Equals(args.PropertyName, nameof(_oscTarget.IsConnected), StringComparison.Ordinal))
+            {
                 return;
+            }
 
             var validationResults = new List<ValidationResult>();
             var context = new ValidationContext(_oscTarget);
 
             if (!Validator.TryValidateObject(_oscTarget, context, validationResults, validateAllProperties: true))
             {
-                var errorMessages = string.Join(Environment.NewLine, validationResults.Select(v => v.ErrorMessage));
-                //_logger.LogWarning($"{errorMessages} Reverting to default.");
-                if (_oscTarget.DestinationAddress != "127.0.0.1")
+                if (!string.Equals(_oscTarget.DestinationAddress, "127.0.0.1", StringComparison.Ordinal))
                 {
                     _oscTarget.DestinationAddress = "127.0.0.1";
                 }
                 return;
             }
 
-            UpdateTarget(new IPEndPoint(IPAddress.Parse(_oscTarget.DestinationAddress), _oscTarget.InPort));
+            if (IPAddress.TryParse(_oscTarget.DestinationAddress, out IPAddress? address))
+            {
+                UpdateTarget(new IPEndPoint(address, _oscTarget.InPort));
+            }
         };
     }
 
-    public async override Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        await _settingsService.Load(_oscTarget);
+        await _settingsService.LoadAsync(_oscTarget, cancellationToken).ConfigureAwait(false);
 
-        await base.StartAsync(cancellationToken);
+        await base.StartAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public IPEndPoint UpdateTarget(IPEndPoint endpoint)
+    public IPEndPoint? UpdateTarget(IPEndPoint endpoint)
     {
         if (!IPAddress.IsLoopback(endpoint.Address))
         {
-            var local = LocalAddressFor(endpoint.Address);
+            IPAddress? local = LocalAddressFor(endpoint.Address);
             if (local == null)
             {
-                _logger.LogWarning("No local address can reach {Address}; keeping the current recv target", endpoint.Address);
+                LogNoLocalAddressCanReach(_logger, endpoint.Address);
                 return null;
             }
 
             endpoint = new IPEndPoint(local, endpoint.Port);
         }
 
-        _logger.LogInformation($"Updating osc recv target to {endpoint}");
-        _cts.Cancel();
+        LogUpdatingOscRecvTarget(_logger, endpoint);
         _recvSocket?.Close();
         _oscTarget.IsConnected = false;
 
@@ -120,42 +119,39 @@ public class OscRecvService : BackgroundService
         };
         if (OperatingSystem.IsWindows())
         {
-            _recvSocket.IOControl((IOControlCode)SIO_UDP_CONNRESET, new byte[] { 0, 0, 0, 0 }, null);
+            _recvSocket.IOControl((IOControlCode)SioUdpConnReset, [0, 0, 0, 0], optionOutValue: null);
         }
 
         try
         {
             _recvSocket.Bind(endpoint);
             _oscTarget.IsConnected = true;
-            _logger.LogInformation($"Successfully connected to remote endpoint at {_recvSocket.LocalEndPoint}");
-            return (IPEndPoint)_recvSocket.LocalEndPoint;
+            LogSuccessfullyConnectedRemoteEndpoint(_logger, _recvSocket.LocalEndPoint);
+            return _recvSocket.LocalEndPoint as IPEndPoint;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is SocketException or ObjectDisposedException)
         {
-            _logger.LogWarning($"Could not bind to recv endpoint: {endpoint}. {ex.Message}");
-        }
-        finally
-        {
-            var oldCts = _cts;
-            var oldLinked = _linkedToken;
-            _cts = new CancellationTokenSource();
-            _linkedToken = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken, _cts.Token);
-            oldCts.Dispose();
-            oldLinked?.Dispose();
+            LogCouldNotBindRecvEndpoint(_logger, endpoint, ex.Message);
         }
 
         return null;
     }
 
-    private static IPAddress LocalAddressFor(IPAddress destination)
+    public override void Dispose()
+    {
+        _recvSocket?.Dispose();
+        base.Dispose();
+    }
+
+    private static IPAddress? LocalAddressFor(IPAddress destination)
     {
         try
         {
             using var probe = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             probe.Connect(destination, 9);
-            return ((IPEndPoint)probe.LocalEndPoint).Address;
+            return (probe.LocalEndPoint as IPEndPoint)?.Address;
         }
-        catch (Exception)
+        catch (SocketException)
         {
             return null;
         }
@@ -164,8 +160,6 @@ public class OscRecvService : BackgroundService
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _stoppingToken = stoppingToken;
-
-        _linkedToken = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken, _cts.Token);
 
         var completion = new TaskCompletionSource();
         var thread = new Thread(() =>
@@ -193,7 +187,7 @@ public class OscRecvService : BackgroundService
         {
             try
             {
-                var socket = _recvSocket;
+                Socket? socket = _recvSocket;
                 if (socket is not { IsBound: true })
                 {
                     Thread.Sleep(50);
@@ -217,27 +211,39 @@ public class OscRecvService : BackgroundService
                     continue;
                 }
 
-                var offset = 0;
-                var newMsg = OscMessage.TryParseOsc(_recvBuffer, bytesReceived, ref offset);
-                if (newMsg == null)
+                int offset = 0;
+                if (!OscCodec.TryParse(_recvBuffer, bytesReceived, ref offset, out OscMessage? newMsg))
                 {
                     continue;
                 }
 
                 OnMessageReceived(newMsg);
             }
-            catch (Exception e)
+            catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException
+                or SocketException { SocketErrorCode: SocketError.OperationAborted or SocketError.Interrupted })
             {
-                if (e is OperationCanceledException or ObjectDisposedException
-                    or SocketException { SocketErrorCode: SocketError.OperationAborted or SocketError.Interrupted })
-                {
-                    Thread.Sleep(50);
-                    continue;
-                }
-
-                _logger.LogError(e, "Error encountered in OSC Receive thread");
+                Thread.Sleep(50);
+            }
+            catch (SocketException e)
+            {
+                LogErrorEncounteredOscReceiveThread(_logger, e);
                 Thread.Sleep(500);
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No local address can reach {Address}; keeping the current recv target")]
+    private static partial void LogNoLocalAddressCanReach(ILogger logger, IPAddress address);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Updating osc recv target to {Endpoint}")]
+    private static partial void LogUpdatingOscRecvTarget(ILogger logger, IPEndPoint endpoint);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Successfully connected to remote endpoint at {LocalEndPoint}")]
+    private static partial void LogSuccessfullyConnectedRemoteEndpoint(ILogger logger, EndPoint? localEndPoint);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Could not bind to recv endpoint: {Endpoint}. {ErrorMessage}")]
+    private static partial void LogCouldNotBindRecvEndpoint(ILogger logger, IPEndPoint endpoint, string errorMessage);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Error encountered in OSC Receive thread")]
+    private static partial void LogErrorEncounteredOscReceiveThread(ILogger logger, Exception exception);
 }

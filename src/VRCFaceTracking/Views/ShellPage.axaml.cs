@@ -4,7 +4,7 @@ using VRCFaceTracking.Contracts;
 
 namespace VRCFaceTracking.Views;
 
-public partial class ShellPage : UserControl
+internal sealed partial class ShellPage : UserControl
 {
     private readonly MainPage _mainPage = new();
     private readonly OutputPage _outputPage = new();
@@ -60,11 +60,11 @@ public partial class ShellPage : UserControl
         {
             ShowPage(tag switch
             {
-                "Main" => (Control)_mainPage,
+                "Main" => _mainPage,
                 "Output" => _outputPage,
                 "ModuleRegistry" => _moduleRegistryPage,
                 "Mutator" => _mutatorPage,
-                _ => _mainPage
+                _ => _mainPage,
             });
         }
     }

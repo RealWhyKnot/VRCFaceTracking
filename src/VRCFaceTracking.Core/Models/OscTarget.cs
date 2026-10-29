@@ -6,7 +6,7 @@ using VRCFaceTracking.Core.Validation;
 
 namespace VRCFaceTracking.Core.Models;
 
-public partial class OscTarget : ObservableValidator, IOscTarget
+public sealed partial class OscTarget : ObservableValidator, IOscTarget
 {
     [ObservableProperty] private bool _isConnected;
 
@@ -23,10 +23,10 @@ public partial class OscTarget : ObservableValidator, IOscTarget
     [ObservableProperty]
     [ValidIpAddress]
     [property: SavedSetting("OSCAddress", "127.0.0.1")]
-    private string _destinationAddress;
+    private string? _destinationAddress;
 
     public OscTarget(ILocalSettingsService localSettingsService)
     {
-        PropertyChanged += (_, _) => localSettingsService.Save(this);
+        PropertyChanged += (_, _) => _ = localSettingsService.SaveAsync(this, CancellationToken.None);
     }
 }

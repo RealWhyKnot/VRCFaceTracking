@@ -8,11 +8,11 @@ using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class OscRecvServiceTests
+public sealed class OscRecvServiceTests
 {
     private sealed class FakeOscTarget : IOscTarget
     {
-        public event PropertyChangedEventHandler PropertyChanged
+        public event PropertyChangedEventHandler? PropertyChanged
         {
             add
             {
@@ -34,31 +34,31 @@ public class OscRecvServiceTests
         {
             get; set;
         }
-        public string DestinationAddress { get; set; } = "127.0.0.1";
+        public string? DestinationAddress { get; set; } = "127.0.0.1";
     }
 
     private sealed class NullSettings : ILocalSettingsService
     {
-        public Task<T> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false) => Task.FromResult(defaultValue!);
-        public Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false) => Task.CompletedTask;
-        public Task Save(object target) => Task.CompletedTask;
-        public Task Load(object target) => Task.CompletedTask;
-        public Task FlushAsync() => Task.CompletedTask;
+        public Task<T?> ReadSettingAsync<T>(string key, T? defaultValue, bool forceLocal, CancellationToken cancellationToken) => Task.FromResult(defaultValue);
+        public Task SaveSettingAsync<T>(string key, T value, bool forceLocal, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SaveAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task LoadAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [Fact]
-    public void UpdateTarget_Loopback_StaysOnLoopback()
+    public void UpdateTargetLoopbackStaysOnLoopback()
     {
         using var service = new OscRecvService(NullLogger<OscRecvService>.Instance, new FakeOscTarget(), new NullSettings());
 
-        var bound = service.UpdateTarget(new IPEndPoint(IPAddress.Loopback, 0));
+        IPEndPoint? bound = service.UpdateTarget(new IPEndPoint(IPAddress.Loopback, 0));
 
         Assert.NotNull(bound);
         Assert.Equal(IPAddress.Loopback, bound.Address);
     }
 
     [Fact]
-    public async Task UpdateTarget_OtherMachine_ReceivesOnTheLocalAddressThatReachesIt()
+    public async Task UpdateTargetOtherMachineReceivesOnTheLocalAddressThatReachesIt()
     {
         var target = new FakeOscTarget();
         using var service = new OscRecvService(NullLogger<OscRecvService>.Instance, target, new NullSettings());
@@ -68,14 +68,14 @@ public class OscRecvServiceTests
 
         try
         {
-            var bound = service.UpdateTarget(new IPEndPoint(IPAddress.Parse("192.0.2.10"), 0));
+            IPEndPoint? bound = service.UpdateTarget(new IPEndPoint(IPAddress.Parse("192.0.2.10"), 0));
 
             Assert.NotNull(bound);
             Assert.False(IPAddress.IsLoopback(bound.Address));
             Assert.True(target.IsConnected);
 
             using var sender = new UdpClient(AddressFamily.InterNetwork);
-            sender.Send(new byte[] { 1, 2, 3, 4 }, 4, bound);
+            await sender.SendAsync([1, 2, 3, 4], 4, bound);
             Assert.Same(received.Task, await Task.WhenAny(received.Task, Task.Delay(2000)));
         }
         finally

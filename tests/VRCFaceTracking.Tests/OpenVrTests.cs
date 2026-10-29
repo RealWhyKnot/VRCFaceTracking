@@ -4,7 +4,7 @@ using VRCFaceTracking.Services;
 
 namespace VRCFaceTracking.Tests;
 
-public class OpenVrTests
+public sealed class OpenVrTests
 {
     [AvaloniaFact]
     public void TestProcessNeverInitializesOpenVr()

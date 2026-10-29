@@ -3,12 +3,12 @@ using Microsoft.Extensions.Logging;
 
 namespace VRCFaceTracking.Core.Library;
 
-public sealed class ModuleProcessWatcher
+public sealed partial class ModuleProcessWatcher
 {
     public const int StderrTailLines = 20;
 
     private readonly Queue<string> _stderrTail = new();
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public ModuleProcessWatcher(Process process, string moduleName, ILogger moduleLogger, Action<int> onExited)
     {
@@ -29,7 +29,7 @@ public sealed class ModuleProcessWatcher
                 }
             }
 
-            moduleLogger.LogWarning("[{Module} stderr] {Line}", moduleName, e.Data);
+            LogStderr(moduleLogger, moduleName, e.Data);
         };
         process.Exited += (_, _) =>
         {
@@ -40,7 +40,7 @@ public sealed class ModuleProcessWatcher
             }
             catch (InvalidOperationException)
             {
-                code = ModuleProcessExitCodes.EXCEPTION_CRASH;
+                code = ModuleProcessExitCodes.ExceptionCrash;
             }
 
             onExited(code);
@@ -58,4 +58,7 @@ public sealed class ModuleProcessWatcher
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "[{Module} stderr] {Line}")]
+    private static partial void LogStderr(ILogger logger, string module, string line);
 }

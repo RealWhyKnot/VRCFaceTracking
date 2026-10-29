@@ -2,64 +2,65 @@ using Xunit.Abstractions;
 
 namespace VRCFaceTracking.Perf.Tests;
 
-public sealed class TickPathTests(ITestOutputHelper output) : IAsyncLifetime
+public sealed class TickPathTests
 {
     private const double DataTickBudgetUs = 400;
     private const double UnchangedTickBudgetUs = 200;
     private const int SmoothingSettleTicks = 3000;
 
-    private SenderHarness _harness = null!;
     private int _frame;
 
-    public Task InitializeAsync()
+    private readonly ITestOutputHelper _output;
+
+    public TickPathTests(ITestOutputHelper output)
     {
-        _harness = new SenderHarness(allMutations: true);
-        return Task.CompletedTask;
+        _output = output;
     }
 
-    public async Task DisposeAsync() => await _harness.DisposeAsync();
-
-    private void DataTick()
+    private void DataTick(SenderHarness harness)
     {
         Tracking.WriteFrame(_frame++);
-        _harness.Tick();
+        harness.Tick();
     }
 
     [Fact]
-    public void DataTick_EveryParameterAndMutation_AllocatesNothing()
+    public async Task DataTickEveryParameterAndMutationAllocatesNothing()
     {
-        var bytes = Measure.AllocatedBytes(DataTick, 5000);
+        await using var harness = new SenderHarness(allMutations: true);
+        long bytes = Measure.AllocatedBytes(() => DataTick(harness), 5000);
 
-        output.Report("data tick allocation", $"{bytes} B over 5000 ticks");
+        _output.Report("data tick allocation", $"{bytes} B over 5000 ticks");
         Assert.Equal(0, bytes);
     }
 
     [Fact]
-    public void DataTick_EveryParameterAndMutation_StaysWithinCpuBudget()
+    public async Task DataTickEveryParameterAndMutationStaysWithinCpuBudget()
     {
+        await using var harness = new SenderHarness(allMutations: true);
         Tracking.WriteFrame(_frame++);
-        var messages = _harness.Tick();
-        var us = Measure.BestMicrosecondsPerOp(DataTick, 500);
+        int messages = harness.Tick();
+        double us = Measure.BestMicrosecondsPerOp(() => DataTick(harness), 500);
 
-        output.Report("data tick", $"{us:N1} us for ~{messages} OSC messages, budget {DataTickBudgetUs} us");
+        _output.Report("data tick", $"{us:N1} us for ~{messages} OSC messages, budget {DataTickBudgetUs} us");
         Assert.True(messages > 100, $"only {messages} messages per changed tick; the fixture lost its relevant parameters");
         Assert.True(us < DataTickBudgetUs, $"{us:N1} us per tick");
     }
 
     [Fact]
-    public void UnchangedTick_SendsNothingAndStaysCheap()
+    public async Task UnchangedTickSendsNothingAndStaysCheap()
     {
+        await using var harness = new SenderHarness(allMutations: true);
         Tracking.WriteFrame(_frame);
-        for (var i = 0; i < SmoothingSettleTicks; i++)
+        for (int i = 0; i < SmoothingSettleTicks; i++)
         {
-            _harness.Tick();
+            harness.Tick();
         }
 
-        var sent = _harness.Tick();
-        var us = Measure.BestMicrosecondsPerOp(() => _harness.Tick(), 500);
-        var bytes = Measure.AllocatedBytes(() => _harness.Tick(), 5000);
+        int sent = harness.Tick();
+        double us = Measure.BestMicrosecondsPerOp(() => harness.Tick(), 500);
+        long bytes = Measure.AllocatedBytes(() => harness.Tick(), 5000);
 
-        output.Report("unchanged tick", $"{us:N1} us, {bytes} B over 5000 ticks, budget {UnchangedTickBudgetUs} us");
+        _output.Report("unchanged tick", $"{us:N1} us, {bytes} B over 5000 ticks, budget {UnchangedTickBudgetUs} us");
         Assert.Equal(0, sent);
         Assert.Equal(0, bytes);
         Assert.True(us < UnchangedTickBudgetUs, $"{us:N1} us per unchanged tick");

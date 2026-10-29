@@ -4,84 +4,88 @@ using VRCFaceTracking.Core.Params.Data.Mutation;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class MutationSettingsTests
+public sealed class MutationSettingsTests
 {
     private sealed class RecordingSettings : ILocalSettingsService
     {
-        public List<string> Saved { get; } = new();
+        public List<string> Saved { get; } = [];
 
-        public Task<T> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false) => Task.FromResult(defaultValue!);
+        public Task<T?> ReadSettingAsync<T>(string key, T? defaultValue, bool forceLocal, CancellationToken cancellationToken) => Task.FromResult(defaultValue);
 
-        public Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false)
+        public Task SaveSettingAsync<T>(string key, T value, bool forceLocal, CancellationToken cancellationToken)
         {
             Saved.Add(key);
             return Task.CompletedTask;
         }
 
-        public Task Save(object target) => Task.CompletedTask;
-        public Task Load(object target) => Task.CompletedTask;
-        public Task FlushAsync() => Task.CompletedTask;
+        public Task SaveAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task LoadAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [Fact]
-    public void ActiveSwitch_Flipped_SavesTheMutation()
+    public void ActiveSwitchFlippedSavesTheMutation()
     {
         var settings = new RecordingSettings();
-        var mutation = new EyeAssists { LocalSettingsService = settings };
-
-        mutation.ActiveSwitch = true;
+        var mutation = new EyeAssists
+        {
+            LocalSettingsService = settings,
+            ActiveSwitch = true,
+        };
 
         Assert.True(mutation.IsActive);
-        Assert.Equal(new[] { "Eye Assists" }, settings.Saved);
+        Assert.Equal(["Eye Assists"], settings.Saved, StringComparer.Ordinal);
     }
 
     [Fact]
-    public void ActiveSwitch_SameValue_DoesNotSave()
+    public void ActiveSwitchSameValueDoesNotSave()
     {
         var settings = new RecordingSettings();
-        var mutation = new Correctors { LocalSettingsService = settings };
-
-        mutation.ActiveSwitch = true;
+        _ = new Correctors
+        {
+            LocalSettingsService = settings,
+            ActiveSwitch = true,
+        };
 
         Assert.Empty(settings.Saved);
     }
 
     [Fact]
-    public void ParameterAdjustmentRange_Changed_SavesTheMutation()
+    public void ParameterAdjustmentRangeChangedSavesTheMutation()
     {
         var settings = new RecordingSettings();
         var mutation = new ParameterAdjustment { LocalSettingsService = settings };
         mutation.CreateProperties();
-        var jaw = mutation.Components.OfType<MutationRangeProperty>().Single(c => c.Name == "Jaw");
+        MutationRangeProperty jaw = mutation.Components.OfType<MutationRangeProperty>().Single(c => string.Equals(c.Name, "Jaw", StringComparison.Ordinal));
 
         jaw.Item2 = 0.8f;
 
-        Assert.Equal((0f, 0.8f), mutation.jawOpen);
-        Assert.Equal(new[] { "Parameter Adjustment" }, settings.Saved);
+        Assert.Equal((0f, 0.8f), mutation.JawOpen);
+        Assert.Equal(["Parameter Adjustment"], settings.Saved, StringComparer.Ordinal);
     }
 
     [Fact]
-    public void DescribeSettings_ListsOptionsWithInvariantNumbers()
+    public void DescribeSettingsListsOptionsWithInvariantNumbers()
     {
-        var previous = CultureInfo.CurrentCulture;
+        CultureInfo previous = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = new CultureInfo("de-DE");
         try
         {
             var mutation = new EyeAssists
             {
                 IsActive = true,
-                closeAssist = true,
-                closeAssistStrength = 1f,
-                convergenceStrength = 0.6f,
+                CloseAssist = true,
+                CloseAssistStrength = 1f,
+                ConvergenceStrength = 0.6f,
             };
 
-            var described = mutation.DescribeSettings();
+            string described = mutation.DescribeSettings();
 
-            Assert.StartsWith("active=True ", described);
-            Assert.Contains("closeAssist=True", described);
-            Assert.Contains("closeAssistStrength=1", described);
-            Assert.Contains("convergenceStrength=0.6", described);
-            Assert.DoesNotContain("NowSeconds", described);
+            Assert.StartsWith("active=True ", described, StringComparison.Ordinal);
+            Assert.Contains("CloseAssist=True", described, StringComparison.Ordinal);
+            Assert.Contains("CloseAssistStrength=1", described, StringComparison.Ordinal);
+            Assert.Contains("ConvergenceStrength=0.6", described, StringComparison.Ordinal);
+            Assert.DoesNotContain("NowSeconds", described, StringComparison.Ordinal);
         }
         finally
         {
@@ -90,14 +94,16 @@ public class MutationSettingsTests
     }
 
     [Fact]
-    public void DescribeSettings_WritesRangesAsMinAndMax()
+    public void DescribeSettingsWritesRangesAsMinAndMax()
     {
-        var mutation = new ParameterAdjustment();
-        mutation.jawOpen = (0.1f, 0.9f);
+        var mutation = new ParameterAdjustment
+        {
+            JawOpen = (0.1f, 0.9f),
+        };
 
-        var described = mutation.DescribeSettings();
+        string described = mutation.DescribeSettings();
 
-        Assert.Contains("jawOpen=0.1..0.9", described);
-        Assert.Contains("eyeBrowRaiser=0..1", described);
+        Assert.Contains("JawOpen=0.1..0.9", described, StringComparison.Ordinal);
+        Assert.Contains("EyeBrowRaiser=0..1", described, StringComparison.Ordinal);
     }
 }

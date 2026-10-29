@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
@@ -21,23 +22,24 @@ using VRCFaceTracking.Views;
 
 namespace VRCFaceTracking;
 
-public partial class App : Application
+internal sealed partial class App : Application
 {
-    private static App? _instance;
+    private static App? Instance;
     private ILogger? _logger;
-    private static IHost? _host;
+    private static IHost? AppHost;
 
     public static bool StartServices = true;
     public static bool EnableMotion = true;
-    private static bool _dataValidatorTrimmed;
+    private static bool DataValidatorTrimmed;
 
     internal static readonly LogLevelGate LogGate = new();
     private static readonly LoggingSettings LoggingSettings = new();
     private static readonly FileLoggerProvider FileLog = new(
-        Core.Utils.LogDirectory,
+        LogDirectories.Current,
         LogFileNames.Main(DateTime.Now),
-        BuildInfo.HeaderBlock("VRCFaceTracking"),
-        LogGate);
+        BuildInfo.HeaderBlock("VRCFaceTracking", DateTimeOffset.UtcNow),
+        LogGate,
+        TimeProvider.System);
 
     public static MainWindow? MainWindow
     {
@@ -47,41 +49,35 @@ public partial class App : Application
     public static T GetService<T>()
         where T : class
     {
-        if (_host == null)
-        {
-            throw new InvalidOperationException($"{typeof(T).Name} requested before the host was built.");
-        }
-
-        if (_host.Services.GetService(typeof(T)) is not T service)
-        {
-            throw new ArgumentException($"{typeof(T)} needs to be registered in ConfigureServices within App.axaml.cs.");
-        }
-
-        return service;
+        return AppHost == null
+            ? throw new InvalidOperationException($"{typeof(T).Name} requested before the host was built.")
+            : AppHost.Services.GetService(typeof(T)) is not T service
+            ? throw new InvalidOperationException($"{typeof(T)} needs to be registered in ConfigureServices within App.axaml.cs.")
+            : service;
     }
 
     public override void Initialize()
     {
-        _instance = this;
+        Instance = this;
         LogGate.Set(BuildInfo.VerboseForced);
-        var bootLogger = FileLog.CreateLogger("App");
-        bootLogger.LogDebug("App constructing");
-        CrashHandlers.Install(FileLog.CreateLogger("Crash"), FileLog.Flush);
-
-        try
+        ILogger bootLogger = FileLog.CreateLogger("App");
+        LogAppConstructing(bootLogger);
+        ILogger crashLogger = FileLog.CreateLogger("Crash");
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => CrashHandlers.ReportUnhandled(crashLogger, e, FileLog.Flush);
+        TaskScheduler.UnobservedTaskException += (_, e) => CrashHandlers.ReportUnobserved(crashLogger, e, FileLog.Flush);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => FileLog.Flush();
+        Dispatcher.UIThread.UnhandledException += (_, e) =>
         {
-            AvaloniaXamlLoader.Load(this);
-        }
-        catch (Exception e)
-        {
-            bootLogger.LogCritical(e, "App XAML initialization failed");
+            LogUnhandledUiThreadException(crashLogger, e.Exception);
             FileLog.Flush();
-            throw;
-        }
+            e.Handled = true;
+        };
+
+        AvaloniaXamlLoader.Load(this);
 
         if (!EnableMotion)
         {
-            var motion = Styles
+            StyleInclude? motion = Styles
                 .OfType<StyleInclude>()
                 .FirstOrDefault(s => s.Source?.ToString().EndsWith("Motion.axaml", StringComparison.Ordinal) == true);
             if (motion is not null)
@@ -90,14 +86,10 @@ public partial class App : Application
             }
         }
 
-        // gsettings breaks gamescope on linux and system theme is unreliable on plasma anyways
         if (!OperatingSystem.IsLinux())
         {
-            var faTheme = Styles.OfType<FluentAvaloniaTheme>().FirstOrDefault();
-            if (faTheme is not null)
-            {
-                faTheme.PreferSystemTheme = true;
-            }
+            FluentAvaloniaTheme? faTheme = Styles.OfType<FluentAvaloniaTheme>().FirstOrDefault();
+            faTheme?.PreferSystemTheme = true;
         }
 
         HandleResetFile(bootLogger);
@@ -105,16 +97,15 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        // Remove duplicate Avalonia/CommunityToolkit data validation
-        if (!_dataValidatorTrimmed)
+        if (!DataValidatorTrimmed)
         {
             BindingPlugins.DataValidators.RemoveAt(0);
-            _dataValidatorTrimmed = true;
+            DataValidatorTrimmed = true;
         }
 
-        if (_host == null)
+        if (AppHost == null)
         {
-            _host = Microsoft.Extensions.Hosting.Host
+            AppHost = Host
                 .CreateDefaultBuilder()
                 .ConfigureLogging(logging =>
                 {
@@ -129,11 +120,11 @@ public partial class App : Application
                 .UseContentRoot(AppContext.BaseDirectory)
                 .ConfigureServices((context, services) => services.AddVrcftServices(context, LogGate, LoggingSettings, FileLog))
                 .Build();
-            Ioc.Default.ConfigureServices(_host.Services);
+            Ioc.Default.ConfigureServices(AppHost.Services);
         }
 
         _logger = GetService<ILoggerFactory>().CreateLogger("App");
-        _logger.LogDebug("Host built");
+        LogHostBuilt(_logger);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -143,77 +134,78 @@ public partial class App : Application
 
         if (StartServices)
         {
-            _ = LaunchAsync();
+            CancellationToken stopping = GetService<IHostApplicationLifetime>().ApplicationStopping;
+            _ = LaunchAsync(stopping).ContinueWith(RethrowOnUiThread, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
         }
 
         base.OnFrameworkInitializationCompleted();
     }
 
-    private async Task LaunchAsync()
+    private static void RethrowOnUiThread(Task faulted) =>
+        Dispatcher.UIThread.Post(() => ExceptionDispatchInfo.Throw(faulted.Exception!.InnerException!));
+
+    private async Task LaunchAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            await GetService<ILocalSettingsService>().Load(LoggingSettings);
-            await GetService<ILocalSettingsService>().Load(GetService<UpdateSettings>());
-            var developer = GetService<DeveloperSettings>();
-            developer.Enabled = await GetService<ILocalSettingsService>().ReadSettingAsync(DeveloperSettings.SettingKey, developer.Enabled);
-            developer.PropertyChanged += (_, _) =>
-                _ = GetService<ILocalSettingsService>().SaveSettingAsync(DeveloperSettings.SettingKey, developer.Enabled);
+        ILocalSettingsService settings = GetService<ILocalSettingsService>();
+        await settings.LoadAsync(LoggingSettings, cancellationToken);
+        await settings.LoadAsync(GetService<UpdateSettings>(), cancellationToken);
+        DeveloperSettings developer = GetService<DeveloperSettings>();
+        developer.Enabled = await settings.ReadSettingAsync(DeveloperSettings.SettingKey, developer.Enabled, forceLocal: false, cancellationToken);
+        developer.PropertyChanged += (_, _) =>
+            _ = settings.SaveSettingAsync(DeveloperSettings.SettingKey, developer.Enabled, forceLocal: false, CancellationToken.None);
 
-            var savedTheme = await GetService<ILocalSettingsService>().ReadSettingAsync<string?>(ViewModels.SettingsViewModel.ThemeSettingKey);
-            if (!string.IsNullOrEmpty(savedTheme))
+        string? savedTheme = await settings.ReadSettingAsync<string?>(ViewModels.SettingsViewModel.ThemeSettingKey, defaultValue: null, forceLocal: false, cancellationToken);
+        if (!string.IsNullOrEmpty(savedTheme))
+        {
+            Dispatcher.UIThread.Post(() => RequestedThemeVariant = savedTheme switch
             {
-                Dispatcher.UIThread.Post(() => RequestedThemeVariant = savedTheme switch
-                {
-                    "Light" => ThemeVariant.Light,
-                    "Dark" => ThemeVariant.Dark,
-                    _ => ThemeVariant.Default,
-                });
-            }
-            LogGate.Set(LoggingSettings.VerboseEffective);
-            FileLog.WriteRaw($"channel={BuildInfo.ChannelName} verbose={LogGate.Verbose} forced={BuildInfo.VerboseForced} keep={LoggingSettings.LogFilesToKeep}");
-            LogRetention.Prune(Core.Utils.LogDirectory, LogFileNames.MainPattern, LoggingSettings.LogFilesToKeep);
-            LogRetention.Prune(Core.Utils.LogDirectory, LogFileNames.ModulePattern, LoggingSettings.LogFilesToKeep);
-
-            // Kill any other instances of VRCFaceTracking and our module processes
-            Core.Utils.KillAllProcessesOfName("VRCFaceTracking");
-            Core.Utils.KillAllProcessesOfName("VRCFaceTracking.ModuleProcess");
-
-            var openVr = GetService<OpenVRService>();
-            await GetService<ILocalSettingsService>().Load(openVr);
-            openVr.QuitRequested += () => Dispatcher.UIThread.Post(() => _ = MainWindow?.CloseAfterTeardown());
-
-            await GetService<IActivationService>().ActivateAsync(null!);
-            await _host!.StartAsync();
+                "Light" => ThemeVariant.Light,
+                "Dark" => ThemeVariant.Dark,
+                _ => ThemeVariant.Default,
+            });
         }
-        catch (Exception ex)
-        {
-            _logger?.LogCritical(ex, "App startup failed");
-            FileLog.Flush();
-        }
+        LogGate.Set(LoggingSettings.VerboseEffective);
+        FileLog.WriteRaw($"channel={BuildInfo.ChannelName} verbose={LogGate.Verbose} forced={BuildInfo.VerboseForced} keep={LoggingSettings.LogFilesToKeep}");
+        LogRetention.Prune(LogDirectories.Current, LogFileNames.MainPattern, LoggingSettings.LogFilesToKeep);
+        LogRetention.Prune(LogDirectories.Current, LogFileNames.ModulePattern, LoggingSettings.LogFilesToKeep);
+
+        Core.Utils.KillAllProcessesOfName("VRCFaceTracking");
+        Core.Utils.KillAllProcessesOfName("VRCFaceTracking.ModuleProcess");
+
+        OpenVRService openVr = GetService<OpenVRService>();
+        await settings.LoadAsync(openVr, cancellationToken);
+        openVr.QuitRequested += (_, _) => Dispatcher.UIThread.Post(() => _ = MainWindow?.CloseAfterTeardownAsync(CancellationToken.None));
+
+        await GetService<IActivationService>().ActivateAsync(cancellationToken);
+        await AppHost!.StartAsync(cancellationToken);
     }
 
-    public static async Task StopHostAsync()
+    public static async Task StopHostAsync(CancellationToken cancellationToken)
     {
-        if (_host == null)
+        if (AppHost == null)
         {
             return;
         }
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await _host.StopAsync(cts.Token);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            await AppHost.StopAsync(cts.Token);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is OperationCanceledException or AggregateException)
         {
-            _instance?._logger?.LogWarning(ex, "Host did not stop cleanly");
+            ILogger? logger = Instance?._logger;
+            if (logger is not null)
+            {
+                LogHostDidNotStopCleanly(logger, ex);
+            }
         }
     }
 
-    private void HandleResetFile(ILogger bootLogger)
+    private static void HandleResetFile(ILogger bootLogger)
     {
-        var resetFile = Path.Combine(Core.Utils.PersistentDataDirectory, "reset");
+        string resetFile = Path.Combine(Core.Utils.PersistentDataDirectory, "reset");
         if (!File.Exists(resetFile))
         {
             return;
@@ -223,21 +215,39 @@ public partial class App : Application
         {
             File.Delete(resetFile);
 
-            foreach (var file in Directory.EnumerateFiles(Core.Utils.PersistentDataDirectory, "*", SearchOption.AllDirectories))
+            foreach (string file in Directory.EnumerateFiles(Core.Utils.PersistentDataDirectory, "*", SearchOption.AllDirectories))
             {
                 try
                 {
                     File.Delete(file);
                 }
-                catch (Exception e)
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
-                    bootLogger.LogWarning("Reset could not delete {File}: {Message}", file, e.Message);
+                    LogResetCouldNotDelete(bootLogger, file, e.Message);
                 }
             }
         }
-        catch (Exception e)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            bootLogger.LogWarning(e, "Reset cleanup failed");
+            LogResetCleanupFailed(bootLogger, e);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "App constructing")]
+    private static partial void LogAppConstructing(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Host built")]
+    private static partial void LogHostBuilt(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Reset could not delete {File}: {Message}")]
+    private static partial void LogResetCouldNotDelete(ILogger logger, string file, string message);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Reset cleanup failed")]
+    private static partial void LogResetCleanupFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception on the UI thread")]
+    private static partial void LogUnhandledUiThreadException(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Host did not stop cleanly")]
+    private static partial void LogHostDidNotStopCleanly(ILogger logger, Exception exception);
 }

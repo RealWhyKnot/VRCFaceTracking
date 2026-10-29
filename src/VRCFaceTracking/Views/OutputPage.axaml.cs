@@ -1,5 +1,9 @@
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Text;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.DependencyInjection;
@@ -8,8 +12,11 @@ using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking.Views;
 
-public partial class OutputPage : UserControl
+internal sealed partial class OutputPage : UserControl
 {
+    private static readonly CompositeFormat LogSavedFormat = CompositeFormat.Parse(Strings.Resources.LogSaved);
+    private static readonly CompositeFormat LogSaveFailedFormat = CompositeFormat.Parse(Strings.Resources.LogSaveFailed);
+
     private OutputViewModel ViewModel => (OutputViewModel)DataContext!;
     private const double StickThreshold = 40;
     private bool _snapping;
@@ -26,21 +33,29 @@ public partial class OutputPage : UserControl
     private void OnLogItemsScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
         if (!_autoScroll || _snapping || LogItems.Scroll is not { } scroll)
+        {
             return;
+        }
 
         if (e.ExtentDelta.Y <= 0)
+        {
             return;
+        }
 
-        var prevExtent = scroll.Extent.Height - e.ExtentDelta.Y;
-        var prevTarget = prevExtent - scroll.Viewport.Height;
-        var prevOffsetY = scroll.Offset.Y - e.OffsetDelta.Y;
-        var wasAtBottom = prevTarget <= 0 || prevTarget - prevOffsetY <= StickThreshold;
+        double prevExtent = scroll.Extent.Height - e.ExtentDelta.Y;
+        double prevTarget = prevExtent - scroll.Viewport.Height;
+        double prevOffsetY = scroll.Offset.Y - e.OffsetDelta.Y;
+        bool wasAtBottom = prevTarget <= 0 || prevTarget - prevOffsetY <= StickThreshold;
         if (!wasAtBottom)
+        {
             return;
+        }
 
-        var target = scroll.Extent.Height - scroll.Viewport.Height;
+        double target = scroll.Extent.Height - scroll.Viewport.Height;
         if (target <= 0 || scroll.Offset.Y >= target)
+        {
             return;
+        }
 
         _snapping = true;
         try { scroll.Offset = scroll.Offset.WithY(target); }
@@ -52,15 +67,18 @@ public partial class OutputPage : UserControl
 
     private async void CopyToClipboard_Click(object? sender, RoutedEventArgs e)
     {
-        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
-        if (clipboard == null) return;
+        IClipboard? clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard == null)
+        {
+            return;
+        }
 
         try
         {
             await clipboard.SetTextAsync(JoinedLogText());
             ViewModel.StatusMessage = Strings.Resources.CopiedToClipboard;
         }
-        catch
+        catch (Exception ex) when (ex is TimeoutException or COMException)
         {
             ViewModel.StatusMessage = Strings.Resources.OutputActionFailed;
         }
@@ -69,7 +87,10 @@ public partial class OutputPage : UserControl
     private async void SaveToFile_Click(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
+        if (topLevel == null)
+        {
+            return;
+        }
 
         IStorageFile? file;
         try
@@ -78,10 +99,10 @@ public partial class OutputPage : UserControl
             {
                 Title = Strings.Resources.SaveLogPickerTitle,
                 SuggestedFileName = $"vrcft-log-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
-                FileTypeChoices = [new FilePickerFileType("Text") { Patterns = ["*.txt"] }]
+                FileTypeChoices = [new FilePickerFileType("Text") { Patterns = ["*.txt"] }],
             });
         }
-        catch
+        catch (COMException)
         {
             ViewModel.StatusMessage = Strings.Resources.OutputActionFailed;
             return;
@@ -95,14 +116,14 @@ public partial class OutputPage : UserControl
 
         try
         {
-            await using var stream = await file.OpenWriteAsync();
+            await using Stream stream = await file.OpenWriteAsync();
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync(JoinedLogText());
-            ViewModel.StatusMessage = string.Format(Strings.Resources.LogSaved, file.Name);
+            ViewModel.StatusMessage = string.Format(CultureInfo.CurrentCulture, LogSavedFormat, file.Name);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ViewModel.StatusMessage = string.Format(Strings.Resources.LogSaveFailed, file.Name);
+            ViewModel.StatusMessage = string.Format(CultureInfo.CurrentCulture, LogSaveFailedFormat, file.Name);
         }
     }
 
@@ -110,15 +131,15 @@ public partial class OutputPage : UserControl
     {
         try
         {
-            var dir = Core.Utils.LogDirectory;
+            string dir = Core.Logging.LogDirectories.Current;
             Directory.CreateDirectory(dir);
-            var launcher = TopLevel.GetTopLevel(this)?.Launcher;
+            ILauncher? launcher = TopLevel.GetTopLevel(this)?.Launcher;
             if (launcher != null)
             {
                 await launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(dir));
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             ViewModel.StatusMessage = Strings.Resources.OutputActionFailed;
         }
@@ -132,7 +153,7 @@ public partial class OutputPage : UserControl
         _autoScroll = sender is ToggleButton { IsChecked: true };
         if (_autoScroll && LogItems?.Scroll is { } scroll)
         {
-            var target = scroll.Extent.Height - scroll.Viewport.Height;
+            double target = scroll.Extent.Height - scroll.Viewport.Height;
             if (target > 0)
             {
                 scroll.Offset = scroll.Offset.WithY(target);

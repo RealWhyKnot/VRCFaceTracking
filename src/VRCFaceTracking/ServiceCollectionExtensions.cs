@@ -6,20 +6,19 @@ using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Logging;
-using VRCFaceTracking.Core.mDNS;
+using VRCFaceTracking.Core.Mdns;
 using VRCFaceTracking.Core.Models;
-using VRCFaceTracking.Core.OSC.Query.mDNS;
+using VRCFaceTracking.Core.Osc.Query;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Services;
 using VRCFaceTracking.Core.Updates;
 using VRCFaceTracking.Models;
 using VRCFaceTracking.Services;
-using VRCFaceTracking.Services.Logging;
 using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking;
 
-public static class ServiceCollectionExtensions
+internal static class ServiceCollectionExtensions
 {
     public static void AddVrcftServices(this IServiceCollection services, HostBuilderContext context,
         LogLevelGate logGate, LoggingSettings loggingSettings, FileLoggerProvider fileLog)
@@ -28,6 +27,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(loggingSettings);
         services.AddSingleton(fileLog);
 
+        AddAppServices(services);
+        AddTrackingServices(services);
+        AddViewModels(services);
+        AddHostedServices(services);
+
+        services.Configure<LocalSettingsOptions>(context.Configuration.GetSection(nameof(LocalSettingsOptions)));
+    }
+
+    private static void AddAppServices(IServiceCollection services)
+    {
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ILocalSettingsService, LocalSettingsService>();
         services.AddSingleton<IActivationService, ActivationService>();
         services.AddSingleton<IDispatcherService, DispatcherService>();
@@ -36,6 +46,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ModuleInstaller>();
         services.AddSingleton<IModuleDataService, ModuleDataService>();
         services.AddTransient<IFileService, FileService>();
+        services.AddSingleton<DeveloperSettings>();
+        services.AddSingleton<UpdateSettings>();
+        services.AddSingleton<UpdateService>();
+    }
+
+    private static void AddTrackingServices(IServiceCollection services)
+    {
         services.AddSingleton<OscQueryService>();
         services.AddSingleton<MulticastDnsService>();
         services.AddSingleton<IMainService, MainStandalone>();
@@ -51,11 +68,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ParameterSenderService>();
         services.AddSingleton<BinaryFaceDataSender>();
         services.AddSingleton<UnifiedTrackingMutator>();
-        services.AddTransient<GithubService>();
-        services.AddSingleton<DeveloperSettings>();
-        services.AddSingleton<UpdateSettings>();
-        services.AddSingleton<UpdateService>();
+    }
 
+    private static void AddViewModels(IServiceCollection services)
+    {
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<OutputViewModel>();
         services.AddSingleton<ModuleRegistryViewModel>();
@@ -64,12 +80,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SettingsViewModel>();
         services.AddTransient<ParameterViewModel>();
         services.AddTransient<ParametersViewModel>();
+    }
 
-        services.AddHostedService<ParameterSenderService>(provider => provider.GetService<ParameterSenderService>());
-        services.AddHostedService<BinaryFaceDataSender>(provider => provider.GetService<BinaryFaceDataSender>());
-        services.AddHostedService<OscRecvService>(provider => provider.GetService<OscRecvService>());
-        services.AddHostedService<OscQueryService>(provider => provider.GetService<OscQueryService>());
-
-        services.Configure<LocalSettingsOptions>(context.Configuration.GetSection(nameof(LocalSettingsOptions)));
+    private static void AddHostedServices(IServiceCollection services)
+    {
+        services.AddHostedService(provider => provider.GetRequiredService<ParameterSenderService>());
+        services.AddHostedService(provider => provider.GetRequiredService<BinaryFaceDataSender>());
+        services.AddHostedService(provider => provider.GetRequiredService<OscRecvService>());
+        services.AddHostedService(provider => provider.GetRequiredService<OscQueryService>());
     }
 }

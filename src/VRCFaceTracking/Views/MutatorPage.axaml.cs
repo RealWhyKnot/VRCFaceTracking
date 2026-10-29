@@ -4,7 +4,7 @@ using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking.Views;
 
-public partial class MutatorPage : UserControl
+internal sealed partial class MutatorPage : UserControl
 {
     public MutatorPage()
     {

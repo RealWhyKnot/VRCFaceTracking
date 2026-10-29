@@ -2,26 +2,23 @@ using VRCFaceTracking.Core.Library;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class ModuleRestartPolicyTests
+public sealed class ModuleRestartPolicyTests
 {
     [Theory]
     [InlineData(ModuleProcessExitCodes.OK, false)]
-    [InlineData(ModuleProcessExitCodes.INVALID_ARGS, false)]
-    [InlineData(ModuleProcessExitCodes.MODULE_LOAD_FAILED, false)]
-    [InlineData(ModuleProcessExitCodes.PARENT_EXITED, false)]
-    [InlineData(ModuleProcessExitCodes.EXCEPTION_CRASH, true)]
-    [InlineData(ModuleProcessExitCodes.NETWORK_CONNECTION_TIMED_OUT, true)]
+    [InlineData(ModuleProcessExitCodes.InvalidArgs, false)]
+    [InlineData(ModuleProcessExitCodes.ModuleLoadFailed, false)]
+    [InlineData(ModuleProcessExitCodes.ParentExited, false)]
+    [InlineData(ModuleProcessExitCodes.ExceptionCrash, true)]
+    [InlineData(ModuleProcessExitCodes.NetworkConnectionTimedOut, true)]
     [InlineData(-1, true)]
     [InlineData(unchecked((int)0xE0434352), true)]
     [InlineData(unchecked((int)0xC0000005), true)]
-    [InlineData(unchecked((int)0x40010004), true)]
-    public void IsRestartableExitCode_ClassifiesCodes(int code, bool expected)
-    {
-        Assert.Equal(expected, ModuleRestartPolicy.IsRestartableExitCode(code));
-    }
+    [InlineData(unchecked(0x40010004), true)]
+    public void IsRestartableExitCodeClassifiesCodes(int code, bool expected) => Assert.Equal(expected, ModuleRestartPolicy.IsRestartableExitCode(code));
 
     [Fact]
-    public void NextRestartDelay_EscalatesThenExhausts()
+    public void NextRestartDelayEscalatesThenExhausts()
     {
         var policy = new ModuleRestartPolicy();
         var now = new DateTime(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc);
@@ -33,12 +30,12 @@ public class ModuleRestartPolicyTests
     }
 
     [Fact]
-    public void NextRestartDelay_WindowExpiryRestoresBudget()
+    public void NextRestartDelayWindowExpiryRestoresBudget()
     {
         var policy = new ModuleRestartPolicy();
         var now = new DateTime(2026, 9, 15, 12, 0, 0, DateTimeKind.Utc);
 
-        for (var i = 0; i < ModuleRestartPolicy.MaxAttempts; i++)
+        for (int i = 0; i < ModuleRestartPolicy.MaxAttempts; i++)
         {
             Assert.NotNull(policy.NextRestartDelay("m.dll", now.AddSeconds(i)));
         }
@@ -48,22 +45,22 @@ public class ModuleRestartPolicyTests
     }
 
     [Fact]
-    public void NextRestartDelay_TracksModulesIndependently()
+    public void NextRestartDelayTracksModulesIndependently()
     {
         var policy = new ModuleRestartPolicy();
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
 
         Assert.Equal(TimeSpan.Zero, policy.NextRestartDelay("a.dll", now));
         Assert.Equal(TimeSpan.Zero, policy.NextRestartDelay("b.dll", now));
     }
 
     [Fact]
-    public void ResetAll_ClearsHistory()
+    public void ResetAllClearsHistory()
     {
         var policy = new ModuleRestartPolicy();
-        var now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
 
-        for (var i = 0; i < ModuleRestartPolicy.MaxAttempts; i++)
+        for (int i = 0; i < ModuleRestartPolicy.MaxAttempts; i++)
         {
             policy.NextRestartDelay("m.dll", now);
         }

@@ -3,11 +3,12 @@ using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using VRCFaceTracking.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
+using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.ViewModels;
 
 namespace VRCFaceTracking.Views;
 
-public partial class MainPage : UserControl, INotifyNavigated
+internal sealed partial class MainPage : UserControl, INotifyNavigated
 {
     private MainViewModel ViewModel => (MainViewModel)DataContext!;
 

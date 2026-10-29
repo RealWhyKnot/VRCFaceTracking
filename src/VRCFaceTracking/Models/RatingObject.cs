@@ -1,6 +1,6 @@
-namespace VRCFaceTracking.Core.Models;
+namespace VRCFaceTracking.Models;
 
-public struct RatingObject
+internal struct RatingObject
 {
     public string UserId
     {

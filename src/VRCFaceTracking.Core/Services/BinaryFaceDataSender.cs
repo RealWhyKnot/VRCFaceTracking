@@ -2,12 +2,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Library;
-using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.Osc;
+using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
 
 namespace VRCFaceTracking.Core.Services;
 
-public sealed class BinaryFaceDataSender : IHostedService
+public sealed partial class BinaryFaceDataSender : IHostedService
 {
     private readonly ILogger<BinaryFaceDataSender> _logger;
     private readonly byte[] _blob = new byte[NativeFaceBlob.Length];
@@ -30,7 +31,7 @@ public sealed class BinaryFaceDataSender : IHostedService
 
     public void SetAvatar(IAvatarInfo avatar)
     {
-        var usesNativeFaceTracking = avatar is { FullFaceTracking: true };
+        bool usesNativeFaceTracking = avatar is { FullFaceTracking: true };
         if (usesNativeFaceTracking == _avatarUsesNativeFaceTracking)
         {
             return;
@@ -39,34 +40,40 @@ public sealed class BinaryFaceDataSender : IHostedService
         _avatarUsesNativeFaceTracking = usesNativeFaceTracking;
         if (usesNativeFaceTracking)
         {
-            _logger.LogInformation("Avatar {AvatarId} uses VRChat face tracking. Sending face data to {Address}", avatar.Id, NativeFaceBlob.Address);
+            LogAvatarUsesVRChatFaceTracking(_logger, avatar.Id, NativeFaceBlob.Address);
         }
         else
         {
-            _logger.LogInformation("Avatar {AvatarId} doesn't use VRChat face tracking. Stopped sending to {Address}", avatar?.Id, NativeFaceBlob.Address);
+            LogAvatarDoesnUseVRChatFace(_logger, avatar?.Id, NativeFaceBlob.Address);
         }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        UnifiedTracking.OnUnifiedDataUpdated += OnDataUpdated;
+        TrackingOutput.DataUpdated += OnDataUpdated;
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        UnifiedTracking.OnUnifiedDataUpdated -= OnDataUpdated;
+        TrackingOutput.DataUpdated -= OnDataUpdated;
         return Task.CompletedTask;
     }
 
-    internal void OnDataUpdated(UnifiedTrackingData data)
+    internal void OnDataUpdated(object? sender, TrackingDataEventArgs e)
     {
-        if (!_avatarUsesNativeFaceTracking && !ParameterSenderService.AllParametersRelevantStatic || !TrackingActive())
+        if ((!_avatarUsesNativeFaceTracking && !ParameterSenderService.AllParametersRelevantStatic) || !TrackingActive())
         {
             return;
         }
 
-        NativeFaceBlob.Write(data, _blob);
+        NativeFaceBlob.Write(e.Data, _blob);
         ParameterSenderService.Enqueue(_message);
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Avatar {AvatarId} uses VRChat face tracking. Sending face data to {Address}")]
+    private static partial void LogAvatarUsesVRChatFaceTracking(ILogger logger, string avatarId, string address);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Avatar {AvatarId} doesn't use VRChat face tracking. Stopped sending to {Address}")]
+    private static partial void LogAvatarDoesnUseVRChatFace(ILogger logger, string? avatarId, string address);
 }

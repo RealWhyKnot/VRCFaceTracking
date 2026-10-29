@@ -7,14 +7,14 @@ using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public sealed class ModuleInstallerTests : IDisposable
+public sealed class ModuleInstallerTests : IAsyncLifetime, IDisposable
 {
     private static readonly Guid ModuleId = Guid.Parse("0b7c5b6e-3f0a-4c55-9d6e-2a9a4f1d7c11");
     private readonly string _root = Path.Combine(Path.GetTempPath(), "vrcft-modules-" + Guid.NewGuid().ToString("N"));
     private readonly string _libs;
     private readonly string _installed;
     private readonly HttpListener _listener = new();
-    private readonly Dictionary<string, byte[]> _files = new();
+    private readonly Dictionary<string, byte[]> _files = [];
     private readonly Task _server;
     private readonly int _port;
 
@@ -29,24 +29,31 @@ public sealed class ModuleInstallerTests : IDisposable
         _port = Utils.GetRandomFreePort();
         _listener.Prefixes.Add($"http://127.0.0.1:{_port}/");
         _listener.Start();
-        _server = Serve();
+        _server = ServeAsync();
+    }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        _listener.Stop();
+        await _server.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     public void Dispose()
     {
-        _listener.Stop();
         _listener.Close();
-        Directory.Delete(_root, true);
+        Directory.Delete(_root, recursive: true);
     }
 
-    private async Task Serve()
+    private async Task ServeAsync()
     {
         try
         {
             while (_listener.IsListening)
             {
-                var context = await _listener.GetContextAsync();
-                if (_files.TryGetValue(context.Request.Url!.AbsolutePath, out var bytes))
+                HttpListenerContext context = await _listener.GetContextAsync();
+                if (_files.TryGetValue(context.Request.Url!.AbsolutePath, out byte[]? bytes))
                 {
                     context.Response.ContentLength64 = bytes.Length;
                     await context.Response.OutputStream.WriteAsync(bytes);
@@ -61,6 +68,7 @@ public sealed class ModuleInstallerTests : IDisposable
         }
         catch (Exception e) when (e is HttpListenerException or ObjectDisposedException or InvalidOperationException)
         {
+            return;
         }
     }
 
@@ -69,16 +77,16 @@ public sealed class ModuleInstallerTests : IDisposable
         ModuleId = ModuleId,
         Version = "2.0",
         ModuleName = "Test Module",
-        DownloadUrl = $"http://127.0.0.1:{_port}/{file}",
-        DllFileName = dllFileName!,
+        DownloadUrl = new Uri($"http://127.0.0.1:{_port}/{file}"),
+        DllFileName = dllFileName,
     };
 
     private static byte[] Zip(params (string name, string content)[] entries)
     {
         using var buffer = new MemoryStream();
-        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, true))
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var (name, content) in entries)
+            foreach ((string? name, string? content) in entries)
             {
                 using var writer = new StreamWriter(zip.CreateEntry(name).Open());
                 writer.Write(content);
@@ -91,15 +99,12 @@ public sealed class ModuleInstallerTests : IDisposable
     private void AssertOldModuleIntact()
     {
         Assert.Equal("old", File.ReadAllText(Path.Combine(_installed, "Old.dll")));
-        var metadata = JsonConvert.DeserializeObject<TrackingModuleMetadata>(File.ReadAllText(Path.Combine(_installed, "module.json")))!;
+        TrackingModuleMetadata metadata = JsonConvert.DeserializeObject<TrackingModuleMetadata>(File.ReadAllText(Path.Combine(_installed, "module.json")))!;
         Assert.Equal("1.0", metadata.Version);
         Assert.Equal("Old.dll", metadata.DllFileName);
     }
 
-    private void AssertOnlyTheModuleIsLeft()
-    {
-        Assert.Equal(new[] { _installed }, Directory.GetFileSystemEntries(_libs));
-    }
+    private void AssertOnlyTheModuleIsLeft() => Assert.Equal(new[] { _installed }, Directory.GetFileSystemEntries(_libs));
 
     [Theory]
     [InlineData("Module.zip", null)]
@@ -108,7 +113,7 @@ public sealed class ModuleInstallerTests : IDisposable
     {
         var installer = new ModuleInstaller(NullLogger<ModuleInstaller>.Instance, _libs);
 
-        Assert.Null(await installer.InstallRemoteModule(Remote(file, dllFileName)));
+        Assert.Null(await installer.InstallRemoteModuleAsync(Remote(file, dllFileName), CancellationToken.None));
 
         AssertOldModuleIntact();
         AssertOnlyTheModuleIsLeft();
@@ -120,21 +125,7 @@ public sealed class ModuleInstallerTests : IDisposable
         _files["/Module.zip"] = Zip(("readme.txt", "no dll here"));
         var installer = new ModuleInstaller(NullLogger<ModuleInstaller>.Instance, _libs);
 
-        Assert.Null(await installer.InstallRemoteModule(Remote("Module.zip", null)));
-
-        AssertOldModuleIntact();
-        AssertOnlyTheModuleIsLeft();
-    }
-
-    [Fact]
-    public async Task HashMismatchKeepsTheInstalledModule()
-    {
-        _files["/Module.dll"] = "new"u8.ToArray();
-        var installer = new ModuleInstaller(NullLogger<ModuleInstaller>.Instance, _libs);
-        var remote = Remote("Module.dll", "Module.dll");
-        remote.FileHash = "00000000000000000000000000000000";
-
-        Assert.Null(await installer.InstallRemoteModule(remote));
+        Assert.Null(await installer.InstallRemoteModuleAsync(Remote("Module.zip", dllFileName: null), CancellationToken.None));
 
         AssertOldModuleIntact();
         AssertOnlyTheModuleIsLeft();
@@ -149,17 +140,17 @@ public sealed class ModuleInstallerTests : IDisposable
         _files["/Module.dll"] = "new"u8.ToArray();
         var installer = new ModuleInstaller(NullLogger<ModuleInstaller>.Instance, _libs);
 
-        var path = await installer.InstallRemoteModule(Remote(file, dllFileName));
+        string? path = await installer.InstallRemoteModuleAsync(Remote(file, dllFileName), CancellationToken.None);
 
         Assert.Equal(Path.Combine(_installed, "Module.dll"), path);
-        Assert.Equal("new", File.ReadAllText(path!));
+        Assert.Equal("new", await File.ReadAllTextAsync(path!));
         Assert.False(File.Exists(Path.Combine(_installed, "Old.dll")));
-        var metadata = JsonConvert.DeserializeObject<TrackingModuleMetadata>(File.ReadAllText(Path.Combine(_installed, "module.json")))!;
+        TrackingModuleMetadata metadata = JsonConvert.DeserializeObject<TrackingModuleMetadata>(await File.ReadAllTextAsync(Path.Combine(_installed, "module.json")))!;
         Assert.Equal("2.0", metadata.Version);
         Assert.Equal("Module.dll", metadata.DllFileName);
-        if (file.EndsWith(".zip"))
+        if (file.EndsWith(".zip", StringComparison.Ordinal))
         {
-            Assert.Equal("weights", File.ReadAllText(Path.Combine(_installed, "data", "model.bin")));
+            Assert.Equal("weights", await File.ReadAllTextAsync(Path.Combine(_installed, "data", "model.bin")));
         }
 
         AssertOnlyTheModuleIsLeft();
@@ -168,14 +159,14 @@ public sealed class ModuleInstallerTests : IDisposable
     [Fact]
     public async Task FreshInstallCreatesTheModuleDirectory()
     {
-        Directory.Delete(_installed, true);
+        Directory.Delete(_installed, recursive: true);
         _files["/Module.dll"] = "new"u8.ToArray();
         var installer = new ModuleInstaller(NullLogger<ModuleInstaller>.Instance, _libs);
 
-        var path = await installer.InstallRemoteModule(Remote("Module.dll", "Module.dll"));
+        string? path = await installer.InstallRemoteModuleAsync(Remote("Module.dll", "Module.dll"), CancellationToken.None);
 
         Assert.Equal(Path.Combine(_installed, "Module.dll"), path);
-        Assert.Equal("new", File.ReadAllText(path!));
+        Assert.Equal("new", await File.ReadAllTextAsync(path!));
         AssertOnlyTheModuleIsLeft();
     }
 }

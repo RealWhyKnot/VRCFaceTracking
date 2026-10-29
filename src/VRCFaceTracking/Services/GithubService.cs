@@ -5,16 +5,16 @@ using VRCFaceTracking.Models;
 
 namespace VRCFaceTracking.Services;
 
-public class GithubService
+internal static class GithubService
 {
     private static readonly Lazy<HttpClient> Client = new(() =>
     {
-        var client = HappyEyeballsHttp.CreateHttpClient();
+        HttpClient client = HappyEyeballsHttp.CreateHttpClient();
         client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("VRCFaceTracking", "1.0"));
         return client;
     });
 
-    public List<GithubContributor> GetBundledContributors()
+    public static List<GithubContributor> GetBundledContributors()
     {
         try
         {
@@ -23,31 +23,31 @@ public class GithubService
             {
                 return [];
             }
-            using var stream = Avalonia.Platform.AssetLoader.Open(uri);
+            using Stream stream = Avalonia.Platform.AssetLoader.Open(uri);
             using var reader = new StreamReader(stream);
             return JsonSerializer.Deserialize<List<GithubContributor>>(reader.ReadToEnd()) ?? [];
         }
-        catch (Exception)
+        catch (Exception e) when (e is JsonException or IOException)
         {
             return [];
         }
     }
 
-    public async Task<List<GithubContributor>> GetContributors(string repo)
+    public static async Task<List<GithubContributor>> GetContributorsAsync(string repo, CancellationToken cancellationToken)
     {
         try
         {
-            var response = await Client.Value.GetAsync($"https://api.github.com/repos/{repo}/contributors");
+            using HttpResponseMessage response = await Client.Value.GetAsync(new Uri($"https://api.github.com/repos/{repo}/contributors"), cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return new List<GithubContributor>();
+                return [];
             }
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<List<GithubContributor>>(content) ?? new List<GithubContributor>();
+            string content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return JsonSerializer.Deserialize<List<GithubContributor>>(content) ?? [];
         }
-        catch (Exception)
+        catch (Exception e) when (e is HttpRequestException or JsonException || (e is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            return new List<GithubContributor>();
+            return [];
         }
     }
 }

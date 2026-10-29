@@ -1,12 +1,9 @@
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.Json;
 
 namespace VRCFaceTracking.Core;
 
-public sealed record SteamVrManifestPlan(IReadOnlyList<string> Rivals, bool Registered);
-
-public static class SteamVrManifests
+public static partial class SteamVrManifests
 {
     private static readonly JsonDocumentOptions JsonOptions = new()
     {
@@ -21,9 +18,9 @@ public static class SteamVrManifests
     public static IReadOnlyList<string> Registered(string openVrPathsFile)
     {
         var result = new List<string>();
-        foreach (var configDir in ReadStrings(openVrPathsFile, "config"))
+        foreach (string configDir in ReadStrings(openVrPathsFile, "config"))
         {
-            foreach (var path in ReadStrings(Path.Combine(configDir, "appconfig.json"), "manifest_paths"))
+            foreach (string path in ReadStrings(Path.Combine(configDir, "appconfig.json"), "manifest_paths"))
             {
                 if (!result.Any(p => SamePath(p, path)))
                 {
@@ -37,15 +34,15 @@ public static class SteamVrManifests
 
     public static string? AppKey(string manifestPath)
     {
-        var root = ReadJson(manifestPath);
-        if (root is not { } r || !r.TryGetProperty("applications", out var apps) || apps.ValueKind != JsonValueKind.Array)
+        JsonElement? root = ReadJson(manifestPath);
+        if (root is not { } r || !r.TryGetProperty("applications", out JsonElement apps) || apps.ValueKind != JsonValueKind.Array)
         {
             return null;
         }
 
-        foreach (var app in apps.EnumerateArray())
+        foreach (JsonElement app in apps.EnumerateArray())
         {
-            if (app.ValueKind == JsonValueKind.Object && app.TryGetProperty("app_key", out var key) && key.ValueKind == JsonValueKind.String)
+            if (app.ValueKind == JsonValueKind.Object && app.TryGetProperty("app_key", out JsonElement key) && key.ValueKind == JsonValueKind.String)
             {
                 return key.GetString();
             }
@@ -57,8 +54,8 @@ public static class SteamVrManifests
     public static SteamVrManifestPlan Plan(string manifest, string appKey, IEnumerable<string> registered, Func<string, string?> appKeyOf)
     {
         var rivals = new List<string>();
-        var ours = false;
-        foreach (var path in registered)
+        bool ours = false;
+        foreach (string path in registered)
         {
             if (SamePath(path, manifest))
             {
@@ -75,7 +72,7 @@ public static class SteamVrManifests
 
     public static bool SamePath(string a, string b)
     {
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         try
         {
             return string.Equals(LongPath(a), LongPath(b), comparison);
@@ -88,28 +85,26 @@ public static class SteamVrManifests
 
     private static string LongPath(string path)
     {
-        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-        if (!OperatingSystem.IsWindows() || !full.Contains('~'))
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        if (!OperatingSystem.IsWindows() || !full.Contains('~', StringComparison.Ordinal))
         {
             return full;
         }
 
-        var buffer = new StringBuilder(1024);
-        var length = GetLongPathName(full, buffer, (uint)buffer.Capacity);
-        return length > 0 && length < buffer.Capacity ? buffer.ToString() : full;
+        Span<char> buffer = stackalloc char[1024];
+        uint length = GetLongPathName(full, buffer, (uint)buffer.Length);
+        return length > 0 && length < buffer.Length ? new string(buffer[..(int)length]) : full;
     }
 
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern uint GetLongPathName(string shortPath, StringBuilder longPath, uint size);
+    [LibraryImport("kernel32.dll", EntryPoint = "GetLongPathNameW", StringMarshalling = StringMarshalling.Utf16)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static partial uint GetLongPathName(string shortPath, Span<char> longPath, uint size);
 
     private static IEnumerable<string> ReadStrings(string file, string property)
     {
-        if (ReadJson(file) is not { } root || !root.TryGetProperty(property, out var array) || array.ValueKind != JsonValueKind.Array)
-        {
-            return Array.Empty<string>();
-        }
-
-        return array.EnumerateArray()
+        return ReadJson(file) is not { } root || !root.TryGetProperty(property, out JsonElement array) || array.ValueKind != JsonValueKind.Array
+            ? Array.Empty<string>()
+            : array.EnumerateArray()
             .Where(e => e.ValueKind == JsonValueKind.String)
             .Select(e => e.GetString()!)
             .Where(s => s.Length > 0)

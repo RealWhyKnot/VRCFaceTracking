@@ -32,7 +32,7 @@
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />
   </Project>
-  <Project Path="src/VRCFaceTracking.SDK/VRCFaceTracking.SDK.csproj">
+  <Project Path="vendor/VRCFaceTracking.SDK/VRCFaceTracking.SDK.csproj">
     <Platform Solution="Debug|Any CPU" Project="x64" />
   </Project>
   <Project Path="tests/VRCFaceTracking.Tests/VRCFaceTracking.Tests.csproj">
@@ -41,6 +41,16 @@
     <Platform Solution="*|x86" Project="x86" />
   </Project>
   <Project Path="src/VRCFaceTracking/VRCFaceTracking.csproj">
+    <Platform Solution="*|arm64" Project="arm64" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x86" Project="x86" />
+  </Project>
+  <Project Path="vendor/HappyEyeballs/HappyEyeballs.csproj">
+    <Platform Solution="*|arm64" Project="arm64" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|x86" Project="x86" />
+  </Project>
+  <Project Path="vendor/OpenVR/OpenVR.csproj">
     <Platform Solution="*|arm64" Project="arm64" />
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|x86" Project="x86" />

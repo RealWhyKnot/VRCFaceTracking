@@ -1,33 +1,22 @@
 using System.Text.Json.Serialization;
 using VRCFaceTracking.Core.Contracts;
-using VRCFaceTracking.Core.Models.Osc.FileBased;
 
 namespace VRCFaceTracking.Core.Models.ParameterDefinition.FileBased;
 
-public class AvatarConfigFile : IAvatarInfo
+public sealed class AvatarConfigFile : IAvatarInfo
 {
-    public string id
-    {
-        get; set;
-    }
-    public string name
-    {
-        get; set;
-    }
-    public AvatarConfigFileParameter[] parameters
-    {
-        get; set;
-    }
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 
-    [JsonIgnore] public string Name => name;
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
 
-    [JsonIgnore] public string Id => id;
-
-    [JsonIgnore] public IParameterDefinition[] Parameters => parameters;
+    [JsonPropertyName("parameters")]
+    public IReadOnlyList<AvatarConfigFileParameter> ConfigParameters { get; set; } = [];
 
     [JsonIgnore]
-    public bool FullFaceTracking
-    {
-        get; set;
-    }
+    public IReadOnlyList<IParameterDefinition> Parameters => ConfigParameters;
+
+    [JsonIgnore]
+    public bool FullFaceTracking { get; set; }
 }

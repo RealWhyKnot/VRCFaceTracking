@@ -10,7 +10,7 @@ using VRCFaceTracking.Views;
 
 namespace VRCFaceTracking.Tests;
 
-public class PageSmokeTests
+public sealed class PageSmokeTests
 {
     private static Window ShowInWindow(Control page)
     {
@@ -22,42 +22,42 @@ public class PageSmokeTests
 
     private static void ShowAndClose(Control page)
     {
-        var window = ShowInWindow(page);
+        Window window = ShowInWindow(page);
         window.Close();
         Dispatcher.UIThread.RunJobs();
     }
 
     [AvaloniaFact]
-    public void MainPage_Renders() => ShowAndClose(new MainPage());
+    public void MainPageRenders() => ShowAndClose(new MainPage());
 
     [AvaloniaFact]
-    public void OutputPage_Renders() => ShowAndClose(new OutputPage());
+    public void OutputPageRenders() => ShowAndClose(new OutputPage());
 
     [AvaloniaFact]
-    public void ModuleRegistryPage_Renders() => ShowAndClose(new ModuleRegistryPage());
+    public void ModuleRegistryPageRenders() => ShowAndClose(new ModuleRegistryPage());
 
     [AvaloniaFact]
-    public void MutatorPage_Renders() => ShowAndClose(new MutatorPage());
+    public void MutatorPageRenders() => ShowAndClose(new MutatorPage());
 
     [AvaloniaFact]
-    public void SettingsPage_Renders() => ShowAndClose(new SettingsPage());
+    public void SettingsPageRenders() => ShowAndClose(new SettingsPage());
 
     [AvaloniaFact]
-    public void ShellPage_NavigatesToEveryPage()
+    public void ShellPageNavigatesToEveryPage()
     {
         var shell = new ShellPage();
-        var window = ShowInWindow(shell);
+        Window window = ShowInWindow(shell);
 
-        var nav = shell.GetVisualDescendants().OfType<NavigationView>().Single();
-        var host = shell.GetVisualDescendants().OfType<TransitioningContentControl>().Single();
+        NavigationView nav = shell.GetVisualDescendants().OfType<NavigationView>().Single();
+        TransitioningContentControl host = shell.GetVisualDescendants().OfType<TransitioningContentControl>().Single();
         var seen = new List<Type>();
 
-        foreach (var item in nav.MenuItems.OfType<NavigationViewItem>().ToList())
+        foreach (NavigationViewItem? item in nav.MenuItems.OfType<NavigationViewItem>().ToList())
         {
             nav.SelectedItem = item;
             Dispatcher.UIThread.RunJobs();
 
-            var content = Assert.IsAssignableFrom<Control>(host.Content);
+            Control content = Assert.IsAssignableFrom<Control>(host.Content);
             seen.Add(content.GetType());
         }
 
@@ -69,21 +69,21 @@ public class PageSmokeTests
     }
 
     [AvaloniaFact]
-    public void MutatorPage_RendersMutationComponents_WithDeveloperGating()
+    public void MutatorPageRendersMutationComponentsWithDeveloperGating()
     {
         var page = new MutatorPage();
         var viewModel = (MutatorViewModel)page.DataContext!;
 
-        foreach (var mutation in TrackingMutation.GetImplementingMutations())
+        foreach (TrackingMutation mutation in TrackingMutation.GetImplementingMutations())
         {
             mutation.Logger = NullLogger.Instance;
             mutation.CreateProperties();
             viewModel.Mutations.Add(mutation);
         }
 
-        var window = ShowInWindow(page);
+        Window window = ShowInWindow(page);
 
-        foreach (var expander in page.GetVisualDescendants().OfType<Expander>().ToList())
+        foreach (Expander? expander in page.GetVisualDescendants().OfType<Expander>().ToList())
         {
             expander.IsExpanded = true;
             Dispatcher.UIThread.RunJobs();

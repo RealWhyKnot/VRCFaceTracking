@@ -3,11 +3,13 @@ using Microsoft.Extensions.Logging;
 
 namespace VRCFaceTracking.Core.Logging;
 
-public sealed class EyeLidMonitor(ILogger logger)
+public sealed partial class EyeLidMonitor
 {
     private const double HeldReportMs = 250;
     private const double ClosedReportMs = 400;
     private const float ClosedBelow = 0.2f;
+
+    private readonly ILogger _logger;
 
     private bool _hasLast;
     private float _lastLeft;
@@ -24,13 +26,30 @@ public sealed class EyeLidMonitor(ILogger logger)
     private int _closedHeldUpdates;
     private float _minLeft, _maxLeft, _minRight, _maxRight;
 
+    public EyeLidMonitor(ILogger logger)
+    {
+        _logger = logger;
+    }
+
     public void Observe(long ticks, float rawLeft, float rawRight, float outLeft, float outRight)
     {
-        var atBounds = IsBound(rawLeft) && IsBound(rawRight);
-        var repeat = _hasLast && !atBounds
-            && BitConverter.SingleToInt32Bits(rawLeft) == BitConverter.SingleToInt32Bits(_lastLeft)
-            && BitConverter.SingleToInt32Bits(rawRight) == BitConverter.SingleToInt32Bits(_lastRight);
+        bool repeat = IsRepeat(rawLeft, rawRight);
+        TrackHeld(ticks, repeat);
+        TrackClosed(ticks, rawLeft, rawRight, Math.Max(outLeft, outRight) < ClosedBelow, repeat);
 
+        _hasLast = true;
+        _lastLeft = rawLeft;
+        _lastRight = rawRight;
+        _lastTicks = ticks;
+    }
+
+    private bool IsRepeat(float rawLeft, float rawRight) =>
+        _hasLast && !(IsBound(rawLeft) && IsBound(rawRight))
+        && BitConverter.SingleToInt32Bits(rawLeft) == BitConverter.SingleToInt32Bits(_lastLeft)
+        && BitConverter.SingleToInt32Bits(rawRight) == BitConverter.SingleToInt32Bits(_lastRight);
+
+    private void TrackHeld(long ticks, bool repeat)
+    {
         if (repeat)
         {
             if (!_held)
@@ -44,15 +63,17 @@ public sealed class EyeLidMonitor(ILogger logger)
         else if (_held)
         {
             _held = false;
-            var heldMs = Ms(ticks - _heldSince);
+            double heldMs = Ms(ticks - _heldSince);
             if (heldMs >= HeldReportMs)
             {
-                logger.LogDebug("diag.eye held {Ms:N0}ms at L={Left:0.000} R={Right:0.000} over {Updates} updates",
-                    heldMs, _lastLeft, _lastRight, _heldUpdates);
+                LogEyeHeld(_logger, heldMs, _lastLeft, _lastRight, _heldUpdates);
             }
         }
+    }
 
-        if (Math.Max(outLeft, outRight) < ClosedBelow)
+    private void TrackClosed(long ticks, float rawLeft, float rawRight, bool closed, bool repeat)
+    {
+        if (closed)
         {
             if (!_closed)
             {
@@ -76,21 +97,21 @@ public sealed class EyeLidMonitor(ILogger logger)
         else if (_closed)
         {
             _closed = false;
-            var closedMs = Ms(ticks - _closedSince);
+            double closedMs = Ms(ticks - _closedSince);
             if (closedMs >= ClosedReportMs)
             {
-                logger.LogDebug("diag.eye closed {Ms:N0}ms | raw L {MinLeft:0.00}-{MaxLeft:0.00} R {MinRight:0.00}-{MaxRight:0.00} | held {Held}/{Updates} updates",
-                    closedMs, _minLeft, _maxLeft, _minRight, _maxRight, _closedHeldUpdates, _closedUpdates);
+                LogEyeClosed(_logger, closedMs, _minLeft, _maxLeft, _minRight, _maxRight, _closedHeldUpdates, _closedUpdates);
             }
         }
-
-        _hasLast = true;
-        _lastLeft = rawLeft;
-        _lastRight = rawRight;
-        _lastTicks = ticks;
     }
 
-    private static bool IsBound(float value) => value == 0f || value == 1f;
+    private static bool IsBound(float value) => value is 0f or 1f;
 
     private static double Ms(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "diag.eye held {Ms:N0}ms at L={Left:0.000} R={Right:0.000} over {Updates} updates")]
+    private static partial void LogEyeHeld(ILogger logger, double ms, float left, float right, int updates);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "diag.eye closed {Ms:N0}ms | raw L {MinLeft:0.00}-{MaxLeft:0.00} R {MinRight:0.00}-{MaxRight:0.00} | held {Held}/{Updates} updates")]
+    private static partial void LogEyeClosed(ILogger logger, double ms, float minLeft, float maxLeft, float minRight, float maxRight, int held, int updates);
 }

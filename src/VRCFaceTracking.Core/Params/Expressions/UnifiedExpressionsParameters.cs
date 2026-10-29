@@ -9,20 +9,16 @@ namespace VRCFaceTracking.Core.Params.Expressions;
 
 public static class UnifiedExpressionsParameters
 {
-    private static (string paramName, Parameter paramLiteral)[] IsEyeParameter(IParameterDefinition[] param)
+    private static (string paramName, Parameter paramLiteral)[] IsEyeParameter(IReadOnlyList<IParameterDefinition> param)
     {
-        // Get all the names of all parameters in both the unified tracking list and the old legacy eye list
-        var allParams = UnifiedTracking.AllParameters_v2.Concat(EyeTrackingParams.ParameterList).ToList()
+        IEnumerable<(string paramName, Parameter paramLiteral)> allParams = TrackingOutput.ExpressionParameters.Concat(EyeTrackingParams.ParameterList).ToList()
             .SelectMany(p => p.GetParamNames());
 
-        // Now we match parameters to the literals as a sort of sanity check
-        return allParams.Where(p => param.Any(p2 => p2.Address.EndsWith(p.paramName))).ToArray();
+        return [.. allParams.Where(p => param.Any(p2 => p2.Address.EndsWith(p.paramName, StringComparison.Ordinal)))];
     }
 
     public static readonly Parameter[] UnifiedCombinedShapes =
-    {    
-        // Unified Eye Definitions
-        
+    [    
         #region Eye Gaze
         
         new EParam("v2/Eye", exp => exp.Eye.Combined().Gaze),
@@ -32,23 +28,7 @@ public static class UnifiedExpressionsParameters
         new EParam("v2/EyeLinear", exp => exp.Eye.Combined().Gaze.ToNormalized()),
         new EParam("v2/EyeLeftLinear", exp => exp.Eye.Left.Gaze.ToNormalized()),
         new EParam("v2/EyeRightLinear", exp => exp.Eye.Right.Gaze.ToNormalized()),
-        
-        // Use when tracking interface is sending verbose gaze data.
-        /*new NativeParameter<Vector2>(exp =>
-            new Vector2(exp.Eye.Combined().Gaze.ToPitch(), 
-                        exp.Eye.Combined().Gaze.ToYaw()),
-            param => 
-                IsEyeParameter(
-                    param.Where(p => 
-                    p.Name.Contains("Eye") && 
-                    (p.Name.Contains("Left") || p.Name.Contains("Right") || p.Name.Contains("Eyes")) && 
-                    (p.Name.Contains('X') || p.Name.Contains('Y'))).ToArray()
-                )
-                .Length == 0,
-            "/tracking/eye/CenterPitchYaw"
-            ),*/
-        
-        // Use when tracking interface is sending combined gaze data.
+
         new NativeParameter<Vector4>(exp =>
             new Vector4(exp.Eye.Left.Gaze.ToPitch(),
                         exp.Eye.Left.Gaze.ToYaw(),
@@ -56,9 +36,9 @@ public static class UnifiedExpressionsParameters
                         exp.Eye.Right.Gaze.ToYaw()),
             param =>
                 IsEyeParameter(
-                param.Where(p =>
-                    p.Name.Contains("Eye") &&
-                    (p.Name.Contains('X') || p.Name.Contains('Y'))).ToArray())
+                [.. param.Where(p =>
+                    p.Name.Contains("Eye",StringComparison.Ordinal) &&
+                    (p.Name.Contains('X',StringComparison.Ordinal) || p.Name.Contains('Y',StringComparison.Ordinal)))])
                     .Length == 0,
             "/tracking/eye/LeftRightPitchYaw"
         ),
@@ -67,9 +47,9 @@ public static class UnifiedExpressionsParameters
         new NativeParameter<float>(
             exp => 1 - exp.Eye.Combined().Openness,
             param => IsEyeParameter(
-                    param.Where(p =>
-                        p.Name.Contains("Eye") &&
-                (p.Name.Contains("Open") || p.Name.Contains("Lid"))).ToArray())
+                    [.. param.Where(p =>
+                        p.Name.Contains("Eye",StringComparison.Ordinal) &&
+                (p.Name.Contains("Open",StringComparison.Ordinal) || p.Name.Contains("Lid",StringComparison.Ordinal)))])
                 .Length == 0,
             "/tracking/eye/EyesClosedAmount"
         ),
@@ -94,7 +74,7 @@ public static class UnifiedExpressionsParameters
 
         new EParam("v2/EyeClosedLeft" , exp => 1 - exp.Eye.Left.Openness),
         new EParam("v2/EyeClosedRight", exp => 1 - exp.Eye.Right.Openness),
-        new EParam("v2/EyeClosed", exp => 1 - (exp.Eye.Left.Openness + exp.Eye.Right.Openness) / 2.0f),
+        new EParam("v2/EyeClosed", exp => 1 - ((exp.Eye.Left.Openness + exp.Eye.Right.Openness) / 2.0f)),
 
         #endregion
 
@@ -109,11 +89,11 @@ public static class UnifiedExpressionsParameters
 
         #region Eyelids Combined
 
-        new EParam("v2/EyeLidLeft", exp => exp.Eye.Left.Openness * .75f + exp.Shapes[(int)UnifiedExpressions.EyeWideLeft].Weight * .25f),
-        new EParam("v2/EyeLidRight", exp => exp.Eye.Right.Openness * .75f + exp.Shapes[(int)UnifiedExpressions.EyeWideRight].Weight * .25f),
+        new EParam("v2/EyeLidLeft", exp => (exp.Eye.Left.Openness * .75f) + (exp.Shapes[(int)UnifiedExpressions.EyeWideLeft].Weight * .25f)),
+        new EParam("v2/EyeLidRight", exp => (exp.Eye.Right.Openness * .75f) + (exp.Shapes[(int)UnifiedExpressions.EyeWideRight].Weight * .25f)),
         new EParam("v2/EyeLid", exp =>
-            ((exp.Eye.Left.Openness + exp.Eye.Right.Openness) / 2.0f) * .75f +
-            ((exp.Shapes[(int)UnifiedExpressions.EyeWideRight].Weight + exp.Shapes[(int)UnifiedExpressions.EyeWideLeft].Weight) / 2.0f) * .25f),
+            ((exp.Eye.Left.Openness + exp.Eye.Right.Openness) / 2.0f * .75f) +
+            ((exp.Shapes[(int)UnifiedExpressions.EyeWideRight].Weight + exp.Shapes[(int)UnifiedExpressions.EyeWideLeft].Weight) / 2.0f * .25f)),
        
         #endregion
 
@@ -144,13 +124,12 @@ public static class UnifiedExpressionsParameters
         new EParam("v2/BrowOuterUp", exp =>
             (exp.Shapes[(int)UnifiedExpressions.BrowOuterUpLeft].Weight + exp.Shapes[(int)UnifiedExpressions.BrowOuterUpRight].Weight) / 2.0f),
 
-        // -1 = 'Angry', +1 = 'Worried'
         new EParam("v2/BrowExpressionRight", exp =>
-            Math.Min(1, exp.Shapes[(int)UnifiedExpressions.BrowInnerUpRight].Weight * .5f + exp.Shapes[(int)UnifiedExpressions.BrowOuterUpRight].Weight * .5f) -
+            Math.Min(1, (exp.Shapes[(int)UnifiedExpressions.BrowInnerUpRight].Weight * .5f) + (exp.Shapes[(int)UnifiedExpressions.BrowOuterUpRight].Weight * .5f)) -
             GetSimpleShape(exp, UnifiedSimpleExpressions.BrowDownRight)),
 
         new EParam("v2/BrowExpressionLeft", exp =>
-            Math.Min(1, exp.Shapes[(int)UnifiedExpressions.BrowInnerUpLeft].Weight * .5f + exp.Shapes[(int)UnifiedExpressions.BrowOuterUpLeft].Weight * .5f) -
+            Math.Min(1, (exp.Shapes[(int)UnifiedExpressions.BrowInnerUpLeft].Weight * .5f) + (exp.Shapes[(int)UnifiedExpressions.BrowOuterUpLeft].Weight * .5f)) -
             GetSimpleShape(exp, UnifiedSimpleExpressions.BrowDownLeft)),
 
         new EParam("v2/BrowExpression", exp =>
@@ -178,8 +157,8 @@ public static class UnifiedExpressionsParameters
         new EParam("v2/CheekPuffSuckRight", exp => exp.Shapes[(int)UnifiedExpressions.CheekPuffRight].Weight - exp.Shapes[(int)UnifiedExpressions.CheekSuckRight].Weight),
 
         new EParam("v2/CheekPuffSuck", exp =>
-            (exp.Shapes[(int)UnifiedExpressions.CheekPuffRight].Weight + exp.Shapes[(int)UnifiedExpressions.CheekPuffLeft].Weight) / 2.0f -
-            (exp.Shapes[(int)UnifiedExpressions.CheekSuckRight].Weight + exp.Shapes[(int)UnifiedExpressions.CheekSuckLeft].Weight) / 2.0f),
+            ((exp.Shapes[(int)UnifiedExpressions.CheekPuffRight].Weight + exp.Shapes[(int)UnifiedExpressions.CheekPuffLeft].Weight) / 2.0f) -
+            ((exp.Shapes[(int)UnifiedExpressions.CheekSuckRight].Weight + exp.Shapes[(int)UnifiedExpressions.CheekSuckLeft].Weight) / 2.0f)),
 
         new EParam("v2/CheekSuck", exp => (exp.Shapes[(int)UnifiedExpressions.CheekSuckLeft].Weight + exp.Shapes[(int)UnifiedExpressions.CheekSuckRight].Weight) / 2.0f),
 
@@ -191,8 +170,8 @@ public static class UnifiedExpressionsParameters
         new EParam("v2/MouthLowerX", exp => exp.Shapes[(int)UnifiedExpressions.MouthLowerRight].Weight - exp.Shapes[(int)UnifiedExpressions.MouthLowerLeft].Weight),
 
         new EParam("v2/MouthX", exp =>
-            (exp.Shapes[(int)UnifiedExpressions.MouthUpperRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthLowerRight].Weight) / 2.0f -
-            (exp.Shapes[(int)UnifiedExpressions.MouthUpperLeft].Weight + exp.Shapes[(int)UnifiedExpressions.MouthLowerLeft].Weight) / 2.0f),
+            ((exp.Shapes[(int)UnifiedExpressions.MouthUpperRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthLowerRight].Weight) / 2.0f) -
+            ((exp.Shapes[(int)UnifiedExpressions.MouthUpperLeft].Weight + exp.Shapes[(int)UnifiedExpressions.MouthLowerLeft].Weight) / 2.0f)),
 
         #endregion
 
@@ -217,15 +196,13 @@ public static class UnifiedExpressionsParameters
             (exp.Shapes[(int)UnifiedExpressions.LipPuckerUpperRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipPuckerUpperLeft].Weight +
              exp.Shapes[(int)UnifiedExpressions.LipPuckerLowerRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipPuckerLowerLeft].Weight) / 4.0f),
 
-        // Compacted paramaters
-
         new EParam("v2/LipSuckFunnelUpper", exp =>
-            (exp.Shapes[(int)UnifiedExpressions.LipSuckUpperRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipSuckUpperLeft].Weight) / 2.0f -
-            (exp.Shapes[(int)UnifiedExpressions.LipFunnelUpperRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipFunnelUpperLeft].Weight) / 2.0f),
+            ((exp.Shapes[(int)UnifiedExpressions.LipSuckUpperRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipSuckUpperLeft].Weight) / 2.0f) -
+            ((exp.Shapes[(int)UnifiedExpressions.LipFunnelUpperRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipFunnelUpperLeft].Weight) / 2.0f)),
 
         new EParam("v2/LipSuckFunnelLower", exp =>
-            (exp.Shapes[(int)UnifiedExpressions.LipSuckLowerRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipSuckLowerLeft].Weight) / 2.0f -
-            (exp.Shapes[(int)UnifiedExpressions.LipFunnelLowerRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipFunnelLowerLeft].Weight) / 2.0f),
+            ((exp.Shapes[(int)UnifiedExpressions.LipSuckLowerRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipSuckLowerLeft].Weight) / 2.0f) -
+            ((exp.Shapes[(int)UnifiedExpressions.LipFunnelLowerRight].Weight + exp.Shapes[(int)UnifiedExpressions.LipFunnelLowerLeft].Weight) / 2.0f)),
 
         new EParam("v2/LipSuckFunnelLowerLeft", exp => exp.Shapes[(int)UnifiedExpressions.LipSuckLowerLeft].Weight - exp.Shapes[(int)UnifiedExpressions.LipFunnelLowerLeft].Weight),
         new EParam("v2/LipSuckFunnelLowerRight", exp => exp.Shapes[(int)UnifiedExpressions.LipSuckLowerRight].Weight - exp.Shapes[(int)UnifiedExpressions.LipFunnelLowerRight].Weight),
@@ -236,11 +213,11 @@ public static class UnifiedExpressionsParameters
 
         #region Mouth Combined
         
-        new EParam("v2/MouthUpperUp", exp => exp.Shapes[(int)UnifiedExpressions.MouthUpperUpRight].Weight * .5f + exp.Shapes[(int)UnifiedExpressions.MouthUpperUpLeft].Weight * .5f),
-        new EParam("v2/MouthLowerDown", exp => exp.Shapes[(int)UnifiedExpressions.MouthLowerDownRight].Weight * .5f + exp.Shapes[(int) UnifiedExpressions.MouthLowerDownLeft].Weight * .5f),
+        new EParam("v2/MouthUpperUp", exp => (exp.Shapes[(int)UnifiedExpressions.MouthUpperUpRight].Weight * .5f) + (exp.Shapes[(int)UnifiedExpressions.MouthUpperUpLeft].Weight * .5f)),
+        new EParam("v2/MouthLowerDown", exp => (exp.Shapes[(int)UnifiedExpressions.MouthLowerDownRight].Weight * .5f) + (exp.Shapes[(int) UnifiedExpressions.MouthLowerDownLeft].Weight * .5f)),
         new EParam("v2/MouthOpen", exp =>
-            exp.Shapes[(int)UnifiedExpressions.MouthUpperUpRight].Weight * .25f + exp.Shapes[(int)UnifiedExpressions.MouthUpperUpLeft].Weight * .25f +
-            exp.Shapes[(int)UnifiedExpressions.MouthLowerDownRight].Weight * .25f + exp.Shapes[(int) UnifiedExpressions.MouthLowerDownLeft].Weight * .25f),
+            (exp.Shapes[(int)UnifiedExpressions.MouthUpperUpRight].Weight * .25f) + (exp.Shapes[(int)UnifiedExpressions.MouthUpperUpLeft].Weight * .25f) +
+            (exp.Shapes[(int)UnifiedExpressions.MouthLowerDownRight].Weight * .25f) + (exp.Shapes[(int) UnifiedExpressions.MouthLowerDownLeft].Weight * .25f)),
 
         new EParam("v2/MouthStretch", exp => (exp.Shapes[(int)UnifiedExpressions.MouthStretchRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthStretchLeft].Weight) / 2.0f),
         new EParam("v2/MouthTightener", exp => (exp.Shapes[(int)UnifiedExpressions.MouthTightenerRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthTightenerLeft].Weight) / 2.0f),
@@ -249,11 +226,9 @@ public static class UnifiedExpressionsParameters
 
         new EParam("v2/NoseSneer", exp => (exp.Shapes[(int)UnifiedExpressions.NoseSneerRight].Weight + exp.Shapes[(int)UnifiedExpressions.NoseSneerLeft].Weight) / 2.0f),
 
-        // Compacted paramamters
-
         new EParam("v2/MouthTightenerStretch", exp =>
-            (exp.Shapes[(int)UnifiedExpressions.MouthTightenerRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthTightenerLeft].Weight) / 2.0f -
-            (exp.Shapes[(int)UnifiedExpressions.MouthStretchRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthStretchLeft].Weight) / 2.0f),
+            ((exp.Shapes[(int)UnifiedExpressions.MouthTightenerRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthTightenerLeft].Weight) / 2.0f) -
+            ((exp.Shapes[(int)UnifiedExpressions.MouthStretchRight].Weight + exp.Shapes[(int)UnifiedExpressions.MouthStretchLeft].Weight) / 2.0f)),
 
         new EParam("v2/MouthTightenerStretchLeft", exp => exp.Shapes[(int)UnifiedExpressions.MouthTightenerLeft].Weight - exp.Shapes[(int)UnifiedExpressions.MouthStretchLeft].Weight),
         new EParam("v2/MouthTightenerStretchRight", exp => exp.Shapes[(int)UnifiedExpressions.MouthTightenerRight].Weight - exp.Shapes[(int)UnifiedExpressions.MouthStretchRight].Weight),
@@ -279,10 +254,9 @@ public static class UnifiedExpressionsParameters
             exp.Shapes[(int)UnifiedExpressions.MouthFrownLeft].Weight),
 
         new EParam("v2/SmileFrown", exp =>
-            GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileRight) * .5f + GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileLeft) * .5f -
-            exp.Shapes[(int)UnifiedExpressions.MouthFrownRight].Weight * .5f - exp.Shapes[(int)UnifiedExpressions.MouthFrownLeft].Weight * .5f),
+            (GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileRight) * .5f) + (GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileLeft) * .5f) -
+            (exp.Shapes[(int)UnifiedExpressions.MouthFrownRight].Weight * .5f) - (exp.Shapes[(int)UnifiedExpressions.MouthFrownLeft].Weight * .5f)),
 
-        // Smile 'Sad' contains both the stretcher and frown shapes to represent sad (similar in functionality to SRanipal Sad, just with explicit acknowledgment of lessened tracking fidelity).
         new EParam("v2/SmileSadRight", exp =>
             GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileRight) - GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSadRight)),
 
@@ -291,8 +265,8 @@ public static class UnifiedExpressionsParameters
                 UnifiedSimpleExpressions.MouthSmileLeft) - GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSadLeft)),
 
         new EParam("v2/SmileSad", exp =>
-            (GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileLeft) + GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileRight)) / 2.0f -
-            (GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSadLeft) + GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSadRight)) / 2.0f),
+            ((GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileLeft) + GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSmileRight)) / 2.0f) -
+            ((GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSadLeft) + GetSimpleShape(exp, UnifiedSimpleExpressions.MouthSadRight)) / 2.0f)),
 
         #endregion 
 
@@ -307,12 +281,12 @@ public static class UnifiedExpressionsParameters
 
         new ConditionalBoolParameter(exp => (UnifiedLibManager.EyeStatus == ModuleState.Active, UnifiedLibManager.EyeStatus != ModuleState.Uninitialized), "EyeTrackingActive"),
         new ConditionalBoolParameter(exp => (UnifiedLibManager.ExpressionStatus == ModuleState.Active, UnifiedLibManager.ExpressionStatus != ModuleState.Uninitialized), "ExpressionTrackingActive"),
-        new ConditionalBoolParameter(exp => (UnifiedLibManager.ExpressionStatus == ModuleState.Active, UnifiedLibManager.ExpressionStatus != ModuleState.Uninitialized), "LipTrackingActive")
+        new ConditionalBoolParameter(exp => (UnifiedLibManager.ExpressionStatus == ModuleState.Active, UnifiedLibManager.ExpressionStatus != ModuleState.Uninitialized), "LipTrackingActive"),
 
-    };
+    ];
 
     public static readonly Parameter[] ExpressionParameters =
-        GetAllBaseExpressions().Union(GetAllBaseSimpleExpressions()).Union(UnifiedCombinedShapes).ToArray();
+        [.. GetAllBaseExpressions().Union(GetAllBaseSimpleExpressions()).Union(UnifiedCombinedShapes)];
 
     private static IEnumerable<EParam> GetAllBaseExpressions() =>
         Enum.GetValues<UnifiedExpressions>().Select(shape =>

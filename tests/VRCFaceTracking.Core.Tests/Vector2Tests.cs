@@ -2,14 +2,14 @@ using VRCFaceTracking.Core.Types;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class Vector2Tests
+public sealed class Vector2Tests
 {
     [Theory]
     [InlineData(0f, 0f)]
     [InlineData(1f, 1f)]
     [InlineData(-1f, -1f)]
     [InlineData(0.41421356f, 0.5f)]
-    public void ToNormalizedYaw_MapsFortyFiveDegreesToOne(float x, float expected)
+    public void ToNormalizedYawMapsFortyFiveDegreesToOne(float x, float expected)
     {
         var gaze = new Vector2(x, 0f);
         Assert.Equal(expected, gaze.ToNormalizedYaw(), 4);
@@ -18,7 +18,7 @@ public class Vector2Tests
     [Theory]
     [InlineData(1f, -1f)]
     [InlineData(-0.41421356f, 0.5f)]
-    public void ToNormalizedPitch_IsInvertedLikeToPitch(float y, float expected)
+    public void ToNormalizedPitchIsInvertedLikeToPitch(float y, float expected)
     {
         var gaze = new Vector2(0f, y);
         Assert.Equal(expected, gaze.ToNormalizedPitch(), 4);
@@ -26,9 +26,9 @@ public class Vector2Tests
     }
 
     [Fact]
-    public void ToNormalized_CombinesBothAxes()
+    public void ToNormalizedCombinesBothAxes()
     {
-        var gaze = new Vector2(1f, -1f).ToNormalized();
+        Vector2 gaze = new Vector2(1f, -1f).ToNormalized();
         Assert.Equal(1f, gaze.x, 4);
         Assert.Equal(1f, gaze.y, 4);
     }

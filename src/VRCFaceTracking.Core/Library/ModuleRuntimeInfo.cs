@@ -1,68 +1,33 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using VRCFaceTracking.Core.Sandboxing;
-using VRCFaceTracking.Core.Sandboxing.IPC;
 
 namespace VRCFaceTracking.Core.Library;
 
-public class ModuleRuntimeInfo
+public sealed class ModuleRuntimeInfo
 {
-    public CancellationTokenSource UpdateCancellationToken;
-    public Thread UpdateThread;
+    public CancellationTokenSource? UpdateCancellationToken { get; set; }
+    public Thread? UpdateThread { get; set; }
 
-    /// <summary>
-    /// Whether the module is active and will receive update events.
-    /// </summary>
-    public bool IsActive;
-    /// <summary>
-    /// The UDP port the sandbox process associated with this application is on
-    /// </summary>
-    public int SandboxProcessPort;
-    /// <summary>
-    /// The PID of a sandbox process
-    /// </summary>
-    public int SandboxProcessPID;
-    /// <summary>
-    /// The path to the module the sandbox shall load
-    /// </summary>
-    public string SandboxModulePath;
-    /// <summary>
-    /// The process hosting the sandboxed module
-    /// </summary>
-    public Process Process;
-    public ModuleProcessWatcher Watcher;
-    public volatile bool TeardownRequested;
-    /// <summary>
-    /// The module's retreived metadata
-    /// </summary>
-    public ModuleMetadataInternal ModuleInformation;
-    /// <summary>
-    /// Module status
-    /// </summary>
-    public ModuleState Status = ModuleState.Uninitialized;
-    /// <summary>
-    /// The class name of the module. Retrieved through a metadata packet.
-    /// </summary>
-    public string ModuleClassName;
+    public bool IsActive { get; set; }
+    public int SandboxProcessPort { get; set; }
+    public int SandboxProcessPID { get; set; }
+    public required string SandboxModulePath { get; set; }
+    public required Process Process { get; set; }
+    public ModuleProcessWatcher? Watcher { get; set; }
+    public bool TeardownRequested { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); }
+    public required ModuleMetadataInternal ModuleInformation { get; set; }
+    public ModuleState Status { get; set; } = ModuleState.Uninitialized;
+    public required string ModuleClassName { get; set; }
 
-    /// <summary>
-    /// Whether this module supports eye tracking or not.
-    /// </summary>
-    public bool SupportsEyeTracking;
-    /// <summary>
-    /// Whether this module supports expression tracking or not.
-    /// </summary>
-    public bool SupportsExpressionTracking;
+    public bool SupportsEyeTracking { get; set; }
+    public bool SupportsExpressionTracking { get; set; }
 
-    public bool EyeInitialized;
-    public bool ExpressionInitialized;
-    public int SpawnOrder;
-    public PropertyChangedEventHandler StatusChangedHandler;
+    public bool EyeInitialized { get; set; }
+    public bool ExpressionInitialized { get; set; }
+    public int SpawnOrder { get; set; }
+    public PropertyChangedEventHandler? StatusChangedHandler { get; set; }
 
-    /// <summary>
-    /// Queue of packets to send
-    /// </summary>
-    public Queue<QueuedPacket> EventBus;
+    public Queue<QueuedPacket> EventBus { get; } = new();
 
     private long _lastSampleTicks;
     private TrackingCapability _lastSampleCapabilities;
@@ -78,10 +43,4 @@ public class ModuleRuntimeInfo
         _lastSampleCapabilities = capabilities;
         return true;
     }
-}
-
-public struct QueuedPacket
-{
-    public IpcPacket packet;
-    public int destinationPort;
 }

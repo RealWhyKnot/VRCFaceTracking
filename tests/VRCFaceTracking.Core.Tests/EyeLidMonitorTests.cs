@@ -4,11 +4,11 @@ using VRCFaceTracking.Core.Logging;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public class EyeLidMonitorTests
+public sealed class EyeLidMonitorTests
 {
     private sealed class ListLogger : ILogger
     {
-        public readonly List<string> Lines = new();
+        public readonly List<string> Lines = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -26,20 +26,23 @@ public class EyeLidMonitorTests
         private long _ticks = 1_000_000;
         private int _frame;
 
-        public Feed(EyeLidMonitor monitor) => _monitor = monitor;
+        public Feed(EyeLidMonitor monitor)
+        {
+            _monitor = monitor;
+        }
 
         public void Frames(int count, Func<int, (float rawL, float rawR, float outL, float outR)> sample)
         {
-            for (var i = 0; i < count; i++)
+            for (int i = 0; i < count; i++)
             {
-                var (rawL, rawR, outL, outR) = sample(_frame++);
+                (float rawL, float rawR, float outL, float outR) = sample(_frame++);
                 _monitor.Observe(_ticks, rawL, rawR, outL, outR);
                 _ticks += (long)(FrameMs * Stopwatch.Frequency / 1000.0);
             }
         }
     }
 
-    private static float Jitter(int frame, float center) => center + (frame % 7) * 0.001f;
+    private static float Jitter(int frame, float center) => center + (frame % 7 * 0.001f);
 
     private static (ListLogger log, Feed feed) Create()
     {
@@ -48,9 +51,9 @@ public class EyeLidMonitorTests
     }
 
     [Fact]
-    public void NormalBlink_IsSilent()
+    public void NormalBlinkIsSilent()
     {
-        var (log, feed) = Create();
+        (ListLogger? log, Feed? feed) = Create();
 
         feed.Frames(45, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
         feed.Frames(14, f => (Jitter(f, 0.05f), Jitter(f, 0.05f), 0f, 0f));
@@ -60,38 +63,38 @@ public class EyeLidMonitorTests
     }
 
     [Fact]
-    public void FrozenLid_IsReportedAsHeld()
+    public void FrozenLidIsReportedAsHeld()
     {
-        var (log, feed) = Create();
+        (ListLogger? log, Feed? feed) = Create();
 
         feed.Frames(27, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
         feed.Frames(40, _ => (0.35f, 0.36f, 0.05f, 0.05f));
         feed.Frames(27, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
 
-        var held = Assert.Single(log.Lines, l => l.StartsWith("diag.eye held"));
-        Assert.Contains("L=0.350 R=0.360", held);
-        Assert.Contains(log.Lines, l => l.StartsWith("diag.eye closed") && l.Contains("held 39/40"));
+        string held = Assert.Single(log.Lines, l => l.StartsWith("diag.eye held", StringComparison.Ordinal));
+        Assert.Contains("L=0.350 R=0.360", held, StringComparison.Ordinal);
+        Assert.Contains(log.Lines, l => l.StartsWith("diag.eye closed", StringComparison.Ordinal) && l.Contains("held 39/40", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void ClosedOutputWithOpenRawEyes_IsReported()
+    public void ClosedOutputWithOpenRawEyesIsReported()
     {
-        var (log, feed) = Create();
+        (ListLogger? log, Feed? feed) = Create();
 
         feed.Frames(18, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
         feed.Frames(45, f => (Jitter(f, 0.85f), Jitter(f, 0.85f), 0.1f, 0.1f));
         feed.Frames(18, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
 
-        var closed = Assert.Single(log.Lines);
-        Assert.StartsWith("diag.eye closed", closed);
-        Assert.Contains("raw L 0.85-0.86", closed);
-        Assert.Contains("held 0/", closed);
+        string closed = Assert.Single(log.Lines);
+        Assert.StartsWith("diag.eye closed", closed, StringComparison.Ordinal);
+        Assert.Contains("raw L 0.85-0.86", closed, StringComparison.Ordinal);
+        Assert.Contains("held 0/", closed, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void WideOpenLidsClampedAtOne_AreNotHeld()
+    public void WideOpenLidsClampedAtOneAreNotHeld()
     {
-        var (log, feed) = Create();
+        (ListLogger? log, Feed? feed) = Create();
 
         feed.Frames(90, _ => (1f, 1f, 1f, 1f));
         feed.Frames(9, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
@@ -100,16 +103,16 @@ public class EyeLidMonitorTests
     }
 
     [Fact]
-    public void FullyClosedLidsAtZero_AreClosedButNotHeld()
+    public void FullyClosedLidsAtZeroAreClosedButNotHeld()
     {
-        var (log, feed) = Create();
+        (ListLogger? log, Feed? feed) = Create();
 
         feed.Frames(18, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
         feed.Frames(54, _ => (0f, 0f, 0f, 0f));
         feed.Frames(18, f => (Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f), Jitter(f, 0.9f)));
 
-        var closed = Assert.Single(log.Lines);
-        Assert.StartsWith("diag.eye closed", closed);
-        Assert.Contains("held 0/", closed);
+        string closed = Assert.Single(log.Lines);
+        Assert.StartsWith("diag.eye closed", closed, StringComparison.Ordinal);
+        Assert.Contains("held 0/", closed, StringComparison.Ordinal);
     }
 }
