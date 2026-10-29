@@ -1,3 +1,4 @@
+using System.Reflection;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
@@ -76,8 +77,18 @@ public sealed class ParameterAdjustment : TrackingMutation
     public override int PageOrder => 2;
 
     [MutationButton("Reset Values")]
-    public static void Reset()
+    public void Reset()
     {
+        var defaults = new ParameterAdjustment();
+        foreach (PropertyInfo property in typeof(ParameterAdjustment).GetProperties())
+        {
+            if (property.IsDefined(typeof(MutationPropertyAttribute)))
+            {
+                property.SetValue(this, property.GetValue(defaults));
+            }
+        }
+
+        _ = SaveAsync(CancellationToken.None);
     }
 
     public override void MutateData(ref UnifiedTrackingData data)

@@ -35,10 +35,7 @@ public sealed class MutationProperty : IMutationComponent, INotifyPropertyChange
             }
 
             _value = value;
-            OnPropertyChanged(nameof(Value));
-            OnPropertyChanged(nameof(BoolValue));
-            OnPropertyChanged(nameof(FloatValue));
-            OnPropertyChanged(nameof(StringValue));
+            OnValueChanged();
             _updateField.Invoke(_value);
         }
     }
@@ -78,6 +75,25 @@ public sealed class MutationProperty : IMutationComponent, INotifyPropertyChange
     public bool Indented { get; set; }
 
     public MutationPropertyType Type { get; set; }
+
+    internal void Refresh(object value)
+    {
+        if (Equals(_value, value))
+        {
+            return;
+        }
+
+        _value = value;
+        OnValueChanged();
+    }
+
+    private void OnValueChanged()
+    {
+        OnPropertyChanged(nameof(Value));
+        OnPropertyChanged(nameof(BoolValue));
+        OnPropertyChanged(nameof(FloatValue));
+        OnPropertyChanged(nameof(StringValue));
+    }
 
     private void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

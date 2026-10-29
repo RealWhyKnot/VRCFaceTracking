@@ -9,6 +9,7 @@ public static class MutationComponentFactory
     public static ObservableCollection<IMutationComponent> CreateComponents(TrackingMutation mutation)
     {
         ObservableCollection<IMutationComponent> components = [];
+        List<(IMutationComponent Component, PropertyInfo Property)> bound = [];
         Type type = mutation.GetType();
 
         foreach (PropertyInfo property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
@@ -24,6 +25,7 @@ public static class MutationComponentFactory
             component.StartsGroup = attribute.Group is not null
                 && (components.Count == 0 || !string.Equals(components[^1].Group, attribute.Group, StringComparison.Ordinal));
             components.Add(component);
+            bound.Add((component, property));
         }
 
         foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
@@ -31,7 +33,11 @@ public static class MutationComponentFactory
             MutationButtonAttribute? attribute = method.GetCustomAttribute<MutationButtonAttribute>();
             if (attribute is not null)
             {
-                components.Add(new MutationAction(attribute.Name, () => method.Invoke(mutation, parameters: null))
+                components.Add(new MutationAction(attribute.Name, () =>
+                {
+                    method.Invoke(mutation, parameters: null);
+                    Refresh(mutation, bound);
+                })
                 {
                     IsDeveloper = attribute.Developer,
                 });
@@ -78,6 +84,22 @@ public static class MutationComponentFactory
             IsDeveloper = attribute.Developer,
             Indented = attribute.Indented,
         };
+
+    private static void Refresh(TrackingMutation mutation, List<(IMutationComponent Component, PropertyInfo Property)> bound)
+    {
+        foreach ((IMutationComponent component, PropertyInfo property) in bound)
+        {
+            object value = property.GetValue(mutation)!;
+            if (component is MutationRangeProperty range)
+            {
+                range.Refresh(((float, float))value);
+            }
+            else if (component is MutationProperty setting)
+            {
+                setting.Refresh(value);
+            }
+        }
+    }
 
     private static void SaveIfImmediate(TrackingMutation mutation, MutationPropertyAttribute attribute)
     {

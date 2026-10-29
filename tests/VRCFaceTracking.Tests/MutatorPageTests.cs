@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -118,6 +121,53 @@ public sealed class MutatorPageTests
             .Distinct()
             .ToList();
         Assert.Single(controlColumns);
+
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task ResetValuesPutsTheSlidersBackToDefaults()
+    {
+        UnifiedTrackingMutator mutator = CreateMutator();
+        AddMutations(mutator);
+        var page = new MutatorPage { DataContext = CreateViewModel(mutator) };
+        var window = new Window { Content = page, Width = 900, Height = 800 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        Expander card = page.GetVisualDescendants()
+            .OfType<Expander>()
+            .Single(e => string.Equals(((TrackingMutation)e.DataContext!).Name, "Parameter Adjustment", StringComparison.Ordinal));
+        card.IsExpanded = true;
+        Dispatcher.UIThread.RunJobs();
+
+        var adjustment = (ParameterAdjustment)card.DataContext!;
+        MutationRangeProperty jaw = adjustment.Components.OfType<MutationRangeProperty>().Single(c => string.Equals(c.Name, "Jaw", StringComparison.Ordinal));
+        Slider jawCeiling = card.GetVisualDescendants().OfType<Slider>().Single(s => ReferenceEquals(s.DataContext, jaw) && Grid.GetColumn(s) == 2);
+        jawCeiling.Value = 0.8;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal((0f, 0.8f), adjustment.JawOpen);
+
+        Button reset = card.GetVisualDescendants().OfType<Button>().Single(b => string.Equals(b.Content as string, "Reset Values", StringComparison.Ordinal));
+        reset.BringIntoView();
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+        Point center = reset.TranslatePoint(new Point(reset.Bounds.Width / 2, reset.Bounds.Height / 2), window)!.Value;
+        Assert.Same(reset, (window.InputHitTest(center) as Visual)?.FindAncestorOfType<Button>(includeSelf: true));
+        window.MouseDown(center, MouseButton.Left);
+        window.MouseUp(center, MouseButton.Left);
+
+        var waited = Stopwatch.StartNew();
+        while (jawCeiling.Value < 1 && waited.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            await Task.Delay(10);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Assert.Equal(1, jawCeiling.Value, 3);
+        Assert.Equal((0f, 1f), adjustment.JawOpen);
 
         window.Close();
         Dispatcher.UIThread.RunJobs();

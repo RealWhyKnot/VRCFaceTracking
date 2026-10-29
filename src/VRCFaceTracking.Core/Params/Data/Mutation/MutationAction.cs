@@ -33,5 +33,7 @@ public sealed class MutationAction : IMutationComponent, ICommand
 
     public bool CanExecute(object? parameter) => true;
 
-    public void Execute(object? parameter) => _ = Task.Run(_execute);
+    public void Execute(object? parameter) => _ = RunAsync(CancellationToken.None);
+
+    internal Task RunAsync(CancellationToken cancellationToken) => Task.Run(_execute, cancellationToken);
 }

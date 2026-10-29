@@ -58,6 +58,21 @@ public sealed class MutationRangeProperty : IMutationComponent, INotifyPropertyC
 
     public string Name { get; }
 
+    internal void Refresh((float, float) value)
+    {
+        if (_item1 != value.Item1)
+        {
+            _item1 = value.Item1;
+            OnPropertyChanged(nameof(Item1));
+        }
+
+        if (_item2 != value.Item2)
+        {
+            _item2 = value.Item2;
+            OnPropertyChanged(nameof(Item2));
+        }
+    }
+
     public string? Group { get; set; }
 
     public bool StartsGroup { get; set; }

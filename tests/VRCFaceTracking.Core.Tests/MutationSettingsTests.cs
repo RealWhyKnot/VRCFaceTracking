@@ -1,5 +1,6 @@
 using System.Globalization;
 using VRCFaceTracking.Core.Contracts.Services;
+using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
 
 namespace VRCFaceTracking.Core.Tests;
@@ -21,6 +22,24 @@ public sealed class MutationSettingsTests
         public Task SaveAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task LoadAsync(object target, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FlipMutation : TrackingMutation
+    {
+        public override string Name => "Flip";
+
+        public override string Description => string.Empty;
+
+        public override MutationPriority Priority => MutationPriority.None;
+
+        [MutationProperty("Flag")] public bool Flag { get; set; }
+
+        [MutationButton("Flip")]
+        public void Flip() => Flag = !Flag;
+
+        public override void MutateData(ref UnifiedTrackingData data)
+        {
+        }
     }
 
     [Fact]
@@ -62,6 +81,45 @@ public sealed class MutationSettingsTests
 
         Assert.Equal((0f, 0.8f), mutation.JawOpen);
         Assert.Equal(["Parameter Adjustment"], settings.Saved, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResetValuesRestoresDefaultRangesAndSavesOnce()
+    {
+        var settings = new RecordingSettings();
+        var mutation = new ParameterAdjustment { LocalSettingsService = settings };
+        mutation.CreateProperties();
+        MutationRangeProperty jaw = mutation.Components.OfType<MutationRangeProperty>().Single(c => string.Equals(c.Name, "Jaw", StringComparison.Ordinal));
+        MutationRangeProperty yaw = mutation.Components.OfType<MutationRangeProperty>().Single(c => string.Equals(c.Name, "Head Rotation (Side-to-Side)", StringComparison.Ordinal));
+        jaw.Item2 = 0.8f;
+        yaw.Item1 = -0.5f;
+        settings.Saved.Clear();
+        List<string?> changed = [];
+        jaw.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        MutationAction reset = mutation.Components.OfType<MutationAction>().Single(a => string.Equals(a.Name, "Reset Values", StringComparison.Ordinal));
+
+        await reset.RunAsync(CancellationToken.None);
+
+        Assert.Equal((0f, 1f), mutation.JawOpen);
+        Assert.Equal((-1f, 1f), mutation.HeadRotationYaw);
+        Assert.Equal(1f, jaw.Item2);
+        Assert.Equal(-1f, yaw.Item1);
+        Assert.Equal(["Item2"], changed);
+        Assert.Equal(["Parameter Adjustment"], settings.Saved, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task ButtonRefreshesTheSettingsItChanged()
+    {
+        var mutation = new FlipMutation();
+        mutation.CreateProperties();
+        MutationProperty flag = mutation.Components.OfType<MutationProperty>().Single();
+        MutationAction flip = mutation.Components.OfType<MutationAction>().Single();
+
+        await flip.RunAsync(CancellationToken.None);
+
+        Assert.True(mutation.Flag);
+        Assert.True(flag.BoolValue);
     }
 
     [Fact]
