@@ -44,6 +44,21 @@ public sealed class MutatorPageTests
         }
     }
 
+    private static void RenderUntilIdle()
+    {
+        for (int frame = 0; frame < 10; frame++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            if (!Dispatcher.UIThread.HasJobsWithPriority(DispatcherPriority.SystemIdle))
+            {
+                return;
+            }
+        }
+
+        Dispatcher.UIThread.RunJobs();
+    }
+
     [AvaloniaFact]
     public void CardsShowAssistsFirstWhenMutationsLoadAfterThePage()
     {
@@ -151,9 +166,7 @@ public sealed class MutatorPageTests
 
         Button reset = card.GetVisualDescendants().OfType<Button>().Single(b => string.Equals(b.Content as string, "Reset Values", StringComparison.Ordinal));
         reset.BringIntoView();
-        Dispatcher.UIThread.RunJobs();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        Dispatcher.UIThread.RunJobs();
+        RenderUntilIdle();
         Point center = reset.TranslatePoint(new Point(reset.Bounds.Width / 2, reset.Bounds.Height / 2), window)!.Value;
         Assert.Same(reset, (window.InputHitTest(center) as Visual)?.FindAncestorOfType<Button>(includeSelf: true));
         window.MouseDown(center, MouseButton.Left);
