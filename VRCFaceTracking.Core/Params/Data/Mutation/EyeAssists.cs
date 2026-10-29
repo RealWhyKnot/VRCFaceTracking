@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
@@ -43,6 +45,31 @@ public class EyeAssists : TrackingMutation
 
     [MutationProperty("Force Eyes Closed", true)]
     public bool forceEyesClosed = false;
+
+    internal const string CorrectorsSettingName = "Unified Correctors";
+
+    internal sealed class SavedEyelidBlend
+    {
+        public float? eyeLidBlend;
+    }
+
+    internal async Task MoveEyelidBlendFromCorrectorsAsync(ILocalSettingsService settings)
+    {
+        var saved = await settings.ReadSettingAsync<SavedEyelidBlend>(Name, null, true);
+        if (saved?.eyeLidBlend != null)
+        {
+            return;
+        }
+
+        var old = await settings.ReadSettingAsync<SavedEyelidBlend>(CorrectorsSettingName, null, true);
+        if (old?.eyeLidBlend is not { } blend)
+        {
+            return;
+        }
+
+        eyeLidBlend = blend;
+        Logger?.LogInformation("Moved Eyelid Blend {Blend} from {Old} to {New}", blend, CorrectorsSettingName, Name);
+    }
 
     private const double FullRangeRadians = Math.PI / 4;
     private const double RangeKneeShare = 0.75;

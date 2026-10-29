@@ -1,3 +1,4 @@
+using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Helpers;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
@@ -82,5 +83,84 @@ public class EyelidBlendTests
 
         Assert.False(loaded.mouthClosedFix);
         Assert.True(loaded.IsActive);
+    }
+
+    private sealed class SavedSettings : ILocalSettingsService
+    {
+        private readonly Dictionary<string, string> _saved;
+
+        public SavedSettings(Dictionary<string, string> saved)
+        {
+            _saved = saved;
+        }
+
+        public async Task<T> ReadSettingAsync<T>(string key, T? defaultValue = default, bool forceLocal = false) =>
+            _saved.TryGetValue(key, out var json) ? await Json.ToObjectAsync<T>(json) : defaultValue!;
+        public Task SaveSettingAsync<T>(string key, T value, bool forceLocal = false) => Task.CompletedTask;
+        public Task Save(object target) => Task.CompletedTask;
+        public Task Load(object target) => Task.CompletedTask;
+        public Task FlushAsync() => Task.CompletedTask;
+    }
+
+    private const string OldCorrectors = "{\"mouthClosedFix\":true,\"lipSuckFix\":true,\"eyeLidBlend\":1.0,\"eyeLookSymmetrize\":true,\"Name\":\"Unified Correctors\",\"Step\":2,\"IsActive\":true,\"IsSaved\":false}";
+    private const string EyeAssistsWithoutBlend = "{\"convergenceFix\":false,\"convergenceStrength\":0.0,\"closeAssist\":true,\"closeAssistStrength\":1.0,\"eyelidSync\":true,\"syncStrength\":1.0,\"syncToMostOpen\":false,\"preserveWinks\":false,\"forceEyesClosed\":false,\"Name\":\"Eye Assists\",\"Step\":2,\"IsActive\":true,\"IsSaved\":false}";
+
+    [Fact]
+    public async Task OldCorrectorsSave_MovesEyelidBlendIntoEyeAssists()
+    {
+        var settings = new SavedSettings(new Dictionary<string, string>
+        {
+            [EyeAssists.CorrectorsSettingName] = OldCorrectors,
+            ["Eye Assists"] = EyeAssistsWithoutBlend,
+        });
+        var eyeAssists = await settings.ReadSettingAsync("Eye Assists", new EyeAssists(), true);
+
+        await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(settings);
+
+        Assert.Equal(1f, eyeAssists.eyeLidBlend);
+        Assert.True(eyeAssists.eyelidSync);
+    }
+
+    [Fact]
+    public async Task OldCorrectorsSave_MovesEyelidBlendWhenEyeAssistsWasNeverSaved()
+    {
+        var settings = new SavedSettings(new Dictionary<string, string>
+        {
+            [EyeAssists.CorrectorsSettingName] = OldCorrectors,
+        });
+        var eyeAssists = new EyeAssists();
+
+        await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(settings);
+
+        Assert.Equal(1f, eyeAssists.eyeLidBlend);
+    }
+
+    [Fact]
+    public async Task EyeAssistsSave_KeepsItsOwnEyelidBlend()
+    {
+        var settings = new SavedSettings(new Dictionary<string, string>
+        {
+            [EyeAssists.CorrectorsSettingName] = OldCorrectors,
+            ["Eye Assists"] = EyeAssistsWithoutBlend.Replace("\"forceEyesClosed\":false", "\"forceEyesClosed\":false,\"eyeLidBlend\":0.0"),
+        });
+        var eyeAssists = await settings.ReadSettingAsync("Eye Assists", new EyeAssists(), true);
+
+        await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(settings);
+
+        Assert.Equal(0f, eyeAssists.eyeLidBlend);
+    }
+
+    [Fact]
+    public async Task NoSavedEyelidBlend_LeavesTheDefault()
+    {
+        var settings = new SavedSettings(new Dictionary<string, string>
+        {
+            [EyeAssists.CorrectorsSettingName] = "{\"mouthClosedFix\":true,\"Name\":\"Unified Correctors\"}",
+        });
+        var eyeAssists = new EyeAssists();
+
+        await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(settings);
+
+        Assert.Equal(0f, eyeAssists.eyeLidBlend);
     }
 }

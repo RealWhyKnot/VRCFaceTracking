@@ -130,6 +130,11 @@ public partial class UnifiedTrackingMutator : ObservableObject
 
             mutation.Logger = _logger;
             mutation.LocalSettingsService = _localSettingsService;
+            if (mutation is EyeAssists eyeAssists)
+            {
+                await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(_localSettingsService).ConfigureAwait(false);
+            }
+
             mutation.CreateProperties();
             _logger.LogInformation("{Name} settings {Settings}", mutation.Name, mutation.DescribeSettings());
             _dispatcherService.Run(() =>
