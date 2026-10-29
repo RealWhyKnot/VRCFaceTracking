@@ -12,38 +12,39 @@ public class EyeAssists : TrackingMutation
     public override string Description => "Gaze convergence fix, eye range limit, eye close assist, eyelid blend, eyelid sync with wink preservation, and force eyes closed.";
     public override MutationPriority Step => MutationPriority.Postprocessor;
     public override int Order => 10;
+    public override int PageOrder => 0;
     public override bool IsActive { get; set; } = false;
 
-    [MutationProperty("Gaze Convergence Fix", true)]
+    [MutationProperty("Gaze Convergence Fix", true, Group = "Gaze")]
     public bool convergenceFix = false;
-    [MutationProperty("Convergence Strength", true)]
+    [MutationProperty("Convergence Strength", true, Group = "Gaze", Indented = true)]
     public float convergenceStrength = 0.6f;
 
-    [MutationProperty("Limit Eye Range", true)]
+    [MutationProperty("Limit Eye Range", true, Group = "Gaze")]
     public bool limitEyeRange = false;
-    [MutationProperty("Max Horizontal", true)]
+    [MutationProperty("Max Horizontal", true, Group = "Gaze", Indented = true)]
     public float maxHorizontal = 0.35f;
-    [MutationProperty("Max Vertical", true)]
+    [MutationProperty("Max Vertical", true, Group = "Gaze", Indented = true)]
     public float maxVertical = 0.35f;
 
-    [MutationProperty("Eye Close Assist", true)]
+    [MutationProperty("Eye Close Assist", true, Group = "Eyelids")]
     public bool closeAssist = false;
-    [MutationProperty("Close Assist Strength", true)]
+    [MutationProperty("Close Assist Strength", true, Group = "Eyelids", Indented = true)]
     public float closeAssistStrength = 0.6f;
 
-    [MutationProperty("Eyelid Blend", true)]
+    [MutationProperty("Eyelid Blend", true, Group = "Eyelids")]
     public float eyeLidBlend = 0f;
 
-    [MutationProperty("Eyelid Sync", true)]
+    [MutationProperty("Eyelid Sync", true, Group = "Eyelids")]
     public bool eyelidSync = false;
-    [MutationProperty("Eyelid Sync Strength", true)]
+    [MutationProperty("Eyelid Sync Strength", true, Group = "Eyelids", Indented = true)]
     public float syncStrength = 0.7f;
-    [MutationProperty("Sync to Most Open Eye", true)]
+    [MutationProperty("Sync to Most Open Eye", true, Group = "Eyelids", Indented = true)]
     public bool syncToMostOpen = false;
-    [MutationProperty("Preserve Winks", true)]
+    [MutationProperty("Preserve Winks", true, Group = "Eyelids", Indented = true)]
     public bool preserveWinks = true;
 
-    [MutationProperty("Force Eyes Closed", true)]
+    [MutationProperty("Force Eyes Closed", true, Group = "Eyelids")]
     public bool forceEyesClosed = false;
 
     internal const string CorrectorsSettingName = "Unified Correctors";

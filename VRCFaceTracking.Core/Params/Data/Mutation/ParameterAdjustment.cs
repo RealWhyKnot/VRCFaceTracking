@@ -18,42 +18,44 @@ public class ParameterAdjustment : TrackingMutation
         }
     }
 
-    [MutationProperty("Eyebrow Raiser", true)] public (float, float) eyeBrowRaiser = new(0, 1);
-    [MutationProperty("Eyebrow Lowerer", true)] public (float, float) eyeBrowLower = new(0, 1);
-    [MutationProperty("Eye Squint", true)] public (float, float) eyeSquint = new(0, 1);
-    [MutationProperty("Eye Wide", true)] public (float, float) eyeWide = new(0, 1);
-    [MutationProperty("Cheek", true)] public (float, float) cheekPuffSuck = new(0, 1);
-    [MutationProperty("Cheek Squint", true)] public (float, float) cheekSquint = new(0, 1);
-    [MutationProperty("Jaw", true)] public (float, float) jawOpen = new(0, 1);
-    [MutationProperty("MouthClosed", true)] public (float, float) mouthClosed = new(0, 1);
-    [MutationProperty("Jaw Sideways", true)] public (float, float) jawX = new(0, 1);
-    [MutationProperty("Jaw Forward / Backward", true)] public (float, float) jawZ = new(0, 1);
-    [MutationProperty("Lip Funnel", true)] public (float, float) lipFunnel = new(0, 1);
-    [MutationProperty("Lip Suck", true)] public (float, float) lipSuck = new(0, 1);
-    [MutationProperty("Lip Pucker", true)] public (float, float) lipPucker = new(0, 1);
-    [MutationProperty("Mouth Open", true)] public (float, float) mouthOpener = new(0, 1);
-    [MutationProperty("Mouth Smile", true)] public (float, float) mouthSmile = new(0, 1);
-    [MutationProperty("Mouth Frown", true)] public (float, float) mouthFrown = new(0, 1);
-    [MutationProperty("Mouth Stretch", true)] public (float, float) mouthStretch = new(0, 1);
-    [MutationProperty("Mouth Tightener", true)] public (float, float) mouthTightener = new(0, 1);
-    [MutationProperty("Mouth Press", true)] public (float, float) mouthPress = new(0, 1);
-    [MutationProperty("Mouth Sideways", true)] public (float, float) mouthX = new(0, 1);
-    [MutationProperty("Mouth Raiser", true)] public (float, float) mouthRaiser = new(0, 1);
-    [MutationProperty("Nose", true)] public (float, float) nose = new(0, 1);
-    [MutationProperty("Nose Sneer", true)] public (float, float) noseSneer = new(0, 1);
-    [MutationProperty("Neck", true)] public (float, float) neck = new(0, 1);
-    [MutationProperty("Tongue Out", true)] public (float, float) tongueOut = new(0, 1);
-    [MutationProperty("Tongue Directions", true)] public (float, float) tongueMove = new(0, 1);
-    [MutationProperty("Tongue Miscellaneous", true)] public (float, float) tongueOther = new(0, 1);
+    [MutationProperty("Eyebrow Raiser", true, Group = "Brows and eyes")] public (float, float) eyeBrowRaiser = new(0, 1);
+    [MutationProperty("Eyebrow Lowerer", true, Group = "Brows and eyes")] public (float, float) eyeBrowLower = new(0, 1);
+    [MutationProperty("Eye Squint", true, Group = "Brows and eyes")] public (float, float) eyeSquint = new(0, 1);
+    [MutationProperty("Eye Wide", true, Group = "Brows and eyes")] public (float, float) eyeWide = new(0, 1);
+    [MutationProperty("Cheek", true, Group = "Cheeks")] public (float, float) cheekPuffSuck = new(0, 1);
+    [MutationProperty("Cheek Squint", true, Group = "Cheeks")] public (float, float) cheekSquint = new(0, 1);
+    [MutationProperty("Jaw", true, Group = "Jaw")] public (float, float) jawOpen = new(0, 1);
+    [MutationProperty("MouthClosed", true, Group = "Jaw")] public (float, float) mouthClosed = new(0, 1);
+    [MutationProperty("Jaw Sideways", true, Group = "Jaw")] public (float, float) jawX = new(0, 1);
+    [MutationProperty("Jaw Forward / Backward", true, Group = "Jaw")] public (float, float) jawZ = new(0, 1);
+    [MutationProperty("Lip Funnel", true, Group = "Lips")] public (float, float) lipFunnel = new(0, 1);
+    [MutationProperty("Lip Suck", true, Group = "Lips")] public (float, float) lipSuck = new(0, 1);
+    [MutationProperty("Lip Pucker", true, Group = "Lips")] public (float, float) lipPucker = new(0, 1);
+    [MutationProperty("Mouth Open", true, Group = "Mouth")] public (float, float) mouthOpener = new(0, 1);
+    [MutationProperty("Mouth Smile", true, Group = "Mouth")] public (float, float) mouthSmile = new(0, 1);
+    [MutationProperty("Mouth Frown", true, Group = "Mouth")] public (float, float) mouthFrown = new(0, 1);
+    [MutationProperty("Mouth Stretch", true, Group = "Mouth")] public (float, float) mouthStretch = new(0, 1);
+    [MutationProperty("Mouth Tightener", true, Group = "Mouth")] public (float, float) mouthTightener = new(0, 1);
+    [MutationProperty("Mouth Press", true, Group = "Mouth")] public (float, float) mouthPress = new(0, 1);
+    [MutationProperty("Mouth Sideways", true, Group = "Mouth")] public (float, float) mouthX = new(0, 1);
+    [MutationProperty("Mouth Raiser", true, Group = "Mouth")] public (float, float) mouthRaiser = new(0, 1);
+    [MutationProperty("Nose", true, Group = "Nose")] public (float, float) nose = new(0, 1);
+    [MutationProperty("Nose Sneer", true, Group = "Nose")] public (float, float) noseSneer = new(0, 1);
+    [MutationProperty("Tongue Out", true, Group = "Tongue")] public (float, float) tongueOut = new(0, 1);
+    [MutationProperty("Tongue Directions", true, Group = "Tongue")] public (float, float) tongueMove = new(0, 1);
+    [MutationProperty("Tongue Miscellaneous", true, Group = "Tongue")] public (float, float) tongueOther = new(0, 1);
 
-    [MutationProperty("Head Rotation (Side-to-Side)", true)] public (float, float) headRotationYaw = new(-1, 1);
-    [MutationProperty("Head Rotation (Up-Down Tilt)", true)] public (float, float) headRotationPitch = new(-1, 1);
-    [MutationProperty("Head Rotation (Side Tilt)", true)] public (float, float) headRotationRoll = new(-1, 1);
-    [MutationProperty("Head Position (Side-to-Side)", true)] public (float, float) headPositionX = new(-1, 1);
-    [MutationProperty("Head Position (Up-Down)", true)] public (float, float) headPositionY = new(-1, 1);
-    [MutationProperty("Head Position (Forward-Back)", true)] public (float, float) headPositionZ = new(-1, 1);
+    [MutationProperty("Neck", true, Group = "Head and neck")] public (float, float) neck = new(0, 1);
+    [MutationProperty("Head Rotation (Side-to-Side)", true, Group = "Head and neck")] public (float, float) headRotationYaw = new(-1, 1);
+    [MutationProperty("Head Rotation (Up-Down Tilt)", true, Group = "Head and neck")] public (float, float) headRotationPitch = new(-1, 1);
+    [MutationProperty("Head Rotation (Side Tilt)", true, Group = "Head and neck")] public (float, float) headRotationRoll = new(-1, 1);
+    [MutationProperty("Head Position (Side-to-Side)", true, Group = "Head and neck")] public (float, float) headPositionX = new(-1, 1);
+    [MutationProperty("Head Position (Up-Down)", true, Group = "Head and neck")] public (float, float) headPositionY = new(-1, 1);
+    [MutationProperty("Head Position (Forward-Back)", true, Group = "Head and neck")] public (float, float) headPositionZ = new(-1, 1);
 
     public override string Name => "Parameter Adjustment";
+
+    public override int PageOrder => 2;
 
     public override string Description => "Adjust VRCFaceTracking Parameters.";
 

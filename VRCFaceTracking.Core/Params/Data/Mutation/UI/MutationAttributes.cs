@@ -35,6 +35,14 @@ public class MutationPropertyAttribute : Attribute
     {
         get; set;
     }
+    public string? Group
+    {
+        get; set;
+    }
+    public bool Indented
+    {
+        get; set;
+    }
 
     public MutationPropertyAttribute(string name, bool savedImmediate = false, float min = 0f, float max = 1f)
     {

@@ -35,6 +35,8 @@
                             <ItemsControl ItemsSource="{Binding Components}">
                                 <ItemsControl.DataTemplates>
                                     <DataTemplate x:DataType="{x:Type mutation:MutationProperty}">
+                                        <StackPanel>
+                                        <TextBlock Classes="section-header mutation-group" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
                                         <Border Classes="mutation-row">
                                             <Border.IsVisible>
                                                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
@@ -43,7 +45,7 @@
                                                 </MultiBinding>
                                             </Border.IsVisible>
                                             <Grid ColumnDefinitions="5*,6*">
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="0" Classes.mutation-indented="{Binding Indented}" Text="{Binding Name}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                 <CheckBox
                                                     Grid.Column="1"
                                                     IsChecked="{Binding BoolValue, Mode=TwoWay}"
@@ -75,9 +77,12 @@
                                                     HorizontalAlignment="Stretch" />
                                             </Grid>
                                         </Border>
+                                        </StackPanel>
                                     </DataTemplate>
 
                                     <DataTemplate x:DataType="{x:Type mutation:MutationRangeProperty}">
+                                        <StackPanel>
+                                        <TextBlock Classes="section-header mutation-group" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
                                         <Border Classes="mutation-row">
                                             <Grid ColumnDefinitions="5*,6*">
                                                 <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" TextWrapping="Wrap" />
@@ -89,9 +94,12 @@
                                                 </Grid>
                                             </Grid>
                                         </Border>
+                                        </StackPanel>
                                     </DataTemplate>
 
                                     <DataTemplate x:DataType="{x:Type mutation:MutationAction}">
+                                        <StackPanel>
+                                        <TextBlock Classes="section-header mutation-group" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
                                         <Border Classes="mutation-row">
                                             <Border.IsVisible>
                                                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
@@ -103,6 +111,7 @@
                                                 <Button Grid.Column="1" Content="{Binding Name}" Command="{Binding}" HorizontalAlignment="Right" />
                                             </Grid>
                                         </Border>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.DataTemplates>
                             </ItemsControl>

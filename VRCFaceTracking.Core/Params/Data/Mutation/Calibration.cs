@@ -140,6 +140,7 @@ public class Calibration : TrackingMutation
     public override string Name => "Calibration";
     public override string Description => "Normalizes tracking data.";
     public override MutationPriority Step => MutationPriority.Preprocessor;
+    public override int PageOrder => 3;
     public override bool IsSaved => true;
     public override bool IsActive { get; set; } = false;
 

@@ -51,6 +51,14 @@
         <Setter Property="Margin" Value="0,1" />
     </Style>
 
+    <Style Selector="TextBlock.mutation-group">
+        <Setter Property="Margin" Value="16,16,0,4" />
+    </Style>
+
+    <Style Selector="TextBlock.mutation-indented">
+        <Setter Property="Margin" Value="20,0,0,0" />
+    </Style>
+
     <Style Selector="Border.state-badge">
         <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
         <Setter Property="Padding" Value="6,2" />

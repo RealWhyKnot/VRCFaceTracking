@@ -84,6 +84,7 @@ public static class MutationComponentFactory
 
             if (attribute != null)
             {
+                var first = components.Count;
                 var value = field.GetValue(instance);
                 if (field.FieldType.IsArray)
                 {
@@ -118,6 +119,8 @@ public static class MutationComponentFactory
                     var typedMutation = (TrackingMutation)instance;
                     await typedMutation.Save();
                 });
+
+                ApplyLayout(attribute, components, first);
             }
 
             if (field.FieldType.IsClass || field.FieldType.IsValueType)
@@ -151,6 +154,20 @@ public static class MutationComponentFactory
                     IsDeveloper = attribute.Developer
                 };
                 components.Add(mutationProperty);
+            }
+        }
+    }
+
+    private static void ApplyLayout(MutationPropertyAttribute attribute, ObservableCollection<IMutationComponent> components, int first)
+    {
+        for (var i = first; i < components.Count; i++)
+        {
+            var component = components[i];
+            component.Group = attribute.Group;
+            component.StartsGroup = attribute.Group != null && (i == 0 || components[i - 1].Group != attribute.Group);
+            if (component is MutationProperty property)
+            {
+                property.Indented = attribute.Indented;
             }
         }
     }

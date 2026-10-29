@@ -40,6 +40,8 @@ public abstract partial class TrackingMutation
     [JsonIgnore]
     public virtual int Order => 0;
     [JsonIgnore]
+    public virtual int PageOrder => int.MaxValue;
+    [JsonIgnore]
     public ObservableCollection<IMutationComponent> Components
     {
         get; set;

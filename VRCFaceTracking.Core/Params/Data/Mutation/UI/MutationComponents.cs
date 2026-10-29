@@ -21,6 +21,14 @@ public interface IMutationComponent
     {
         get;
     }
+    public string? Group
+    {
+        get; set;
+    }
+    public bool StartsGroup
+    {
+        get; set;
+    }
 }
 
 public class MutationProperty : IMutationComponent, INotifyPropertyChanged
@@ -103,6 +111,21 @@ public class MutationProperty : IMutationComponent, INotifyPropertyChanged
         get; set;
     }
 
+    public string? Group
+    {
+        get; set;
+    }
+
+    public bool StartsGroup
+    {
+        get; set;
+    }
+
+    public bool Indented
+    {
+        get; set;
+    }
+
     public MutationPropertyType Type
     {
         get; set;
@@ -177,6 +200,16 @@ public class MutationRangeProperty : IMutationComponent, INotifyPropertyChanged
         get;
     }
 
+    public string? Group
+    {
+        get; set;
+    }
+
+    public bool StartsGroup
+    {
+        get; set;
+    }
+
     public event PropertyChangedEventHandler PropertyChanged;
 
     protected virtual void OnPropertyChanged(string propertyName) =>
@@ -191,6 +224,16 @@ public class MutationAction : IMutationComponent, ICommand
     }
 
     public bool IsDeveloper
+    {
+        get; set;
+    }
+
+    public string? Group
+    {
+        get; set;
+    }
+
+    public bool StartsGroup
     {
         get; set;
     }

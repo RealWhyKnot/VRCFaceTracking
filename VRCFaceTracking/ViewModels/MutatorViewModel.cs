@@ -27,19 +27,33 @@ public class MutatorViewModel : ObservableRecipient
 
         foreach (var mutation in trackingMutator._mutations)
         {
-            Mutations.Add(mutation);
+            Show(mutation);
         }
 
         trackingMutator._mutations.CollectionChanged += OnSourceCollectionChanged;
+    }
+
+    private void Show(TrackingMutation mutation)
+    {
+        var index = 0;
+        while (index < Mutations.Count && Mutations[index].PageOrder <= mutation.PageOrder)
+        {
+            index++;
+        }
+
+        Mutations.Insert(index, mutation);
     }
 
     private void OnSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         Dispatcher.UIThread.Post(() =>
         {
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+                Mutations.Clear();
+
             if (e.NewItems != null)
                 foreach (TrackingMutation m in e.NewItems)
-                    Mutations.Add(m);
+                    Show(m);
 
             if (e.OldItems != null)
                 foreach (TrackingMutation m in e.OldItems)

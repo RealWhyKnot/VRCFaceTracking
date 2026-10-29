@@ -11,24 +11,25 @@ public class MouthBrowAssists : TrackingMutation
     public override string Description => "Mouth close compensation, smile open assist, idle mouth auto-close, and eyelid-brow sync.";
     public override MutationPriority Step => MutationPriority.Postprocessor;
     public override int Order => 20;
+    public override int PageOrder => 1;
     public override bool IsActive { get; set; } = false;
 
-    [MutationProperty("Mouth Close Compensation", true)]
+    [MutationProperty("Mouth Close Compensation", true, Group = "Mouth")]
     public bool mouthCloseCompensation = false;
 
-    [MutationProperty("Smile Open Assist", true)]
+    [MutationProperty("Smile Open Assist", true, Group = "Mouth")]
     public bool smileOpenAssist = false;
-    [MutationProperty("Smile Assist Strength", true)]
+    [MutationProperty("Smile Assist Strength", true, Group = "Mouth", Indented = true)]
     public float smileAssistStrength = 0.5f;
 
-    [MutationProperty("Idle Mouth Auto-Close", true)]
+    [MutationProperty("Idle Mouth Auto-Close", true, Group = "Mouth")]
     public bool idleMouthAutoClose = false;
-    [MutationProperty("Idle Close Strength", true)]
+    [MutationProperty("Idle Close Strength", true, Group = "Mouth", Indented = true)]
     public float idleCloseStrength = 0.5f;
 
-    [MutationProperty("Eyelid-Brow Sync", true)]
+    [MutationProperty("Eyelid-Brow Sync", true, Group = "Brows")]
     public bool browSync = false;
-    [MutationProperty("Brow Sync Strength", true)]
+    [MutationProperty("Brow Sync Strength", true, Group = "Brows", Indented = true)]
     public float browSyncStrength = 0.5f;
 
     internal Func<double> NowSeconds = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;

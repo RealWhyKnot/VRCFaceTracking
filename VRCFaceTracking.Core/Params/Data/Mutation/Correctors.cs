@@ -13,15 +13,16 @@ public class Correctors : TrackingMutation
     public override string Name => "Unified Correctors";
     public override string Description => "Processes data to conform to Unified Expressions.";
     public override MutationPriority Step => MutationPriority.Postprocessor;
+    public override int PageOrder => 4;
     public override bool IsActive { get; set; } = true;
 
-    [MutationProperty("MouthClosed/JawOpen Clamp", true)]
+    [MutationProperty("MouthClosed/JawOpen Clamp", true, Group = "Mouth")]
     public bool mouthClosedFix = true;
-    [MutationProperty("LipSuck Limiter", true)]
+    [MutationProperty("LipSuck Limiter", true, Group = "Mouth")]
     public bool lipSuckFix = true;
 
     // For ppl with hardware that provides unpredictable eyeL/R movement
-    [MutationProperty("EyeLook Symmetrize", true)]
+    [MutationProperty("EyeLook Symmetrize", true, Group = "Eyes")]
     public bool eyeLookSymmetrize = false;
 
 
