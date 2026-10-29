@@ -1,4 +1,4 @@
-namespace VRCFaceTracking.UiTests;
+namespace VRCFaceTracking.Tests;
 
 public class UserFolderTests
 {

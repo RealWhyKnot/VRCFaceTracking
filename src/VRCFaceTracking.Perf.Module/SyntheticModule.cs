@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace VRCFaceTracking.PerfTests.Module;
+namespace VRCFaceTracking.Perf.Module;
 
 public sealed class SyntheticModule : ExtTrackingModule
 {

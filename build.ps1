@@ -41,19 +41,19 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 Write-Host "build $Version ($Channel, $Configuration)"
 
 if ($Format) {
-	& dotnet format VRCFaceTracking.sln
+	& dotnet format VRCFaceTracking.slnx
 	if ($LASTEXITCODE -ne 0) { throw "dotnet format failed (exit $LASTEXITCODE)" }
 }
 
-& dotnet build VRCFaceTracking.sln -c $Configuration -p:Platform=x64 "-p:VftBuildChannel=$Channel" "-p:VftVersion=$Version" -nologo -v m
+& dotnet build VRCFaceTracking.slnx -c $Configuration -p:Platform=x64 "-p:VftBuildChannel=$Channel" "-p:VftVersion=$Version" -nologo -v m
 if ($LASTEXITCODE -ne 0) { throw "build failed (exit $LASTEXITCODE)" }
 
 if (-not $SkipTests) {
-	& dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
+	& dotnet test tests/VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
 	if ($LASTEXITCODE -ne 0) { throw "tests failed (exit $LASTEXITCODE)" }
-	& dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
+	& dotnet test tests/VRCFaceTracking.Tests/VRCFaceTracking.Tests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
 	if ($LASTEXITCODE -ne 0) { throw "ui tests failed (exit $LASTEXITCODE)" }
-	& dotnet test VRCFaceTracking.PerfTests/VRCFaceTracking.PerfTests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
+	& dotnet test tests/VRCFaceTracking.Perf.Tests/VRCFaceTracking.Perf.Tests.csproj -c $Configuration -p:Platform=x64 --no-build -nologo
 	if ($LASTEXITCODE -ne 0) { throw "performance tests failed (exit $LASTEXITCODE)" }
 }
 
@@ -64,6 +64,6 @@ if ($Publish -or $Installer) {
 		& (Join-Path $PSScriptRoot ".github/scripts/Build-Installer.ps1") -PublishDir "build/publish" -Version $Version -OutDir "build/installer"
 	}
 } else {
-	$exe = Join-Path $PSScriptRoot "VRCFaceTracking\bin\x64\$Configuration\net10.0\VRCFaceTracking.exe"
+	$exe = Join-Path $PSScriptRoot "src\VRCFaceTracking\bin\x64\$Configuration\net10.0\VRCFaceTracking.exe"
 	Write-Host "built $exe"
 }

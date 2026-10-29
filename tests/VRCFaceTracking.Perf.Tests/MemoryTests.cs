@@ -10,7 +10,7 @@ using VRCFaceTracking.Core.Sandboxing.IPC;
 using VRCFaceTracking.Core.Services;
 using Xunit.Abstractions;
 
-namespace VRCFaceTracking.PerfTests;
+namespace VRCFaceTracking.Perf.Tests;
 
 public sealed class MemoryTests(ITestOutputHelper output)
 {

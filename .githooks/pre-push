@@ -2,7 +2,7 @@
 set -uo pipefail
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-[ -f "$repo_root/VRCFaceTracking.sln" ] || exit 0
+[ -f "$repo_root/VRCFaceTracking.slnx" ] || exit 0
 
 if ! command -v dotnet >/dev/null 2>&1; then
   echo "pre-push: dotnet not found; skipping format check." >&2
@@ -22,12 +22,12 @@ if [ -z "$changed" ]; then
 fi
 
 echo "pre-push: checking formatting (dotnet format --verify-no-changes)..." >&2
-(cd "$repo_root" && dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore -v q)
+(cd "$repo_root" && dotnet format VRCFaceTracking.slnx --verify-no-changes --no-restore -v q)
 if [ "$?" -ne 0 ]; then
   {
     echo ""
     echo "pre-push BLOCKED: the solution would fail CI's lint job."
-    echo "  Fix format:  dotnet format VRCFaceTracking.sln"
+    echo "  Fix format:  dotnet format VRCFaceTracking.slnx"
     echo "  Bypass:      git push --no-verify"
     echo ""
   } >&2

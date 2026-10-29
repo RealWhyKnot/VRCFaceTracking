@@ -8,7 +8,7 @@ using VRCFaceTracking.Core.Params.Data.Mutation;
 using VRCFaceTracking.ViewModels;
 using VRCFaceTracking.Views;
 
-namespace VRCFaceTracking.UiTests;
+namespace VRCFaceTracking.Tests;
 
 public class PageSmokeTests
 {

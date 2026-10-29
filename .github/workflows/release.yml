@@ -113,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: contributors
-          path: VRCFaceTracking/Assets/contributors.json
+          path: src/VRCFaceTracking/Assets/contributors.json
           retention-days: 1
 
   build:
@@ -164,22 +164,22 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: contributors
-          path: VRCFaceTracking/Assets
+          path: src/VRCFaceTracking/Assets
 
       - name: Build and test
         shell: pwsh
         run: |
           $plat = @()
           if ('${{ matrix.os }}' -eq 'windows') { $plat = @('-p:Platform=x64') }
-          dotnet restore VRCFaceTracking.sln @plat
+          dotnet restore VRCFaceTracking.slnx @plat
           if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
-          dotnet build VRCFaceTracking.sln -c Release @plat "-p:VftBuildChannel=$env:RELEASE_CHANNEL" "-p:VftVersion=$env:RELEASE_VERSION" --no-restore
+          dotnet build VRCFaceTracking.slnx -c Release @plat "-p:VftBuildChannel=$env:RELEASE_CHANNEL" "-p:VftVersion=$env:RELEASE_VERSION" --no-restore
           if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
-          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release @plat --no-build
+          dotnet test tests/VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
-          dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release @plat --no-build
+          dotnet test tests/VRCFaceTracking.Tests/VRCFaceTracking.Tests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
-          dotnet test VRCFaceTracking.PerfTests/VRCFaceTracking.PerfTests.csproj -c Release @plat --no-build
+          dotnet test tests/VRCFaceTracking.Perf.Tests/VRCFaceTracking.Perf.Tests.csproj -c Release @plat --no-build
           if ($LASTEXITCODE -ne 0) { throw "performance tests failed ($LASTEXITCODE)" }
 
       - name: Install NSIS

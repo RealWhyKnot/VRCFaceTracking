@@ -3,11 +3,11 @@ using Avalonia;
 using Avalonia.Headless;
 using VRCFaceTracking;
 using VRCFaceTracking.Services;
-using VRCFaceTracking.UiTests;
+using VRCFaceTracking.Tests;
 
 [assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]
 
-namespace VRCFaceTracking.UiTests;
+namespace VRCFaceTracking.Tests;
 
 public static class TestAppBuilder
 {

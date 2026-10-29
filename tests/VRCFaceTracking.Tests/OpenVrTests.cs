@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Avalonia.Headless.XUnit;
 using VRCFaceTracking.Services;
 
-namespace VRCFaceTracking.UiTests;
+namespace VRCFaceTracking.Tests;
 
 public class OpenVrTests
 {

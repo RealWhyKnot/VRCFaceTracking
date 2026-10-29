@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
   [string[]] $Repos = @('RealWhyKnot/VRCFaceTracking', 'benaclejames/VRCFaceTracking'),
-  [string] $OutFile = 'VRCFaceTracking/Assets/contributors.json',
+  [string] $OutFile = 'src/VRCFaceTracking/Assets/contributors.json',
   [string[]] $FromJson
 )
 

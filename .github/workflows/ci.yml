@@ -49,14 +49,14 @@ jobs:
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore VRCFaceTracking.sln -p:Platform=x64
+          dotnet restore VRCFaceTracking.slnx -p:Platform=x64
           if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
 
       - name: Check formatting
         shell: pwsh
         run: |
-          dotnet format VRCFaceTracking.sln --verify-no-changes --no-restore
-          if ($LASTEXITCODE -ne 0) { throw "formatting drift; run 'dotnet format VRCFaceTracking.sln' and commit ($LASTEXITCODE)" }
+          dotnet format VRCFaceTracking.slnx --verify-no-changes --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "formatting drift; run 'dotnet format VRCFaceTracking.slnx' and commit ($LASTEXITCODE)" }
 
   build:
     name: Build ${{ matrix.channel }} ${{ matrix.rid }}
@@ -103,27 +103,27 @@ jobs:
       - name: Restore
         shell: pwsh
         run: |
-          dotnet restore VRCFaceTracking.sln ${{ matrix.plat }}
+          dotnet restore VRCFaceTracking.slnx ${{ matrix.plat }}
           if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
 
       - name: Build
         shell: pwsh
         run: |
-          dotnet build VRCFaceTracking.sln -c Release ${{ matrix.plat }} -p:VftBuildChannel=${{ matrix.channel }} -p:VftVersion=0.0.0.0-CI --no-restore
+          dotnet build VRCFaceTracking.slnx -c Release ${{ matrix.plat }} -p:VftBuildChannel=${{ matrix.channel }} -p:VftVersion=0.0.0.0-CI --no-restore
           if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
 
       - name: Test
         shell: pwsh
         run: |
-          dotnet test VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=core.trx"
+          dotnet test tests/VRCFaceTracking.Core.Tests/VRCFaceTracking.Core.Tests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=core.trx"
           if ($LASTEXITCODE -ne 0) { throw "tests failed ($LASTEXITCODE)" }
-          dotnet test VRCFaceTracking.UiTests/VRCFaceTracking.UiTests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=ui.trx"
+          dotnet test tests/VRCFaceTracking.Tests/VRCFaceTracking.Tests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=ui.trx"
           if ($LASTEXITCODE -ne 0) { throw "ui tests failed ($LASTEXITCODE)" }
 
       - name: Performance and memory tests
         shell: pwsh
         run: |
-          dotnet test VRCFaceTracking.PerfTests/VRCFaceTracking.PerfTests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=perf.trx" --logger "console;verbosity=detailed"
+          dotnet test tests/VRCFaceTracking.Perf.Tests/VRCFaceTracking.Perf.Tests.csproj -c Release ${{ matrix.plat }} --no-build --logger "trx;LogFileName=perf.trx" --logger "console;verbosity=detailed"
           if ($LASTEXITCODE -ne 0) { throw "performance tests failed ($LASTEXITCODE)" }
 
       - name: Publish

@@ -2,7 +2,7 @@ using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Models;
 using VRCFaceTracking.ViewModels;
 
-namespace VRCFaceTracking.UiTests;
+namespace VRCFaceTracking.Tests;
 
 public class ModuleRegistryViewModelTests
 {

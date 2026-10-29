@@ -3,7 +3,7 @@ using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
 using Xunit.Abstractions;
 
-namespace VRCFaceTracking.PerfTests;
+namespace VRCFaceTracking.Perf.Tests;
 
 public sealed class MutationTests(ITestOutputHelper output)
 {

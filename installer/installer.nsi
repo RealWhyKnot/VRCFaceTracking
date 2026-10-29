@@ -18,8 +18,8 @@ SetCompressor /SOLID lzma
 !include "FileFunc.nsh"
 !include "LogicLib.nsh"
 
-!define MUI_ICON "..\VRCFaceTracking\Assets\WindowIcon.ico"
-!define MUI_UNICON "..\VRCFaceTracking\Assets\WindowIcon.ico"
+!define MUI_ICON "..\src\VRCFaceTracking\Assets\WindowIcon.ico"
+!define MUI_UNICON "..\src\VRCFaceTracking\Assets\WindowIcon.ico"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXENAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start VRCFaceTracking"
 

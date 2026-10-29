@@ -1,6 +1,6 @@
 using Xunit.Abstractions;
 
-namespace VRCFaceTracking.PerfTests;
+namespace VRCFaceTracking.Perf.Tests;
 
 public sealed class TickPathTests(ITestOutputHelper output) : IAsyncLifetime
 {

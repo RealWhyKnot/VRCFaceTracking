@@ -12,7 +12,7 @@ using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
 using VRCFaceTracking.Core.Services;
 
-namespace VRCFaceTracking.PerfTests;
+namespace VRCFaceTracking.Perf.Tests;
 
 internal sealed class NullSettings : ILocalSettingsService
 {

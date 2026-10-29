@@ -4,7 +4,7 @@ using VRCFaceTracking.Core.Sandboxing;
 using VRCFaceTracking.Core.Sandboxing.IPC;
 using Xunit.Abstractions;
 
-namespace VRCFaceTracking.PerfTests;
+namespace VRCFaceTracking.Perf.Tests;
 
 public sealed class IpcTests(ITestOutputHelper output)
 {

@@ -9,7 +9,7 @@ using VRCFaceTracking.Strings;
 using VRCFaceTracking.ViewModels;
 using VRCFaceTracking.Views;
 
-namespace VRCFaceTracking.UiTests;
+namespace VRCFaceTracking.Tests;
 
 public class SettingsPageTests
 {

@@ -11,9 +11,9 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\VRCFaceTracking.Core\VRCFaceTracking.Core.csproj" />
-    <ProjectReference Include="..\VRCFaceTracking.ModuleProcess\VRCFaceTracking.ModuleProcess.csproj" />
-    <ProjectReference Include="..\VRCFaceTracking.PerfTests.Module\VRCFaceTracking.PerfTests.Module.csproj" />
+    <ProjectReference Include="..\..\src\VRCFaceTracking.Core\VRCFaceTracking.Core.csproj" />
+    <ProjectReference Include="..\..\src\VRCFaceTracking.ModuleProcess\VRCFaceTracking.ModuleProcess.csproj" />
+    <ProjectReference Include="..\..\src\VRCFaceTracking.Perf.Module\VRCFaceTracking.Perf.Module.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

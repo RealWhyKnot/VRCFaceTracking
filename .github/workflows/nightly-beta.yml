@@ -17,7 +17,7 @@ jobs:
     with:
       ci-workflow: ci.yml
       ignore-paths: |
-        VRCFaceTracking.Core.Tests/**
+        tests/VRCFaceTracking.Core.Tests/**
         .vsconfig
 
   release:

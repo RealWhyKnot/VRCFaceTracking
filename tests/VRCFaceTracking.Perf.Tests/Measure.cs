@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 
-namespace VRCFaceTracking.PerfTests;
+namespace VRCFaceTracking.Perf.Tests;
 
 internal readonly record struct CpuSample(double ElapsedMs, double CpuMs, long AllocatedBytes, int Gen0, int Gen1, int Gen2)
 {

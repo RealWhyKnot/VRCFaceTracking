@@ -4,10 +4,10 @@ using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Models;
-using VRCFaceTracking.PerfTests.Module;
+using VRCFaceTracking.Perf.Module;
 using Xunit.Abstractions;
 
-namespace VRCFaceTracking.PerfTests;
+namespace VRCFaceTracking.Perf.Tests;
 
 public sealed class ModuleProcessTests(ITestOutputHelper output) : IDisposable
 {
@@ -87,7 +87,7 @@ public sealed class ModuleProcessTests(ITestOutputHelper output) : IDisposable
         Environment.SetEnvironmentVariable(TieredCompilationVariable, "0");
 
         await using var harness = new SenderHarness(allMutations: true, drainSink: true);
-        var modulePath = Path.Combine(AppContext.BaseDirectory, "VRCFaceTracking.PerfTests.Module.dll");
+        var modulePath = Path.Combine(AppContext.BaseDirectory, "VRCFaceTracking.Perf.Module.dll");
         var logs = new CapturingLoggerProvider();
         using var loggerFactory = new LoggerFactory(new[] { logs });
         var manager = new UnifiedLibManager(loggerFactory, new InlineDispatcher(), new SyntheticModuleSource(modulePath), new NullSettings(), new LogLevelGate());

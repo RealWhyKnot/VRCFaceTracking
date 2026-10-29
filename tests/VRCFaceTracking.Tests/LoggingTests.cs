@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Services.Logging;
 
-namespace VRCFaceTracking.UiTests;
+namespace VRCFaceTracking.Tests;
 
 public class LoggingTests
 {

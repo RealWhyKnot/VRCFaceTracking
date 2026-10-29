@@ -74,6 +74,6 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="VRCFaceTracking.UiTests" />
+    <InternalsVisibleTo Include="VRCFaceTracking.Tests" />
   </ItemGroup>
 </Project>

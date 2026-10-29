@@ -10,7 +10,7 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\VRCFaceTracking.Core\VRCFaceTracking.Core.csproj" />
+    <ProjectReference Include="..\..\src\VRCFaceTracking.Core\VRCFaceTracking.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
