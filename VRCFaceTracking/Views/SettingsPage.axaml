@@ -88,6 +88,31 @@
                 </ui:SettingsExpander.Footer>
             </ui:SettingsExpander>
 
+            <TextBlock Text="{x:Static s:Resources.UpdatesSectionHeader}" Classes="section-header"
+                       IsVisible="{Binding IsUpdateCheckAvailable}" />
+
+            <ui:SettingsExpander
+                Header="{x:Static s:Resources.UpdatesHeader}"
+                Description="{x:Static s:Resources.UpdatesDescription}"
+                IsVisible="{Binding IsUpdateCheckAvailable}">
+                <ui:SettingsExpander.Footer>
+                    <ToggleSwitch
+                        IsChecked="{Binding CheckUpdatesOnStartup, Mode=TwoWay}" />
+                </ui:SettingsExpander.Footer>
+
+                <ui:SettingsExpander.Items>
+                    <ui:SettingsExpanderItem
+                        Content="{x:Static s:Resources.CheckUpdatesHeader}"
+                        Description="{x:Static s:Resources.CheckUpdatesDescription}">
+                        <ui:SettingsExpanderItem.Footer>
+                            <Button Content="{x:Static s:Resources.CheckUpdatesButtonContent}"
+                                    Command="{Binding CheckUpdatesCommand}"
+                                    ToolTip.Tip="{x:Static s:Resources.CheckUpdatesTooltip}" />
+                        </ui:SettingsExpanderItem.Footer>
+                    </ui:SettingsExpanderItem>
+                </ui:SettingsExpander.Items>
+            </ui:SettingsExpander>
+
             <TextBlock Text="{x:Static s:Resources.DeveloperSectionHeader}" Classes="section-header" />
 
             <ui:SettingsExpander
@@ -100,6 +125,24 @@
             </ui:SettingsExpander>
 
             <StackPanel Spacing="4" IsVisible="{Binding Developer.Enabled}">
+
+                <Expander x:Name="CameraStreamsExpander" Header="{x:Static s:Resources.CameraStreamsHeader}"
+                          HorizontalAlignment="Stretch">
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="{x:Static s:Resources.CameraStreamsEye}" />
+                            <Image x:Name="EyeStreamImage" Stretch="Uniform" MaxHeight="240" />
+                            <TextBlock x:Name="EyeStreamStatus" Classes="caption"
+                                       Text="{x:Static s:Resources.CameraStreamsWaiting}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="{x:Static s:Resources.CameraStreamsLip}" />
+                            <Image x:Name="LipStreamImage" Stretch="Uniform" MaxHeight="240" />
+                            <TextBlock x:Name="LipStreamStatus" Classes="caption"
+                                       Text="{x:Static s:Resources.CameraStreamsWaiting}" />
+                        </StackPanel>
+                    </Grid>
+                </Expander>
 
                 <TextBlock Text="{x:Static s:Resources.LoggingSectionHeader}" Classes="section-header" />
 
@@ -145,53 +188,6 @@
                         </StackPanel>
                     </ui:SettingsExpander.Footer>
                 </ui:SettingsExpander>
-
-                <Expander x:Name="CameraStreamsExpander" Header="{x:Static s:Resources.CameraStreamsHeader}"
-                          HorizontalAlignment="Stretch">
-                    <Grid ColumnDefinitions="*,*">
-                        <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock Text="{x:Static s:Resources.CameraStreamsEye}" />
-                            <Image x:Name="EyeStreamImage" Stretch="Uniform" MaxHeight="240" />
-                            <TextBlock x:Name="EyeStreamStatus" Classes="caption"
-                                       Text="{x:Static s:Resources.CameraStreamsWaiting}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock Text="{x:Static s:Resources.CameraStreamsLip}" />
-                            <Image x:Name="LipStreamImage" Stretch="Uniform" MaxHeight="240" />
-                            <TextBlock x:Name="LipStreamStatus" Classes="caption"
-                                       Text="{x:Static s:Resources.CameraStreamsWaiting}" />
-                        </StackPanel>
-                    </Grid>
-                </Expander>
-
-            </StackPanel>
-
-            <TextBlock Text="{x:Static s:Resources.UpdatesSectionHeader}" Classes="section-header"
-                       IsVisible="{Binding IsUpdateCheckAvailable}" />
-
-            <ui:SettingsExpander
-                Header="{x:Static s:Resources.UpdatesHeader}"
-                Description="{x:Static s:Resources.UpdatesDescription}"
-                IsVisible="{Binding IsUpdateCheckAvailable}">
-                <ui:SettingsExpander.Footer>
-                    <ToggleSwitch
-                        IsChecked="{Binding CheckUpdatesOnStartup, Mode=TwoWay}" />
-                </ui:SettingsExpander.Footer>
-
-                <ui:SettingsExpander.Items>
-                    <ui:SettingsExpanderItem
-                        Content="{x:Static s:Resources.CheckUpdatesHeader}"
-                        Description="{x:Static s:Resources.CheckUpdatesDescription}">
-                        <ui:SettingsExpanderItem.Footer>
-                            <Button Content="{x:Static s:Resources.CheckUpdatesButtonContent}"
-                                    Command="{Binding CheckUpdatesCommand}"
-                                    ToolTip.Tip="{x:Static s:Resources.CheckUpdatesTooltip}" />
-                        </ui:SettingsExpanderItem.Footer>
-                    </ui:SettingsExpanderItem>
-                </ui:SettingsExpander.Items>
-            </ui:SettingsExpander>
-
-            <StackPanel Spacing="4" IsVisible="{Binding Developer.Enabled}">
 
                 <TextBlock Text="{x:Static s:Resources.AdvancedSectionHeader}" Classes="section-header" />
 

@@ -340,10 +340,10 @@
     <value>Restart modules</value>
   </data>
   <data name="LoggingSectionHeader" xml:space="preserve">
-    <value>LOGGING</value>
+    <value>Logging</value>
   </data>
   <data name="UpdatesSectionHeader" xml:space="preserve">
-    <value>UPDATES</value>
+    <value>Updates</value>
   </data>
   <data name="ModuleTrackingHeader" xml:space="preserve">
     <value>Tracking data</value>
@@ -451,10 +451,10 @@
     <value>SteamVR</value>
   </data>
   <data name="AdvancedSectionHeader" xml:space="preserve">
-    <value>ADVANCED</value>
+    <value>Advanced</value>
   </data>
   <data name="DeveloperSectionHeader" xml:space="preserve">
-    <value>DEVELOPER</value>
+    <value>Developer</value>
   </data>
   <data name="DeveloperModeHeader" xml:space="preserve">
     <value>Developer mode</value>

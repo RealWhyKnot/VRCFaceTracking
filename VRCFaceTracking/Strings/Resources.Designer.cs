@@ -67,7 +67,7 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to ADVANCED.
+        ///   Looks up a localized string similar to Advanced.
         /// </summary>
         public static string AdvancedSectionHeader {
             get {
@@ -319,7 +319,7 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to DEVELOPER.
+        ///   Looks up a localized string similar to Developer.
         /// </summary>
         public static string DeveloperSectionHeader {
             get {
@@ -598,7 +598,7 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to LOGGING.
+        ///   Looks up a localized string similar to Logging.
         /// </summary>
         public static string LoggingSectionHeader {
             get {
@@ -1354,7 +1354,7 @@ namespace VRCFaceTracking.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to UPDATES.
+        ///   Looks up a localized string similar to Updates.
         /// </summary>
         public static string UpdatesSectionHeader {
             get {
