@@ -61,13 +61,13 @@ jobs:
       - name: C# style rules
         shell: pwsh
         run: |
-          dotnet run .lint/CSharpStyle/Program.cs -- .
+          dotnet run .github/lint/CSharpStyle.cs -- .
           if ($LASTEXITCODE -ne 0) { throw "C# style rules failed ($LASTEXITCODE)" }
 
       - name: Style check
         shell: pwsh
         run: |
-          python -B style_check.py
+          python -B .github/lint/style_check.py
           if ($LASTEXITCODE -ne 0) { throw "style check failed ($LASTEXITCODE)" }
 
   build:

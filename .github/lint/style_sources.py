@@ -36,6 +36,11 @@ LANGUAGES: dict[str, str] = {
     ".svelte": "typescript",
     ".vue": "typescript",
     ".astro": "typescript",
+    ".css": "css",
+    ".scss": "preprocessed",
+    ".sass": "preprocessed",
+    ".less": "preprocessed",
+    ".styl": "preprocessed",
 }
 SHELL_TEMPLATE = re.compile(r"\.(?:sh|bash)\.tpl$")
 SHELL_SHEBANG = re.compile(r"^#![ \t]*\S*/(?:env[ \t]+(?:-\S+[ \t]+)*)?(?:ba|da|k|z)?sh\b")
@@ -190,6 +195,8 @@ def check_source(path: str, text: str) -> list[Finding]:
     language = language_of(path, text)
     if language is None:
         return []
+    if language == "preprocessed":
+        return [Finding(path, 0, "Sass, Less or Stylus file; write plain CSS (CSS-10)")]
     findings: list[Finding] = []
     lines = count_lines(text)
     if language == "rust":

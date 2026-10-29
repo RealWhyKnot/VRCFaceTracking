@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from style_configs import check_config
+from style_configs import LINT_DIR, check_config
 from style_scan import Finding
 from style_sources import check_generated, check_source
 
@@ -51,7 +51,7 @@ def vendored_paths(entries: list[str]) -> VendoredPaths:
 
 def unfolded(shared: list[str], local: list[str]) -> list[Finding]:
     return [
-        Finding(LOCAL_FILE, 0, f"{entry} isn't in {VENDORED_FILE} yet. Run Install-Lint again (GEN-1)")
+        Finding(f"{LINT_DIR}/{LOCAL_FILE}", 0, f"{entry} isn't in {VENDORED_FILE} yet. Run Install-Lint again (GEN-1)")
         for entry in local
         if entry not in shared
     ]
@@ -101,7 +101,8 @@ def main() -> int:
     if not list_path.is_file():
         sys.stderr.write(f"{VENDORED_FILE} is missing next to {Path(__file__).name}. Run Install-Lint again.\n")
         return 2
-    local_path = root / LOCAL_FILE
+    lint = root / LINT_DIR
+    local_path = lint / LOCAL_FILE
     try:
         shared = read_entries(list_path)
         local = read_entries(local_path) if local_path.is_file() else []
@@ -113,7 +114,7 @@ def main() -> int:
     except (subprocess.CalledProcessError, OSError) as error:
         sys.stderr.write(f"can't list the files in {root} with git: {error}\n")
         return 2
-    if list_path.parent == root:
+    if list_path.parent == lint:
         findings = sorted(findings + unfolded(shared, local))
     for finding in findings:
         sys.stdout.write(finding.render() + "\n")

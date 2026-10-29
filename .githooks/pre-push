@@ -15,7 +15,7 @@ upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) |
 git rev-parse --verify -q "${upstream}" >/dev/null || upstream=HEAD~1
 
 dotnet_paths=(
-  '*.cs' '*.csproj' '*.props' '*.targets' '*.slnx' '*.axaml' '*.editorconfig' '*packages.lock.json' '.lint/*'
+  '*.cs' '*.csproj' '*.props' '*.targets' '*.slnx' '*.axaml' '*.editorconfig' '*packages.lock.json' '.github/lint/*'
 )
 changed=$(git diff --name-only "${upstream}...HEAD" -- "${dotnet_paths[@]}" 2>/dev/null) || changed=unknown
 
@@ -48,7 +48,7 @@ else
     || die "tests failed."
 
   echo "pre-push: C# style rules..." >&2
-  dotnet run .lint/CSharpStyle/Program.cs -- . || die "C# style rules failed."
+  dotnet run .github/lint/CSharpStyle.cs -- . || die "C# style rules failed."
 fi
 
 python_bin=""
@@ -63,7 +63,7 @@ if [[ -z ${python_bin} ]]; then
   echo "pre-push: Python not found; skipping style_check.py." >&2
 else
   echo "pre-push: style_check.py..." >&2
-  "${python_bin}" -B style_check.py || die "style_check.py failed."
+  "${python_bin}" -B .github/lint/style_check.py || die "style_check.py failed."
 fi
 
 echo "pre-push: checks passed." >&2

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+LINT_DIR = ".github/lint"
 ROOT_ONLY = frozenset(
     {
         ".editorconfig",
@@ -18,18 +19,42 @@ ROOT_ONLY = frozenset(
         ".shellcheckrc",
         "Directory.Build.props",
         "Directory.Build.targets",
-        "PSScriptAnalyzerSettings.psd1",
         "clippy.toml",
         "pyrightconfig.json",
         "ruff.toml",
         "rustfmt.toml",
     }
 )
-ROOT_ONLY_PATTERN = re.compile(r"^(?:eslint|prettier)\.config\.[cm]?[jt]s$")
+ROOT_ONLY_PATTERN = re.compile(r"^(?:eslint|prettier|stylelint)\.config\.[cm]?[jt]s$")
+LINT_ONLY = frozenset({"PSScriptAnalyzerSettings.psd1"})
+LINT_FILES = LINT_ONLY | frozenset(
+    {
+        "CSharpStyle.cs",
+        "Invoke-PSLint.ps1",
+        "PSStyleRules.psm1",
+        "pystyle.py",
+        "rust-style.awk",
+        "shell-files.awk",
+        "shell-style.awk",
+        "style_check.py",
+        "style_configs.py",
+        "style_scan.py",
+        "style_sources.py",
+        "tsconfig.base.json",
+        "vendored-paths.local.txt",
+        "vendored-paths.txt",
+    }
+)
+OLD_LINT_DIR = ".lint/"
+OLD_UNITY_LINT = re.compile(r"^lint/[^/]+\.(?:csproj|props|targets)$")
+UNITY_PROJECT_DIRS = frozenset({"headless", f"{LINT_DIR}/unity"})
+UNITY_BUILD_FILES = frozenset({"Directory.Build.props", "Directory.Build.targets"})
 NEVER_NAMES = (
     r"\.eslintrc.*",
     r"\.eslintignore",
     r"\.prettierrc.*",
+    r"\.stylelintrc.*",
+    r"\.stylelintignore",
     r"\.ruff\.toml",
     r"\.rustfmt\.toml",
     r"\.clippy\.toml",
@@ -78,8 +103,8 @@ def pyproject_problem(path: Path, _root: Path) -> str | None:
 
 
 def package_problem(path: Path, _root: Path) -> str | None:
-    if has_key(read_json(path), "eslintConfig", "prettier"):
-        return "eslintConfig or prettier key overrides the baseline (GEN-5)"
+    if has_key(read_json(path), "eslintConfig", "prettier", "stylelint"):
+        return "eslintConfig, prettier or stylelint key overrides the baseline (GEN-5)"
     return None
 
 
@@ -120,13 +145,32 @@ def check_project(path: str, root: Path) -> list[Finding]:
     ]
 
 
+def beside_unity_projects(path: str, root: Path) -> bool:
+    folder, _, name = path.rpartition("/")
+    return folder in UNITY_PROJECT_DIRS and name in UNITY_BUILD_FILES and not (root / name).exists()
+
+
+def misplaced(path: str, root: Path) -> str | None:
+    folder, _, name = path.rpartition("/")
+    if (not folder and name in LINT_FILES) or path.startswith(OLD_LINT_DIR):
+        return f"belongs in {LINT_DIR}/ (GEN-5)"
+    if OLD_UNITY_LINT.match(path):
+        return f"Unity lint projects belong in {LINT_DIR}/unity/ (GEN-5)"
+    if NEVER.match(name):
+        return "lint or format config the baseline doesn't use (GEN-5)"
+    root_only = name in ROOT_ONLY or ROOT_ONLY_PATTERN.match(name) is not None
+    if folder and root_only and not beside_unity_projects(path, root):
+        return "nested lint or format config overrides the baseline (GEN-5)"
+    if folder not in {"", LINT_DIR} and name in LINT_ONLY:
+        return "nested lint or format config overrides the baseline (GEN-5)"
+    return None
+
+
 def check_config(path: str, root: Path) -> list[Finding]:
     name = path.rsplit("/", 1)[-1]
-    nested = "/" in path
-    if NEVER.match(name):
-        return [Finding(path, 0, "lint or format config the baseline doesn't use (GEN-5)")]
-    if nested and (name in ROOT_ONLY or ROOT_ONLY_PATTERN.match(name)):
-        return [Finding(path, 0, "nested lint or format config overrides the baseline (GEN-5)")]
+    problem = misplaced(path, root)
+    if problem:
+        return [Finding(path, 0, problem)]
     if PROJECT_FILE.search(name):
         return check_project(path, root)
     check = CONTENT_CHECKS.get(name)
