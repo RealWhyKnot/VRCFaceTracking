@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts;
+using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.OSC;
 using VRCFaceTracking.Core.Params.Data;
 
@@ -20,6 +21,12 @@ public sealed class BinaryFaceDataSender : IHostedService
     }
 
     public bool AvatarUsesNativeFaceTracking => _avatarUsesNativeFaceTracking;
+
+    internal Func<bool> TrackingActive
+    {
+        get; init;
+    } = () =>
+        UnifiedLibManager.EyeStatus == ModuleState.Active || UnifiedLibManager.ExpressionStatus == ModuleState.Active;
 
     public void SetAvatar(IAvatarInfo avatar)
     {
@@ -54,7 +61,7 @@ public sealed class BinaryFaceDataSender : IHostedService
 
     internal void OnDataUpdated(UnifiedTrackingData data)
     {
-        if (!_avatarUsesNativeFaceTracking && !ParameterSenderService.AllParametersRelevantStatic)
+        if (!_avatarUsesNativeFaceTracking && !ParameterSenderService.AllParametersRelevantStatic || !TrackingActive())
         {
             return;
         }

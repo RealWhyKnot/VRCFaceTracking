@@ -95,13 +95,13 @@ public class AvatarConfigParser
         {
             _logger.LogInformation("Parsing config file for avatar: {avatarName}", avatarConfig.name);
             ParameterSenderService.Clear();
-            var parameters = fullFaceTracking
-                ? Array.Empty<IParameterDefinition>()
-                : avatarConfig.parameters.Where(param => param.input != null).ToArray<IParameterDefinition>();
-
-            foreach (var parameter in UnifiedTracking.AllParameters)
+            var parameters = avatarConfig.parameters.Where(param => param.input != null).ToArray<IParameterDefinition>();
+            var leftToVrchat = new List<string>();
+            paramList.AddRange(AvatarParameters.Reset(parameters, fullFaceTracking, leftToVrchat));
+            if (leftToVrchat.Count > 0)
             {
-                paramList.AddRange(parameter.ResetParam(parameters));
+                _logger.LogInformation("Avatar {AvatarId} uses VRChat face tracking. Not sending {Count} parameters VRChat drives: {Parameters}",
+                    avatarConfig.id, leftToVrchat.Count, string.Join(", ", leftToVrchat));
             }
         }
 

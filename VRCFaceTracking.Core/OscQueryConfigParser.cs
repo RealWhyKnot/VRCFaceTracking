@@ -30,11 +30,12 @@ public class OscQueryConfigParser(
             var avatarInfo = new OscQueryAvatarInfo(avatarConfig);
 
             // Reset all parameters
-            var paramList = new List<Parameter>();
-            var avatarParameters = avatarInfo.FullFaceTracking ? Array.Empty<IParameterDefinition>() : avatarInfo.Parameters;
-            foreach (var parameter in UnifiedTracking.AllParameters)
+            var leftToVrchat = new List<string>();
+            var paramList = AvatarParameters.Reset(avatarInfo.Parameters, avatarInfo.FullFaceTracking, leftToVrchat);
+            if (leftToVrchat.Count > 0)
             {
-                paramList.AddRange(parameter.ResetParam(avatarParameters));
+                parserLogger.LogInformation("Avatar {AvatarId} uses VRChat face tracking. Not sending {Count} parameters VRChat drives: {Parameters}",
+                    avatarInfo.Id, leftToVrchat.Count, string.Join(", ", leftToVrchat));
             }
 
             // God help me why is this something I need to do to get the avatar name

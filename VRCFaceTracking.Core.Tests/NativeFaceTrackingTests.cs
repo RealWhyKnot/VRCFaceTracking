@@ -7,7 +7,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.OSC;
+using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
+using VRCFaceTracking.Core.Params.DataTypes;
 using VRCFaceTracking.Core.Params.Expressions;
 using VRCFaceTracking.Core.Services;
 using VRCFaceTracking.Core.Types;
@@ -234,14 +236,108 @@ public class NativeFaceTrackingTests
     public void IsAlreadyLoaded_ReloadsWhenVrchatReportsADifferentFaceTrackingFlag(
         string? newId, string loadedId, bool? reported, bool loaded, bool expected)
     {
-        Assert.Equal(expected, OscQueryService.IsAlreadyLoaded(newId!, loadedId, reported, loaded));
+        Assert.Equal(expected, OscQueryService.IsAlreadyLoaded(newId, loadedId, reported, loaded));
+    }
+
+    private sealed record ParamDef(string Address, string Name, Type Type) : IParameterDefinition;
+
+    private static readonly IParameterDefinition[] HybridAvatar =
+    {
+        new ParamDef("/avatar/parameters/EyeTrackingActive", "EyeTrackingActive", typeof(bool)),
+        new ParamDef("/avatar/parameters/LipTrackingActive", "LipTrackingActive", typeof(bool)),
+        new ParamDef("/avatar/parameters/ExpressionTrackingActive", "ExpressionTrackingActive", typeof(bool)),
+        new ParamDef("/avatar/parameters/FT/v2/Head/Yaw", "FT/v2/Head/Yaw", typeof(float)),
+        new ParamDef("/avatar/parameters/FT/v2/JawOpen", "FT/v2/JawOpen", typeof(float)),
+        new ParamDef("/avatar/parameters/FT/v2/MouthClosed2", "FT/v2/MouthClosed2", typeof(bool)),
+        new ParamDef("/avatar/parameters/FT/v2/EyeLidLeft", "FT/v2/EyeLidLeft", typeof(float)),
+        new ParamDef("/avatar/parameters/FaceTrackingLimits", "FaceTrackingLimits", typeof(bool)),
+    };
+
+    private static string[] SentNames(IEnumerable<Parameter> relevant) =>
+        relevant.SelectMany(parameter => parameter.GetParamNames()).Select(name => name.paramName).ToArray();
+
+    private static int TrackingEyeCount(IEnumerable<Parameter> relevant) =>
+        relevant.Count(parameter => parameter.GetType().IsGenericType && parameter.GetType().GetGenericTypeDefinition() == typeof(NativeParameter<>));
+
+    [Fact]
+    public void FullFaceTrackingAvatar_KeepsStatusAndHeadParams_AndLeavesExpressionsToVrchat()
+    {
+        ParameterSenderService.AllParametersRelevantStatic = false;
+        var leftToVrchat = new List<string>();
+
+        try
+        {
+            var sent = AvatarParameters.Reset(HybridAvatar, true, leftToVrchat);
+            var names = SentNames(sent);
+
+            Assert.Contains("EyeTrackingActive", names);
+            Assert.Contains("LipTrackingActive", names);
+            Assert.Contains("ExpressionTrackingActive", names);
+            Assert.Contains("v2/Head/Yaw", names);
+            Assert.DoesNotContain("v2/JawOpen", names);
+            Assert.DoesNotContain("v2/MouthClosed2", names);
+            Assert.DoesNotContain("v2/EyeLidLeft", names);
+            Assert.Equal(2, TrackingEyeCount(sent));
+            Assert.Equal(new[] { "FT/v2/JawOpen", "FT/v2/MouthClosed2", "FT/v2/EyeLidLeft" }, leftToVrchat);
+        }
+        finally
+        {
+            AvatarParameters.Reset(Array.Empty<IParameterDefinition>(), false, new List<string>());
+        }
     }
 
     [Fact]
-    public async Task Sender_SendsTheBlobOnlyWhileTheAvatarUsesVrchatFaceTracking()
+    public void SwitchingFromFullFaceTrackingToALegacyAvatar_SendsEveryListedParamAgain()
+    {
+        ParameterSenderService.AllParametersRelevantStatic = false;
+        var leftToVrchat = new List<string>();
+
+        try
+        {
+            AvatarParameters.Reset(HybridAvatar, true, new List<string>());
+            var sent = AvatarParameters.Reset(HybridAvatar, false, leftToVrchat);
+            var names = SentNames(sent);
+
+            Assert.Contains("EyeTrackingActive", names);
+            Assert.Contains("v2/JawOpen", names);
+            Assert.Contains("v2/MouthClosed2", names);
+            Assert.Contains("v2/EyeLidLeft", names);
+            Assert.Equal(1, TrackingEyeCount(sent));
+            Assert.Empty(leftToVrchat);
+        }
+        finally
+        {
+            AvatarParameters.Reset(Array.Empty<IParameterDefinition>(), false, new List<string>());
+        }
+    }
+
+    [Fact]
+    public void AllParametersRelevant_StillSendsEverythingToAFullFaceTrackingAvatar()
+    {
+        ParameterSenderService.AllParametersRelevantStatic = true;
+        var leftToVrchat = new List<string>();
+
+        try
+        {
+            var names = SentNames(AvatarParameters.Reset(HybridAvatar, true, leftToVrchat));
+
+            Assert.Contains("v2/JawOpen", names);
+            Assert.Contains("EyeTrackingActive", names);
+            Assert.Empty(leftToVrchat);
+        }
+        finally
+        {
+            ParameterSenderService.AllParametersRelevantStatic = false;
+            AvatarParameters.Reset(Array.Empty<IParameterDefinition>(), false, new List<string>());
+        }
+    }
+
+    [Fact]
+    public async Task Sender_SendsTheBlobOnlyToAFaceTrackingAvatarWhileAModuleIsTracking()
     {
         ParameterSenderService.AllParametersRelevantStatic = false;
         var previousMutator = UnifiedTracking.Mutator;
+        var tracking = true;
 
         using var listener = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
@@ -250,7 +346,7 @@ public class NativeFaceTrackingTests
         target.OutPort = ((IPEndPoint)listener.LocalEndPoint!).Port;
         var mutator = new UnifiedTrackingMutator(NullLogger<UnifiedTrackingMutator>.Instance, new NullSettings(), new InlineDispatcher());
         var sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance, new TimerResolutionHold(NullLogger.Instance));
-        var face = new BinaryFaceDataSender(NullLogger<BinaryFaceDataSender>.Instance);
+        var face = new BinaryFaceDataSender(NullLogger<BinaryFaceDataSender>.Instance) { TrackingActive = () => Volatile.Read(ref tracking) };
 
         try
         {
@@ -275,6 +371,14 @@ public class NativeFaceTrackingTests
             Assert.Equal(255, blob[8]);
             Assert.Equal(0, blob[9]);
 
+            Volatile.Write(ref tracking, false);
+            await Task.Delay(100);
+            Drain(listener);
+            UnifiedTracking.MarkDataUpdated();
+
+            Assert.Null(ReceiveBlob(listener, NativeFaceBlob.Address, TimeSpan.FromMilliseconds(500)));
+
+            Volatile.Write(ref tracking, true);
             face.SetAvatar(new Avatar("Legacy", "avtr_legacy", Array.Empty<IParameterDefinition>(), false));
             Assert.False(face.AvatarUsesNativeFaceTracking);
             await Task.Delay(100);
