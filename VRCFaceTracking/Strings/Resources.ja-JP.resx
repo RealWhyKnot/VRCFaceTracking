@@ -145,7 +145,7 @@
     <value>About</value>
   </data>
   <data name="Appearance_Text" xml:space="preserve">
-    <value>アプリケーションライセンス</value>
+    <value>外観</value>
   </data>
   <data name="LocalTestAvatar_Text" xml:space="preserve">
     <value>Local Test Avatar Detected</value>
@@ -166,7 +166,7 @@
     <value>アイトラッキング アクティブ</value>
   </data>
   <data name="FaceTrackingActive_Text" xml:space="preserve">
-    <value>フェイストラッキング　アクティブ</value>
+    <value>フェイストラッキング アクティブ</value>
   </data>
   <data name="LastUpdated_Text" xml:space="preserve">
     <value>最終更新</value>
