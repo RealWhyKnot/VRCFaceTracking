@@ -79,6 +79,9 @@ public class OscMessage : IDisposable
         _valueSetter = value => Values[0].Value = value;
     }
 
+    public static OscMessage CreateBlob(string address, byte[] data) =>
+        new(address, new[] { new OscValue { Type = OscValueType.Blob, BlobValue = data } });
+
     public static OscMessage TryParseOsc(byte[] bytes, int len, ref int messageIndex) =>
         OscCodec.TryParse(bytes, len, ref messageIndex);
 

@@ -10,6 +10,7 @@ public class OscCodecTests
     private static OscValue B(bool v) => new() { Type = OscValueType.Bool, BoolValue = v };
     private static OscValue S(string v) => new() { Type = OscValueType.String, StringValue = v };
     private static OscValue Marker(OscValueType t) => new() { Type = t };
+    private static OscValue Blob(byte[] v) => new() { Type = OscValueType.Blob, BlobValue = v };
 
     private static string EncodeHex(string address, params OscValue[] values)
     {
@@ -67,6 +68,37 @@ public class OscCodecTests
     public void EncodeMessage_String_MatchesOscSpec(string expected, string value)
     {
         Assert.Equal(expected, EncodeHex("/s", S(value)));
+    }
+
+    [Theory]
+    [InlineData("2F6200002C62000000000000", "")]
+    [InlineData("2F6200002C6200000000000301020300", "010203")]
+    [InlineData("2F6200002C6200000000000401020304", "01020304")]
+    public void EncodeMessage_Blob_MatchesOscSpec(string expected, string data)
+    {
+        Assert.Equal(expected, EncodeHex("/b", Blob(Convert.FromHexString(data))));
+    }
+
+    [Theory]
+    [InlineData("2F6200002C62000000000000", "")]
+    [InlineData("2F6200002C6200000000000301020300", "010203")]
+    [InlineData("2F6200002C6200000000000401020304", "01020304")]
+    public void TryParse_Blob_RoundTrips(string hex, string data)
+    {
+        var bytes = Convert.FromHexString(hex);
+        var index = 0;
+        var msg = OscCodec.TryParse(bytes, bytes.Length, ref index);
+        Assert.NotNull(msg);
+        Assert.Equal(OscValueType.Blob, Assert.Single(msg.Values).Type);
+        Assert.Equal(Convert.FromHexString(data), msg.Value);
+        Assert.Equal(bytes.Length, index);
+    }
+
+    [Fact]
+    public void EncodeMessage_FaceTrackingBlob_IsPaddedTo132Bytes()
+    {
+        var buffer = new byte[4096];
+        Assert.Equal(132, OscCodec.EncodeMessage(buffer, OscMessage.CreateBlob("/tracking/face/v1", new byte[102])));
     }
 
     [Fact]
@@ -154,6 +186,10 @@ public class OscCodecTests
     [InlineData("")]
     [InlineData("74657374000000002C6600003F000000")]
     [InlineData("2362756E646C65000000000000000000000000142F746573742F666C6F6174002C6600003F000000")]
+    [InlineData("2F6200002C6200000000000801020304")]
+    [InlineData("2F6200002C620000FFFFFFFF")]
+    [InlineData("2F6200002C620000000000")]
+    [InlineData("2F6200002C62000000000003010203")]
     public void TryParse_RejectsInvalidInput(string hex)
     {
         var bytes = Convert.FromHexString(hex);

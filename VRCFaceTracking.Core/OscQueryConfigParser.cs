@@ -31,9 +31,10 @@ public class OscQueryConfigParser(
 
             // Reset all parameters
             var paramList = new List<Parameter>();
+            var avatarParameters = avatarInfo.FullFaceTracking ? Array.Empty<IParameterDefinition>() : avatarInfo.Parameters;
             foreach (var parameter in UnifiedTracking.AllParameters)
             {
-                paramList.AddRange(parameter.ResetParam(avatarInfo.Parameters));
+                paramList.AddRange(parameter.ResetParam(avatarParameters));
             }
 
             // God help me why is this something I need to do to get the avatar name

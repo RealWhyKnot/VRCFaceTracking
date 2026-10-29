@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OscSendService>();
         services.AddSingleton<OscRecvService>();
         services.AddSingleton<ParameterSenderService>();
+        services.AddSingleton<BinaryFaceDataSender>();
         services.AddSingleton<UnifiedTrackingMutator>();
         services.AddTransient<GithubService>();
         services.AddSingleton<DeveloperSettings>();
@@ -65,6 +66,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ParametersViewModel>();
 
         services.AddHostedService<ParameterSenderService>(provider => provider.GetService<ParameterSenderService>());
+        services.AddHostedService<BinaryFaceDataSender>(provider => provider.GetService<BinaryFaceDataSender>());
         services.AddHostedService<OscRecvService>(provider => provider.GetService<OscRecvService>());
         services.AddHostedService<OscQueryService>(provider => provider.GetService<OscQueryService>());
 

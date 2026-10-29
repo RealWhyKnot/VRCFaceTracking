@@ -23,10 +23,12 @@ public partial class OscQueryService(
     OscRecvService recvService,
     ILocalSettingsService settingsService,
     HttpHandler httpHandler,
-    IDispatcherService dispatcherService)
+    IDispatcherService dispatcherService,
+    BinaryFaceDataSender binaryFaceDataSender)
     : ObservableObject, IHostedService
 {
     private static readonly TimeSpan AvatarPollInterval = TimeSpan.FromSeconds(1);
+    internal const string FullFaceTrackingAddress = "/avatar/avatarfullfacetracking";
 
     [ObservableProperty] private IAvatarInfo _avatarInfo = new NullAvatarDef("Loading...", "Loading...");
     [ObservableProperty] private List<Parameter> _avatarParameters;
@@ -40,6 +42,7 @@ public partial class OscQueryService(
 
         recvService.OnMessageReceived += HandleNewMessage;
         recvService.HandleAddress("/avatar/change");
+        recvService.HandleAddress(FullFaceTrackingAddress);
         recvService.HandleAddress("/vrcft/settings/forceRelevant");
 
         await settingsService.Load(oscTarget);
@@ -95,8 +98,11 @@ public partial class OscQueryService(
 
     private readonly SemaphoreSlim _avatarParseLock = new(1, 1);
     private string _loadedAvatarId;
+    private bool _loadedFullFaceTracking;
+    private string? _requestedAvatarId;
+    private bool? _reportedFullFaceTracking;
 
-    private async void HandleNewAvatar(string newId = null)
+    private async void HandleNewAvatar(string? newId = null)
     {
         if (newId == null)
         {
@@ -112,7 +118,8 @@ public partial class OscQueryService(
 
         try
         {
-            if (newId != null && string.Equals(newId, _loadedAvatarId, StringComparison.Ordinal))
+            var reportedFullFaceTracking = _reportedFullFaceTracking;
+            if (IsAlreadyLoaded(newId, _loadedAvatarId, reportedFullFaceTracking, _loadedFullFaceTracking))
             {
                 logger.LogDebug("diag.avatar skipping reload, {Id} is already loaded", newId);
                 return;
@@ -126,7 +133,7 @@ public partial class OscQueryService(
             else
             {
                 // handle normal osc
-                newAvatar = await avatarConfigParser.ParseAvatar(newId);
+                newAvatar = await avatarConfigParser.ParseAvatar(newId, fullFaceTracking: reportedFullFaceTracking == true);
             }
 
             if (!newAvatar.HasValue)
@@ -137,6 +144,8 @@ public partial class OscQueryService(
             // Parsing success. Deregister callback and update values
             httpHandler.OnHostInfoQueried -= HandleNewAvatarWrapper;
             _loadedAvatarId = newAvatar.Value.avatarInfo.Id;
+            _loadedFullFaceTracking = newAvatar.Value.avatarInfo.FullFaceTracking;
+            binaryFaceDataSender.SetAvatar(newAvatar.Value.avatarInfo);
             dispatcherService.Run(() =>
             {
                 AvatarInfo = newAvatar.Value.avatarInfo;
@@ -152,6 +161,10 @@ public partial class OscQueryService(
             _avatarParseLock.Release();
         }
     }
+
+    internal static bool IsAlreadyLoaded(string? newId, string? loadedId, bool? reportedFullFaceTracking, bool loadedFullFaceTracking) =>
+        newId != null && string.Equals(newId, loadedId, StringComparison.Ordinal)
+        && (reportedFullFaceTracking == null || reportedFullFaceTracking == loadedFullFaceTracking);
 
     private void HandleNewAvatarWrapper() => HandleNewAvatar(); // Helper func used in callbacks
 
@@ -229,7 +242,17 @@ public partial class OscQueryService(
         switch (msg.Address)
         {
             case "/avatar/change":
-                HandleNewAvatar(msg.Value as string);
+                _requestedAvatarId = msg.Value as string;
+                _reportedFullFaceTracking = null;
+                HandleNewAvatar(_requestedAvatarId);
+                break;
+            case FullFaceTrackingAddress:
+                if (msg.Value is bool fullFaceTracking)
+                {
+                    _reportedFullFaceTracking = fullFaceTracking;
+                    HandleNewAvatar(_requestedAvatarId ?? _loadedAvatarId);
+                }
+
                 break;
             case "/vrcft/settings/forceRelevant":   // Endpoint for external tools to force vrcft to send all parameters
                 if (msg.Value is bool relevancy)

@@ -211,6 +211,7 @@ public class OscQueryTests
 
             Assert.Equal(id, info.Id);
             Assert.Equal("/avatar/parameters/FT/v2/JawOpen", Assert.Single(info.Parameters).Address);
+            Assert.False(info.FullFaceTracking);
         }
         finally
         {
@@ -218,6 +219,60 @@ public class OscQueryTests
             listener.Stop();
             await server.WaitAsync(Timeout);
         }
+    }
+
+    [Fact]
+    public async Task AvatarReader_ReadsTheFaceTrackingFlagWhenTheAvatarNodeFailsToParse()
+    {
+        const string id = "avtr_00000000-0000-0000-0000-000000000003";
+        var change = "{\"FULL_PATH\":\"/avatar/change\",\"ACCESS\":3,\"TYPE\":\"s\",\"VALUE\":[\"" + id + "\"]}";
+        var parameters = "{\"FULL_PATH\":\"/avatar/parameters\",\"ACCESS\":0,\"CONTENTS\":{}}";
+        var nameNode = "{\"FULL_PATH\":\"/avatar/name\",\"ACCESS\":1,\"TYPE\":\"s\",\"VALUE\":[\"ネコ\"]}";
+        var fullFaceTracking = "{\"FULL_PATH\":\"/avatar/avatarfullfacetracking\",\"ACCESS\":1,\"TYPE\":\"T\",\"VALUE\":[true]}";
+        var bodies = new Dictionary<string, string>
+        {
+            ["/avatar"] = "{\"FULL_PATH\":\"/avatar\",\"ACCESS\":0,\"CONTENTS\":{\"change\":" + change + ",\"name\":" + nameNode + ",\"parameters\":" + parameters + ",\"avatarfullfacetracking\":" + fullFaceTracking + "}}",
+            ["/avatar/change"] = change,
+            ["/avatar/parameters"] = parameters,
+            ["/avatar/avatarfullfacetracking"] = fullFaceTracking,
+        };
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var cts = new CancellationTokenSource(Timeout);
+        var server = ServeWithCharCountLength(listener, bodies, cts.Token);
+        try
+        {
+            using var http = new HttpClient { Timeout = Timeout };
+            var avatarUri = new Uri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/avatar");
+
+            var info = new OscQueryAvatarInfo(await OscQueryAvatarReader.ReadAsync(http, avatarUri));
+
+            Assert.Equal(id, info.Id);
+            Assert.True(info.FullFaceTracking);
+        }
+        finally
+        {
+            cts.Cancel();
+            listener.Stop();
+            await server.WaitAsync(Timeout);
+        }
+    }
+
+    [Theory]
+    [InlineData(",\"avatarfullfacetracking\":{\"DESCRIPTION\":\"Whether the current avatar has hardware face tracking enabled (face tracking with all tracking keys).\",\"FULL_PATH\":\"/avatar/avatarfullfacetracking\",\"ACCESS\":1,\"TYPE\":\"T\",\"VALUE\":[true]}", true)]
+    [InlineData(",\"avatarfullfacetracking\":{\"DESCRIPTION\":\"Whether the current avatar has hardware face tracking enabled (face tracking with all tracking keys).\",\"FULL_PATH\":\"/avatar/avatarfullfacetracking\",\"ACCESS\":1,\"TYPE\":\"T\",\"VALUE\":[false]}", false)]
+    [InlineData(",\"avatarfullfacetracking\":{\"FULL_PATH\":\"/avatar/avatarfullfacetracking\",\"ACCESS\":1,\"TYPE\":\"T\"}", false)]
+    [InlineData("", false)]
+    public void AvatarInfo_ReadsTheFaceTrackingFlag(string flagNode, bool expected)
+    {
+        var json = "{\"FULL_PATH\":\"/avatar\",\"ACCESS\":0,\"CONTENTS\":{"
+            + "\"change\":{\"FULL_PATH\":\"/avatar/change\",\"ACCESS\":3,\"TYPE\":\"s\",\"VALUE\":[\"avtr_x\"]},"
+            + "\"parameters\":{\"FULL_PATH\":\"/avatar/parameters\",\"ACCESS\":0,\"CONTENTS\":{}}"
+            + flagNode + "}}";
+
+        var info = new OscQueryAvatarInfo(JsonConvert.DeserializeObject<OscQueryNode>(json)!);
+
+        Assert.Equal(expected, info.FullFaceTracking);
     }
 
     private static async Task ServeWithCharCountLength(TcpListener listener, IReadOnlyDictionary<string, string> bodies, CancellationToken ct)

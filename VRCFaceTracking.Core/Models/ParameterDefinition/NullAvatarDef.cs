@@ -24,4 +24,6 @@ public class NullAvatarDef : IAvatarInfo
     {
         get;
     }
+
+    public bool FullFaceTracking => false;
 }

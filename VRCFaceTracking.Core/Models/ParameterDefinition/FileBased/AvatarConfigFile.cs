@@ -24,4 +24,10 @@ public class AvatarConfigFile : IAvatarInfo
     [JsonIgnore] public string Id => id;
 
     [JsonIgnore] public IParameterDefinition[] Parameters => parameters;
+
+    [JsonIgnore]
+    public bool FullFaceTracking
+    {
+        get; set;
+    }
 }

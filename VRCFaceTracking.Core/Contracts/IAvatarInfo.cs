@@ -14,4 +14,8 @@ public interface IAvatarInfo
     {
         get;
     }
+    public bool FullFaceTracking
+    {
+        get;
+    }
 }

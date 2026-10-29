@@ -1,3 +1,4 @@
+using System.Net;
 using Newtonsoft.Json;
 
 namespace VRCFaceTracking.Core.OSC.Query;
@@ -28,22 +29,39 @@ internal static class OscQueryAvatarReader
                 throw new JsonSerializationException("OSCQuery returned an invalid avatar parameter tree");
             }
 
+            var fullFaceTracking = await ReadOptionalNodeAsync(http, new Uri(avatarBase, "avatarfullfacetracking"));
+
             if (idBefore != ReadAvatarId(await ReadNodeAsync(http, changeEndpoint)))
             {
                 continue;
             }
 
-            return new OscQueryNode("/avatar")
+            var contents = new Dictionary<string, OscQueryNode>
             {
-                Contents = new Dictionary<string, OscQueryNode>
-                {
-                    ["change"] = change,
-                    ["parameters"] = parameters,
-                },
+                ["change"] = change,
+                ["parameters"] = parameters,
             };
+            if (fullFaceTracking != null)
+            {
+                contents["avatarfullfacetracking"] = fullFaceTracking;
+            }
+
+            return new OscQueryNode("/avatar") { Contents = contents };
         }
 
         throw new JsonSerializationException("Avatar changed while reading its OSCQuery data");
+    }
+
+    private static async Task<OscQueryNode> ReadOptionalNodeAsync(HttpClient http, Uri uri)
+    {
+        try
+        {
+            return await ReadNodeAsync(http, uri);
+        }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
     }
 
     private static async Task<OscQueryNode> ReadNodeAsync(HttpClient http, Uri uri)

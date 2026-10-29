@@ -9,6 +9,7 @@ public enum OscValueType : byte
     String = 4,
     ArrayBegin = 5,
     ArrayEnd = 6,
+    Blob = 7,
 }
 
 public struct OscValue
@@ -18,6 +19,7 @@ public struct OscValue
     public float FloatValue;
     public bool BoolValue;
     public string StringValue;
+    public byte[] BlobValue;
 
     public object Value
     {
@@ -27,6 +29,7 @@ public struct OscValue
             OscValueType.Float => FloatValue,
             OscValueType.Bool => BoolValue,
             OscValueType.String => StringValue,
+            OscValueType.Blob => BlobValue,
             _ => null
         };
         set
@@ -44,6 +47,9 @@ public struct OscValue
                     break;
                 case OscValueType.String:
                     StringValue = (string)value;
+                    break;
+                case OscValueType.Blob:
+                    BlobValue = (byte[])value;
                     break;
             }
         }

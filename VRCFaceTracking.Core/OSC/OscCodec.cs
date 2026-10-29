@@ -96,6 +96,14 @@ public static class OscCodec
                     value.Type = OscValueType.String;
                     value.StringValue = str;
                     break;
+                case 'b':
+                    if (!TryReadBlob(buffer, length, ref pos, out var blob))
+                    {
+                        return null;
+                    }
+                    value.Type = OscValueType.Blob;
+                    value.BlobValue = blob;
+                    break;
                 case '[':
                     value.Type = OscValueType.ArrayBegin;
                     break;
@@ -136,6 +144,7 @@ public static class OscCodec
                 OscValueType.Float => (byte)'f',
                 OscValueType.Bool => values[i].BoolValue ? (byte)'T' : (byte)'F',
                 OscValueType.String => (byte)'s',
+                OscValueType.Blob => (byte)'b',
                 OscValueType.ArrayBegin => (byte)'[',
                 OscValueType.ArrayEnd => (byte)']',
                 _ => (byte)0,
@@ -170,10 +179,51 @@ public static class OscCodec
                         return false;
                     }
                     break;
+                case OscValueType.Blob:
+                    if (!TryWriteBlob(buffer, ref pos, value.BlobValue))
+                    {
+                        return false;
+                    }
+                    break;
             }
         }
 
         written = pos;
+        return true;
+    }
+
+    private static bool TryWriteBlob(Span<byte> buffer, ref int pos, ReadOnlySpan<byte> value)
+    {
+        var padded = PadBlob(value.Length);
+        if (pos + 4 + padded > buffer.Length)
+        {
+            return false;
+        }
+
+        BinaryPrimitives.WriteInt32BigEndian(buffer[pos..], value.Length);
+        pos += 4;
+        value.CopyTo(buffer[pos..]);
+        buffer.Slice(pos + value.Length, padded - value.Length).Clear();
+        pos += padded;
+        return true;
+    }
+
+    private static bool TryReadBlob(byte[] buffer, int length, ref int pos, out byte[] value)
+    {
+        value = null;
+        if (pos + 4 > length)
+        {
+            return false;
+        }
+
+        var size = BinaryPrimitives.ReadInt32BigEndian(buffer.AsSpan(pos));
+        if (size < 0 || size > length - pos - 4 || pos + 4 + PadBlob(size) > length)
+        {
+            return false;
+        }
+
+        value = buffer.AsSpan(pos + 4, size).ToArray();
+        pos += 4 + PadBlob(size);
         return true;
     }
 
@@ -232,4 +282,6 @@ public static class OscCodec
     }
 
     private static int Pad4(int length) => (length + 4) & ~3;
+
+    private static int PadBlob(int length) => (length + 3) & ~3;
 }

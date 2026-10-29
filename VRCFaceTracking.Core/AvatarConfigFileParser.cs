@@ -19,7 +19,7 @@ public class AvatarConfigParser
         _logger = parserLogger;
     }
 
-    public async Task<(IAvatarInfo avatarInfo, List<Parameter> relevantParameters)?> ParseAvatar(string newId, bool skipParams = false)
+    public async Task<(IAvatarInfo avatarInfo, List<Parameter> relevantParameters)?> ParseAvatar(string newId, bool skipParams = false, bool fullFaceTracking = false)
     {
         if (string.IsNullOrEmpty(newId))
         {
@@ -89,11 +89,15 @@ public class AvatarConfigParser
             return null;
         }
 
+        avatarConfig.FullFaceTracking = fullFaceTracking;
+
         if (!skipParams)
         {
             _logger.LogInformation("Parsing config file for avatar: {avatarName}", avatarConfig.name);
             ParameterSenderService.Clear();
-            var parameters = avatarConfig.parameters.Where(param => param.input != null).ToArray<IParameterDefinition>();
+            var parameters = fullFaceTracking
+                ? Array.Empty<IParameterDefinition>()
+                : avatarConfig.parameters.Where(param => param.input != null).ToArray<IParameterDefinition>();
 
             foreach (var parameter in UnifiedTracking.AllParameters)
             {

@@ -19,6 +19,11 @@ public class OscQueryAvatarInfo : IAvatarInfo
         get;
     }
 
+    public bool FullFaceTracking
+    {
+        get;
+    }
+
     public OscQueryAvatarInfo(OscQueryNode rootNode)
     {
         if (!rootNode.Contents.ContainsKey("parameters"))
@@ -28,6 +33,8 @@ public class OscQueryAvatarInfo : IAvatarInfo
 
         Name = "Unknown";
         Id = rootNode.Contents.TryGetValue("change", out var change) ? change.Value[0] as string : "Unknown";
+        FullFaceTracking = rootNode.Contents.TryGetValue("avatarfullfacetracking", out var fullFaceTracking)
+            && fullFaceTracking.Value is { Length: > 0 } && fullFaceTracking.Value[0] is true;
 
         //TODO: Figure out a way to reconstruct the traditional address pattern instead of the whole thing.
         IEnumerable<IParameterDefinition> ConstructParameterArray(Dictionary<string, OscQueryNode> entries)
