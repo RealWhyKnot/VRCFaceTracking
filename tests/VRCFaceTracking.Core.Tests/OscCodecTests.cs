@@ -266,4 +266,161 @@ public sealed class OscCodecTests
         Assert.False(OscCodec.AddressMatches([], address));
         Assert.False(OscCodec.AddressMatches(address, address));
     }
+
+    private static byte[] RandomTags(int seed)
+    {
+        const string Alphabet = "ifsbTFNIhdtcSrm[]x";
+        var tags = new StringBuilder(",");
+        foreach (byte b in Noise.Bytes(seed + 1, Noise.Int(seed, 8)))
+        {
+            tags.Append(Alphabet[b % Alphabet.Length]);
+        }
+
+        byte[] bytes = Encoding.ASCII.GetBytes(tags.ToString());
+        byte[] padded = new byte[(bytes.Length + 4) & ~3];
+        bytes.CopyTo(padded, 0);
+        return padded;
+    }
+
+    [Fact]
+    public void TryParseNeverThrowsOnRandomBytes()
+    {
+        byte[] prefix = [.. Encoding.ASCII.GetBytes("/avatar/change"), 0, 0];
+        for (int seed = 0; seed < 20000; seed++)
+        {
+            byte[] noise = Noise.Bytes(seed, Noise.Int(seed, 200));
+            byte[] datagram = seed % 2 == 0 ? noise : [.. prefix, .. RandomTags(seed), .. noise];
+            int index = seed % 7 == 0 ? Noise.Int(seed, 300) - 50 : 0;
+            int length = seed % 5 == 0 ? Noise.Int(seed + 2, datagram.Length + 20) : datagram.Length;
+
+            Exception? error = Record.Exception(() => OscCodec.TryParse(datagram, length, ref index, out _));
+
+            Assert.Null(error);
+        }
+    }
+
+    [Fact]
+    public void TryParseReadsStandardTypesWeDoNotSend()
+    {
+        byte[] data = Convert.FromHexString(
+            "2F780000" + "2C4E496864746353726D0000"
+            + "0000000000000005" + "3FD0000000000000" + "0000000000000001"
+            + "00000041" + "73796D00" + "FF0000FF" + "01020304");
+        int index = 0;
+
+        Assert.True(OscCodec.TryParse(data, data.Length, ref index, out OscMessage? msg));
+
+        Assert.Equal(data.Length, index);
+        Assert.Equal([null, null, 5, 0.25f, null, 65, "sym", unchecked((int)0xFF0000FF), 0x01020304], msg._values.Select(value => value.Value));
+    }
+
+    [Theory]
+    [InlineData("7FFFFFFFFFFFFFFF", int.MaxValue)]
+    [InlineData("8000000000000000", int.MinValue)]
+    [InlineData("FFFFFFFFFFFFFFFE", -2)]
+    public void TryParseClampsInt64ToInt(string value, int expected)
+    {
+        byte[] data = Convert.FromHexString("2F7800002C680000" + value);
+        int index = 0;
+
+        Assert.True(OscCodec.TryParse(data, data.Length, ref index, out OscMessage? msg));
+        Assert.Equal(expected, msg.Value);
+    }
+
+    [Theory]
+    [InlineData("2C680000")]
+    [InlineData("2C640000")]
+    [InlineData("2C740000")]
+    public void TryParseRejectsTruncatedWideValues(string tags)
+    {
+        byte[] data = Convert.FromHexString("2F780000" + tags + "00000000");
+        int index = 0;
+
+        Assert.False(OscCodec.TryParse(data, data.Length, ref index, out _));
+        Assert.Equal(0, index);
+    }
+
+    [Fact]
+    public void TryParseReplacesInvalidUtf8()
+    {
+        byte[] data = Convert.FromHexString("2F7800002C730000FFFEC300");
+        int index = 0;
+
+        Assert.True(OscCodec.TryParse(data, data.Length, ref index, out OscMessage? msg));
+        Assert.Equal("\uFFFD\uFFFD\uFFFD", msg.Value);
+    }
+
+    [Theory]
+    [InlineData("2F7800002C730000480069000000")]
+    [InlineData("2F0061007600610074006100720000002C730000")]
+    [InlineData("FFFE2F00610000002C7300004800690000000000")]
+    public void TryParseUtf16TextDoesNotThrow(string hex)
+    {
+        byte[] data = Convert.FromHexString(hex);
+        int index = 0;
+
+        Assert.Null(Record.Exception(() => OscCodec.TryParse(data, data.Length, ref index, out _)));
+    }
+
+    [Fact]
+    public void EncodeMessageWritesNullAsTheNTag()
+    {
+        Assert.Equal("2F6E00002C4E0000", EncodeHex("/n", Marker(OscValueType.Null)));
+
+        byte[] data = Convert.FromHexString("2F6E00002C4E0000");
+        int index = 0;
+        Assert.True(OscCodec.TryParse(data, data.Length, ref index, out OscMessage? msg));
+        Assert.Equal(OscValueType.Null, Assert.Single(msg._values).Type);
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    public void EncodeMessageSendsNonFiniteFloatsAsZero(float value) => Assert.Equal("2F6600002C66000000000000", EncodeHex("/f", F(value)));
+
+    [Fact]
+    public void BundleElementsReadBackAsMessages()
+    {
+        byte[] buffer = new byte[4096];
+        int index = 0;
+        int length = OscCodec.EncodeBundle(buffer, [new OscMessage("/a", [F(1f)]), new OscMessage("/avatar/change", [S("avtr_x")])], ref index);
+        Assert.True(OscCodec.IsBundle(buffer.AsSpan(0, length)));
+
+        var addresses = new List<string>();
+        int pos = OscCodec.BundleHeaderSize;
+        while (OscCodec.TryReadBundleElement(buffer.AsSpan(0, length), ref pos, out int start, out int end))
+        {
+            int offset = start;
+            Assert.True(OscCodec.TryParse(buffer, end, ref offset, out OscMessage? message));
+            Assert.Equal(end, offset);
+            addresses.Add(message.Address);
+        }
+
+        Assert.Equal(["/a", "/avatar/change"], addresses);
+        Assert.Equal(length, pos);
+    }
+
+    [Theory]
+    [InlineData("00000000")]
+    [InlineData("FFFFFFFF")]
+    [InlineData("80000000")]
+    [InlineData("0000000400")]
+    [InlineData("000000")]
+    [InlineData("")]
+    public void TryReadBundleElementRejectsBadSizes(string hex)
+    {
+        byte[] data = Convert.FromHexString(hex);
+        int pos = 0;
+
+        Assert.False(OscCodec.TryReadBundleElement(data, ref pos, out _, out _));
+        Assert.Equal(0, pos);
+    }
+
+    [Theory]
+    [InlineData("2362756E646C650000000000000000", false)]
+    [InlineData("2362756E646C65000000000000000001", true)]
+    [InlineData("2362756E646C58000000000000000001", false)]
+    [InlineData("2F62756E646C65000000000000000001", false)]
+    public void IsBundleNeedsTheFullHeader(string hex, bool expected) => Assert.Equal(expected, OscCodec.IsBundle(Convert.FromHexString(hex)));
 }

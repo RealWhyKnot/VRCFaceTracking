@@ -4,6 +4,9 @@ namespace VRCFaceTracking.Core.Mdns;
 
 internal sealed class DnsPacket
 {
+    private const int MinQuestionSize = 5;
+    private const int MinResourceSize = 11;
+
     public ushort Id { get; set; }
     public bool IsResponse { get; set; }
     public int Opcode { get; set; }
@@ -15,7 +18,6 @@ internal sealed class DnsPacket
     public DnsResource[] Answers { get; set; } = [];
     public DnsResource[] Authorities { get; set; } = [];
     public DnsResource[] Additionals { get; set; } = [];
-
 
     public DnsPacket(BigReader stream)
     {
@@ -29,10 +31,20 @@ internal sealed class DnsPacket
         IsTentative = (flags & 0x0100) == 0x0100;
         ResponseCode = flags & 0x000F;
 
-        Questions = new DnsQuestion[stream.ReadUInt16()];
-        Answers = new DnsResource[stream.ReadUInt16()];
-        Authorities = new DnsResource[stream.ReadUInt16()];
-        Additionals = new DnsResource[stream.ReadUInt16()];
+        ushort questionCount = stream.ReadUInt16();
+        ushort answerCount = stream.ReadUInt16();
+        ushort authorityCount = stream.ReadUInt16();
+        ushort additionalCount = stream.ReadUInt16();
+        long bytesLeft = stream.BaseStream.Length - stream.BaseStream.Position;
+        if ((questionCount * MinQuestionSize) + ((answerCount + authorityCount + additionalCount) * MinResourceSize) > bytesLeft)
+        {
+            throw new InvalidDataException("DNS record counts exceed the packet size");
+        }
+
+        Questions = new DnsQuestion[questionCount];
+        Answers = new DnsResource[answerCount];
+        Authorities = new DnsResource[authorityCount];
+        Additionals = new DnsResource[additionalCount];
 
         for (int i = 0; i < Questions.Length; i++)
         {

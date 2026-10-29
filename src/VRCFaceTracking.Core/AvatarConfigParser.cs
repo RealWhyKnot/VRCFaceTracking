@@ -87,6 +87,10 @@ public sealed partial class AvatarConfigParser
                         LogFailedRenameMalformedJsonFile(_logger, avatarFile, moveEx.Message);
                     }
                 }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    LogAvatarConfigUnreadable(_logger, avatarFile, ex.Message);
+                }
             }
         }
 
@@ -98,6 +102,9 @@ public sealed partial class AvatarConfigParser
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Malformed JSON file detected: {FileName}. Renaming to {BackupFileName}. Error: {Error}")]
     private static partial void LogMalformedJsonFileDetectedRenaming(ILogger logger, string fileName, string backupFileName, string error);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't read avatar config {FileName}: {Error}")]
+    private static partial void LogAvatarConfigUnreadable(ILogger logger, string fileName, string error);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to rename malformed JSON file {FileName}: {Error}")]
     private static partial void LogFailedRenameMalformedJsonFile(ILogger logger, string fileName, string error);

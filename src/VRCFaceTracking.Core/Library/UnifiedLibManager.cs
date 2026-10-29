@@ -60,6 +60,7 @@ public sealed partial class UnifiedLibManager : ILibManager
     private volatile bool _imageStreamEnabled;
 
     private const string CapabilityOverridesSettingKey = "ModuleCapabilityOverrides";
+    private const int MaxModuleLogLength = 16384;
     private readonly Lock _overridesLock = new();
     private Dictionary<string, TrackingCapability> _capabilityOverrides = [];
 

@@ -19,7 +19,7 @@ public class OscQueryNode
     public string? Description { get; set; }
 
     [JsonProperty("FULL_PATH")]
-    public string FullPath { get; set; } = string.Empty;
+    public string FullPath { get; set => field = value ?? string.Empty; } = string.Empty;
 
     [JsonProperty("ACCESS")]
     public AccessValues Access { get; set; }
@@ -38,10 +38,9 @@ public class OscQueryNode
     {
         get
         {
-            int length = Math.Max(1, FullPath.LastIndexOf('/'));
+            int length = Math.Min(FullPath.Length, Math.Max(1, FullPath.LastIndexOf('/')));
             return FullPath[..length];
         }
-
     }
 
     [JsonIgnore]

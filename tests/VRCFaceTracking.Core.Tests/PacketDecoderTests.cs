@@ -195,4 +195,125 @@ public sealed class PacketDecoderTests
 
         Assert.Equal(Threads * PerThread, ids.Distinct().Count());
     }
+
+    private const int FuzzSenderKey = 0x5EED;
+
+    private static byte[] Chunk(uint packetId, uint part, bool eof, byte[] body)
+    {
+        byte[] data = [.. Header(IpcPacket.PacketType.SplitPacketChunk), 0, 0, 0, 0, 0, 0, 0, 0, .. body];
+        BitConverter.TryWriteBytes(data.AsSpan(8), eof ? part | 0x80000000 : part);
+        BitConverter.TryWriteBytes(data.AsSpan(12), packetId);
+        return data;
+    }
+
+    private static byte[] Decode(byte[] chunk)
+    {
+        PartialPacket.DecodePacket(chunk, out byte[] packetData, FuzzSenderKey);
+        return packetData;
+    }
+
+    [Fact]
+    public void DuplicateChunksDoNotCompleteAPacketEarly()
+    {
+        Assert.Empty(Decode(Chunk(1, 0, eof: false, [1])));
+        Assert.Empty(Decode(Chunk(1, 0, eof: false, [9])));
+        Assert.Empty(Decode(Chunk(1, 2, eof: true, [3])));
+
+        Assert.Equal([1, 2, 3], Decode(Chunk(1, 1, eof: false, [2])));
+    }
+
+    [Fact]
+    public void EndMarkerBeforeAMissingPartDropsThePacket()
+    {
+        int pending = PartialPacket.PendingPacketCount;
+
+        Assert.Empty(Decode(Chunk(2, 0, eof: false, [1])));
+        Assert.Empty(Decode(Chunk(2, 5, eof: false, [6])));
+        Assert.Empty(Decode(Chunk(2, 2, eof: true, [3])));
+
+        Assert.True(PartialPacket.PendingPacketCount <= pending);
+        Assert.Empty(Decode(Chunk(2, 1, eof: false, [2])));
+    }
+
+    [Theory]
+    [InlineData(PartialPacket.MaxChunksPerPacket)]
+    [InlineData(0x7FFFFFFFu)]
+    public void PartsPastTheChunkLimitAreDropped(uint part)
+    {
+        int pending = PartialPacket.PendingPacketCount;
+
+        Assert.Empty(Decode(Chunk(3, part, eof: true, [1])));
+        Assert.Empty(Decode(Chunk(3, part, eof: false, [1])));
+
+        Assert.Equal(pending, PartialPacket.PendingPacketCount);
+    }
+
+    [Fact]
+    public void SplitInsideASplitIsDropped()
+    {
+        byte[] inner = Assert.Single(PartialPacket.SplitPacketIntoChunks([1, 2, 3, 4], 1500));
+        byte[] outer = Assert.Single(PartialPacket.SplitPacketIntoChunks(inner, 1500));
+
+        PartialPacket.DecodePacket(outer, out byte[] packetData);
+
+        Assert.Empty(packetData);
+    }
+
+    [Fact]
+    public void PendingPacketsStayCapped()
+    {
+        for (uint id = 0; id < 1000; id++)
+        {
+            Assert.Empty(Decode(Chunk(0x10000 + id, 0, eof: false, [1, 2, 3])));
+            Assert.True(PartialPacket.PendingPacketCount <= PartialPacket.MaxPendingPackets);
+        }
+
+        byte[] payload = new byte[20000];
+        RandomNumberGenerator.Fill(payload);
+        byte[]? combined = null;
+        foreach (byte[] chunk in PartialPacket.SplitPacketIntoChunks(payload, 1500))
+        {
+            PartialPacket.DecodePacket(chunk, out combined);
+        }
+
+        Assert.Equal(payload, combined);
+    }
+
+    [Fact]
+    public void PendingBytesStayCapped()
+    {
+        byte[] body = new byte[60000];
+        for (uint part = 0; part < 1200; part++)
+        {
+            Assert.Empty(Decode(Chunk(4, part, eof: false, body)));
+            Assert.True(PartialPacket.PendingByteCount <= PartialPacket.MaxPendingBytes);
+        }
+
+        Assert.Empty(Decode(Chunk(4, 1200, eof: true, body)));
+        Assert.True(PartialPacket.PendingByteCount <= PartialPacket.MaxPendingBytes);
+    }
+
+    [Fact]
+    public void ReplyInitWithMoreStreamsThanBytesIsRejected()
+    {
+        byte[] data = [.. Header(IpcPacket.PacketType.ReplyInit), 3, 0, 0, 0, 0, .. BitConverter.GetBytes(int.MaxValue)];
+
+        Assert.False(VrcftPacketDecoder.TryDecodePacket(data, out _));
+    }
+
+    [Fact]
+    public void RandomBodiesNeverThrowForAnyPacketType()
+    {
+        foreach (IpcPacket.PacketType type in Enum.GetValues<IpcPacket.PacketType>())
+        {
+            for (int seed = 0; seed < 2000; seed++)
+            {
+                byte[] data = [.. Header(type), .. Noise.Bytes(seed, Noise.Int(seed, 400))];
+
+                Exception? error = Record.Exception(() => VrcftPacketDecoder.TryDecodePacket(data, out _));
+
+                Assert.True(error is null, $"{type} seed {seed}: {error}");
+            }
+        }
+    }
 }

@@ -154,7 +154,8 @@ public sealed partial class UnifiedLibManager
         return runtimeInfo;
     }
 
-    private void HandleEventLog(EventLogPacket eventLog) => LogModuleMessage(_moduleLogger, eventLog.LogLevel, eventLog.Message);
+    private void HandleEventLog(EventLogPacket eventLog) =>
+        LogModuleMessage(_moduleLogger, eventLog.LogLevel, eventLog.Message.Length > MaxModuleLogLength ? eventLog.Message[..MaxModuleLogLength] + "…" : eventLog.Message);
 
     private void HandleReplyGetSupported(VrcftSandboxServer server, ReplySupportedPacket reply, ModuleRuntimeInfo module, int port)
     {

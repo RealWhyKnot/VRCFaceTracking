@@ -191,6 +191,7 @@ public sealed class OscQueryTests
             ["/avatar"] = "{\"FULL_PATH\":\"/avatar\",\"ACCESS\":0,\"CONTENTS\":{\"change\":" + change + ",\"name\":" + nameNode + ",\"parameters\":" + parameters + "}}",
             ["/avatar/change"] = change,
             ["/avatar/parameters"] = parameters,
+            ["/avatar/name"] = nameNode,
         };
         int port = Utils.GetRandomFreePort();
         using var cts = new CancellationTokenSource(Timeout);
@@ -207,6 +208,7 @@ public sealed class OscQueryTests
             Assert.Equal(Id, info.Id);
             Assert.Equal("/avatar/parameters/FT/v2/JawOpen", Assert.Single(info.Parameters).Address);
             Assert.False(info.FullFaceTracking);
+            Assert.Equal(OscQueryAvatarInfo.UnknownName, info.Name);
         }
         finally
         {
@@ -265,6 +267,110 @@ public sealed class OscQueryTests
         var info = new OscQueryAvatarInfo(JsonConvert.DeserializeObject<OscQueryNode>(json)!);
 
         Assert.Equal(expected, info.FullFaceTracking);
+    }
+
+    [Fact]
+    public async Task AvatarReaderReadsTheNameNodeWhenTheAvatarNodeFailsToParse()
+    {
+        const string Id = "avtr_00000000-0000-0000-0000-000000000004";
+        string change = "{\"FULL_PATH\":\"/avatar/change\",\"ACCESS\":3,\"TYPE\":\"s\",\"VALUE\":[\"" + Id + "\"]}";
+        string parameters = "{\"FULL_PATH\":\"/avatar/parameters\",\"ACCESS\":0,\"CONTENTS\":{}}";
+        string nameNode = "{\"FULL_PATH\":\"/avatar/name\",\"ACCESS\":1,\"TYPE\":\"s\",\"VALUE\":[\"Kitty\"]}";
+        var bodies = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["/avatar"] = "{\"FULL_PATH\":\"/avatar\",\"ACCESS\":0,\"CONTENTS\":{\"change\":" + change + ",\"name\":" + nameNode + ",\"parameters\":" + parameters + ",\"note\":{\"FULL_PATH\":\"/avatar/note\",\"VALUE\":[\"ネコ\"]}}}",
+            ["/avatar/change"] = change,
+            ["/avatar/parameters"] = parameters,
+            ["/avatar/name"] = nameNode,
+        };
+        int port = Utils.GetRandomFreePort();
+        using var cts = new CancellationTokenSource(Timeout);
+        Task server = ServeWithCharCountLengthAsync(port, bodies, cts.Token);
+        try
+        {
+            using var http = new HttpClient { Timeout = Timeout };
+
+            var info = new OscQueryAvatarInfo(await OscQueryAvatarReader.ReadAsync(http, new Uri($"http://127.0.0.1:{port}/avatar"), cts.Token));
+
+            Assert.Equal(Id, info.Id);
+            Assert.Equal("Kitty", info.Name);
+        }
+        finally
+        {
+            await cts.CancelAsync();
+            await server.WaitAsync(Timeout, CancellationToken.None);
+        }
+    }
+
+    private const string ChangeNode = "\"change\":{\"FULL_PATH\":\"/avatar/change\",\"ACCESS\":3,\"TYPE\":\"s\",\"VALUE\":[\"avtr_x\"]}";
+    private const string GoodParameter = "\"Good\":{\"FULL_PATH\":\"/avatar/parameters/Good\",\"ACCESS\":3,\"TYPE\":\"f\",\"VALUE\":[0.0]}";
+
+    private static OscQueryAvatarInfo AvatarInfo(string contents) =>
+        new(JsonConvert.DeserializeObject<OscQueryNode>("{\"FULL_PATH\":\"/avatar\",\"ACCESS\":0,\"CONTENTS\":{" + contents + "}}")!);
+
+    [Theory]
+    [InlineData("\"Bad\":null")]
+    [InlineData("\"Bad\":{\"FULL_PATH\":null,\"ACCESS\":3,\"TYPE\":\"f\"}")]
+    [InlineData("\"Bad\":{\"ACCESS\":3,\"TYPE\":\"f\"}")]
+    [InlineData("\"Bad\":{\"FULL_PATH\":\"/avatar/parameters/Bad\",\"ACCESS\":3,\"TYPE\":\"q\"}")]
+    [InlineData("\"Bad\":{\"FULL_PATH\":\"/avatar/parameters/Bad\",\"ACCESS\":3,\"TYPE\":\"\"}")]
+    [InlineData("\"Bad\":{\"FULL_PATH\":\"/avatar/parameters/Bad\",\"ACCESS\":3,\"TYPE\":null}")]
+    [InlineData("\"Bad\":{\"FULL_PATH\":\"/avatar/parameters/Bad\",\"ACCESS\":3}")]
+    [InlineData("\"Bad\":{\"FULL_PATH\":\"/avatar/parameters/Bad\",\"CONTENTS\":{\"Inner\":null}}")]
+    [InlineData("\"Bad\":{\"FULL_PATH\":\"/avatar/parameters/Bad\",\"CONTENTS\":{}}")]
+    public void AvatarInfoSkipsMalformedParameterNodes(string badNode)
+    {
+        OscQueryAvatarInfo info = AvatarInfo(ChangeNode + ",\"parameters\":{\"FULL_PATH\":\"/avatar/parameters\",\"ACCESS\":0,\"CONTENTS\":{" + badNode + "," + GoodParameter + "}}");
+
+        Assert.Equal("avtr_x", info.Id);
+        Assert.Equal("/avatar/parameters/Good", Assert.Single(info.Parameters).Address);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("\"change\":null,\"parameters\":null")]
+    [InlineData("\"change\":{\"FULL_PATH\":\"/avatar/change\",\"VALUE\":[5]},\"parameters\":{\"FULL_PATH\":\"/avatar/parameters\"}")]
+    [InlineData("\"change\":{\"FULL_PATH\":\"/avatar/change\",\"VALUE\":[]},\"parameters\":{\"FULL_PATH\":\"/avatar/parameters\",\"CONTENTS\":null}")]
+    [InlineData("\"change\":{\"VALUE\":[null]},\"parameters\":{\"CONTENTS\":{}},\"name\":{\"VALUE\":[7]},\"avatarfullfacetracking\":{\"VALUE\":[\"yes\"]}")]
+    public void AvatarInfoSurvivesMissingOrWrongTypedNodes(string contents)
+    {
+        OscQueryAvatarInfo info = AvatarInfo(contents);
+
+        Assert.Equal("Unknown", info.Id);
+        Assert.Equal(OscQueryAvatarInfo.UnknownName, info.Name);
+        Assert.Empty(info.Parameters);
+        Assert.False(info.FullFaceTracking);
+    }
+
+    [Theory]
+    [InlineData("[\"ネコ Jürgen ✨\"]", "ネコ Jürgen ✨")]
+    [InlineData("[\"\"]", OscQueryAvatarInfo.UnknownName)]
+    [InlineData("[\"   \"]", OscQueryAvatarInfo.UnknownName)]
+    [InlineData("[]", OscQueryAvatarInfo.UnknownName)]
+    [InlineData("[false]", OscQueryAvatarInfo.UnknownName)]
+    public void AvatarInfoReadsTheAvatarName(string value, string expected)
+    {
+        OscQueryAvatarInfo info = AvatarInfo(ChangeNode + ",\"parameters\":{\"FULL_PATH\":\"/avatar/parameters\",\"CONTENTS\":{}},\"name\":{\"FULL_PATH\":\"/avatar/name\",\"ACCESS\":1,\"TYPE\":\"s\",\"VALUE\":" + value + "}");
+
+        Assert.Equal(expected, info.Name);
+    }
+
+    [Fact]
+    public void DeeplyNestedTreeFailsAsBadJson()
+    {
+        var json = new StringBuilder();
+        for (int i = 0; i < 5000; i++)
+        {
+            json.Append("{\"CONTENTS\":{\"a\":");
+        }
+
+        json.Append("{}");
+        for (int i = 0; i < 5000; i++)
+        {
+            json.Append("}}");
+        }
+
+        Assert.ThrowsAny<JsonException>(() => JsonConvert.DeserializeObject<OscQueryNode>(json.ToString()));
     }
 
     private static async Task ServeWithCharCountLengthAsync(int port, Dictionary<string, string> bodies, CancellationToken ct)

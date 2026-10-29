@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
@@ -67,7 +68,7 @@ public sealed class BinaryBaseParameter : Parameter
             int? binaryIndex = GetBinarySteps(index);
             if (binaryIndex.HasValue)
             {
-                paramsToCreate.Add(_paramName + index, binaryIndex.Value);
+                _ = paramsToCreate.TryAdd(_paramName + index, binaryIndex.Value);
             }
         }
 
@@ -92,21 +93,8 @@ public sealed class BinaryBaseParameter : Parameter
     public override (string, Parameter)[] GetParamNames() =>
         [.. _params.SelectMany(p => p.GetParamNames()), .. _negativeParam.GetParamNames()];
 
-    private static int? GetBinarySteps(int index)
-    {
-        int currSeqItem = 1;
-        for (int i = 0; i < index; i++)
-        {
-            if (currSeqItem == index)
-            {
-                return i;
-            }
-
-            currSeqItem *= 2;
-        }
-
-        return null;
-    }
+    internal static int? GetBinarySteps(int index) =>
+        index > 0 && BitOperations.IsPow2(index) ? BitOperations.Log2((uint)index) : null;
 
     public BinaryBaseParameter(string paramName, Func<UnifiedTrackingData, float> getValueFunc)
     {

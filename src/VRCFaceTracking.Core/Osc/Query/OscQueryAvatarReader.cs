@@ -34,6 +34,7 @@ internal static class OscQueryAvatarReader
             }
 
             OscQueryNode? fullFaceTracking = await ReadOptionalNodeAsync(http, new Uri(avatarBase, "avatarfullfacetracking"), cancellationToken).ConfigureAwait(false);
+            OscQueryNode? name = await ReadOptionalNameAsync(http, new Uri(avatarBase, "name"), cancellationToken).ConfigureAwait(false);
 
             if (!string.Equals(idBefore, ReadAvatarId(await ReadNodeAsync(http, changeEndpoint, cancellationToken).ConfigureAwait(false)), StringComparison.Ordinal))
             {
@@ -50,6 +51,11 @@ internal static class OscQueryAvatarReader
                 contents["avatarfullfacetracking"] = fullFaceTracking;
             }
 
+            if (name != null)
+            {
+                contents["name"] = name;
+            }
+
             return new OscQueryNode("/avatar") { Contents = contents };
         }
 
@@ -63,6 +69,18 @@ internal static class OscQueryAvatarReader
             return await ReadNodeAsync(http, uri, cancellationToken).ConfigureAwait(false);
         }
         catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    private static async Task<OscQueryNode?> ReadOptionalNameAsync(HttpClient http, Uri uri, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ReadOptionalNodeAsync(http, uri, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is JsonException or HttpRequestException)
         {
             return null;
         }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 
 namespace VRCFaceTracking.Core.Sandboxing.Ipc;
@@ -11,40 +12,45 @@ public sealed class PartialPacket : IpcPacket
     private const uint PacketNonDataSizeBytes = 16;
     private const uint PacketCountInvalid = 0xFFFFFFFF;
 
+    internal const int MaxPendingPackets = 64;
+    internal const long MaxPendingBytes = 64L * 1024 * 1024;
+    internal const uint MaxChunksPerPacket = 4096;
+
     private static uint EncodePartialPacketCounter;
     private static readonly uint EncodePartialPacketBase =
         (uint)((Environment.ProcessId * Environment.ProcessId) + RandomNumberGenerator.GetInt32(0, 10000));
     private static readonly Dictionary<ulong, PartialPacketChunkTemporaryBuffer> PacketBuffers = [];
+    private static readonly Lock BufferLock = new();
+    private static long PendingBytes;
 
-    private struct PartialPacketChunk
-    {
-        public byte[] Data;
-        public uint PacketPart;
-    }
     private sealed class PartialPacketChunkTemporaryBuffer
     {
-        public List<PartialPacketChunk> Chunks = [];
+        public Dictionary<uint, byte[]> Chunks = [];
         public uint PacketCount = PacketCountInvalid;
         public long LastChunkTimestamp = Stopwatch.GetTimestamp();
+        public long Bytes;
     }
 
     private static readonly TimeSpan StaleBufferLifetime = TimeSpan.FromSeconds(30);
 
-    private static void PruneStaleBuffers()
+    internal static int PendingPacketCount
     {
-        List<ulong>? stale = null;
-        foreach (KeyValuePair<ulong, PartialPacketChunkTemporaryBuffer> pair in PacketBuffers)
+        get
         {
-            if (Stopwatch.GetElapsedTime(pair.Value.LastChunkTimestamp) > StaleBufferLifetime)
+            lock (BufferLock)
             {
-                (stale ??= []).Add(pair.Key);
+                return PacketBuffers.Count;
             }
         }
-        if (stale != null)
+    }
+
+    internal static long PendingByteCount
+    {
+        get
         {
-            foreach (ulong key in stale)
+            lock (BufferLock)
             {
-                PacketBuffers.Remove(key);
+                return PendingBytes;
             }
         }
     }
@@ -63,76 +69,118 @@ public sealed class PartialPacket : IpcPacket
             return;
         }
 
-        PruneStaleBuffers();
-
         ulong packetId = ((ulong)(uint)senderKey << 32) | BitConverter.ToUInt32(data, 12);
         uint packetPart = BitConverter.ToUInt32(data, 8);
-
-        var packetChunk = new PartialPacketChunk()
-        {
-            PacketPart = packetPart & ~PacketPartEofBit,
-            Data = new byte[data.Length - PacketNonDataSizeBytes],
-        };
-
-        Buffer.BlockCopy(data, (int)PacketNonDataSizeBytes, packetChunk.Data, 0, (int)(data.Length - PacketNonDataSizeBytes));
-
-        if (!PacketBuffers.TryGetValue(packetId, out PartialPacketChunkTemporaryBuffer? buffer))
-        {
-            buffer = new PartialPacketChunkTemporaryBuffer();
-            PacketBuffers.Add(packetId, buffer);
-        }
-
-        buffer.Chunks.Add(packetChunk);
-        buffer.LastChunkTimestamp = Stopwatch.GetTimestamp();
-
-        if ((packetPart & PacketPartEofBit) == PacketPartEofBit)
-        {
-            buffer.PacketCount = (packetPart & ~PacketPartEofBit) + 1;
-        }
-
-        if (buffer.PacketCount == PacketCountInvalid || buffer.PacketCount != buffer.Chunks.Count)
+        uint part = packetPart & ~PacketPartEofBit;
+        if (part >= MaxChunksPerPacket)
         {
             return;
         }
 
-        packetData = Combine(buffer.Chunks);
-        PacketBuffers.Remove(packetId);
+        byte[] chunk = data[(int)PacketNonDataSizeBytes..];
+
+        lock (BufferLock)
+        {
+            PruneStaleBuffers();
+
+            if (!PacketBuffers.TryGetValue(packetId, out PartialPacketChunkTemporaryBuffer? buffer))
+            {
+                buffer = new PartialPacketChunkTemporaryBuffer();
+                PacketBuffers.Add(packetId, buffer);
+            }
+
+            if (!buffer.Chunks.TryAdd(part, chunk))
+            {
+                return;
+            }
+
+            buffer.Bytes += chunk.Length;
+            PendingBytes += chunk.Length;
+            buffer.LastChunkTimestamp = Stopwatch.GetTimestamp();
+            if ((packetPart & PacketPartEofBit) == PacketPartEofBit)
+            {
+                buffer.PacketCount = part + 1;
+            }
+
+            EvictOverflow();
+            if (!PacketBuffers.ContainsKey(packetId) || buffer.PacketCount != buffer.Chunks.Count)
+            {
+                return;
+            }
+
+            RemoveBuffer(packetId, buffer);
+            if (TryCombine(buffer, out byte[]? combined) && !IsSplitChunk(combined))
+            {
+                packetData = combined;
+            }
+        }
     }
 
-    private static byte[] Combine(List<PartialPacketChunk> chunks)
+    private static void PruneStaleBuffers()
     {
-        long computedPacketSize = 0;
-        for (int i = 0; i < chunks.Count; i++)
+        List<KeyValuePair<ulong, PartialPacketChunkTemporaryBuffer>>? stale = null;
+        foreach (KeyValuePair<ulong, PartialPacketChunkTemporaryBuffer> pair in PacketBuffers)
         {
-            computedPacketSize += chunks[i].Data.Length;
-        }
-        byte[] packetData = new byte[computedPacketSize];
-
-        var ordered = new PartialPacketChunk[chunks.Count];
-        for (int i = 0; i < chunks.Count; i++)
-        {
-            uint part = chunks[i].PacketPart;
-            if (part < (uint)ordered.Length && ordered[part].Data == null)
+            if (Stopwatch.GetElapsedTime(pair.Value.LastChunkTimestamp) > StaleBufferLifetime)
             {
-                ordered[part] = chunks[i];
+                (stale ??= []).Add(pair);
             }
         }
 
-        int copyOffset = 0;
-        for (int i = 0; i < ordered.Length; i++)
+        if (stale != null)
         {
-            byte[] chunkData = ordered[i].Data;
-            if (chunkData == null)
+            foreach (KeyValuePair<ulong, PartialPacketChunkTemporaryBuffer> pair in stale)
             {
-                continue;
+                RemoveBuffer(pair.Key, pair.Value);
             }
-
-            Buffer.BlockCopy(chunkData, 0, packetData, copyOffset, chunkData.Length);
-            copyOffset += chunkData.Length;
         }
-
-        return packetData;
     }
+
+    private static void EvictOverflow()
+    {
+        while (PacketBuffers.Count > MaxPendingPackets || PendingBytes > MaxPendingBytes)
+        {
+            KeyValuePair<ulong, PartialPacketChunkTemporaryBuffer> oldest = PacketBuffers.MinBy(pair => pair.Value.LastChunkTimestamp);
+            RemoveBuffer(oldest.Key, oldest.Value);
+        }
+    }
+
+    private static void RemoveBuffer(ulong packetId, PartialPacketChunkTemporaryBuffer buffer)
+    {
+        if (PacketBuffers.Remove(packetId))
+        {
+            PendingBytes -= buffer.Bytes;
+        }
+    }
+
+    private static bool TryCombine(PartialPacketChunkTemporaryBuffer buffer, [NotNullWhen(true)] out byte[]? packetData)
+    {
+        packetData = null;
+        byte[][] ordered = new byte[buffer.PacketCount][];
+        for (uint i = 0; i < buffer.PacketCount; i++)
+        {
+            if (!buffer.Chunks.TryGetValue(i, out byte[]? chunk))
+            {
+                return false;
+            }
+
+            ordered[i] = chunk;
+        }
+
+        packetData = new byte[buffer.Bytes];
+        int copyOffset = 0;
+        foreach (byte[] chunk in ordered)
+        {
+            Buffer.BlockCopy(chunk, 0, packetData, copyOffset, chunk.Length);
+            copyOffset += chunk.Length;
+        }
+
+        return true;
+    }
+
+    private static bool IsSplitChunk(byte[] packet) =>
+        packet.Length >= PacketMagicSize + PacketTypeSize
+        && BitConverter.ToUInt32(packet, PacketMagicSize) == (uint)PacketType.SplitPacketChunk;
 
     public static byte[][] SplitPacketIntoChunks(byte[] packetData, int mtu)
     {

@@ -6,6 +6,8 @@ namespace VRCFaceTracking.Core.Osc;
 
 public static class OscCodec
 {
+    public const int BundleHeaderSize = 16;
+
     private const ulong ImmediateTimeTag = 1;
 
     public static int EncodeMessage(byte[] buffer, OscMessage message) =>
@@ -14,7 +16,7 @@ public static class OscCodec
     public static int EncodeBundle(byte[] buffer, IReadOnlyList<OscMessage> messages, ref int index)
     {
         Span<byte> buf = buffer.AsSpan();
-        if (buf.Length < 16)
+        if (buf.Length < BundleHeaderSize)
         {
             return 0;
         }
@@ -22,7 +24,7 @@ public static class OscCodec
         "#bundle\0"u8.CopyTo(buf);
         BinaryPrimitives.WriteUInt64BigEndian(buf[8..], ImmediateTimeTag);
 
-        int pos = 16;
+        int pos = BundleHeaderSize;
         while (index < messages.Count)
         {
             if (pos + 4 > buf.Length || !TryEncodeMessage(buf[(pos + 4)..], messages[index], out int written))
@@ -42,6 +44,30 @@ public static class OscCodec
         datagram.Length > address.Length
         && datagram[address.Length] == 0
         && datagram[..address.Length].SequenceEqual(address);
+
+    public static bool IsBundle(ReadOnlySpan<byte> datagram) =>
+        datagram.Length >= BundleHeaderSize && datagram.StartsWith("#bundle\0"u8);
+
+    public static bool TryReadBundleElement(ReadOnlySpan<byte> buffer, ref int pos, out int start, out int end)
+    {
+        start = 0;
+        end = 0;
+        if (pos < 0 || pos > buffer.Length - 4)
+        {
+            return false;
+        }
+
+        int size = BinaryPrimitives.ReadInt32BigEndian(buffer[pos..]);
+        if (size <= 0 || size > buffer.Length - pos - 4)
+        {
+            return false;
+        }
+
+        start = pos + 4;
+        end = start + size;
+        pos = end;
+        return true;
+    }
 
     public static bool TryParse(byte[] buffer, int length, ref int index, [NotNullWhen(true)] out OscMessage? message)
     {
@@ -101,6 +127,7 @@ public static class OscCodec
                 value.BoolValue = tag == 'T';
                 return true;
             case 's':
+            case 'S':
                 if (!TryReadString(buffer, length, ref pos, out string? str))
                 {
                     return false;
@@ -121,6 +148,57 @@ public static class OscCodec
                 return true;
             case ']':
                 value.Type = OscValueType.ArrayEnd;
+                return true;
+            default:
+                return TryReadExtendedValue(buffer, length, ref pos, tag, out value);
+        }
+    }
+
+    private static bool TryReadExtendedValue(byte[] buffer, int length, ref int pos, char tag, out OscValue value)
+    {
+        value = default;
+        switch (tag)
+        {
+            case 'h':
+                if (pos + 8 > length)
+                {
+                    return false;
+                }
+                value.Type = OscValueType.Int;
+                value.IntValue = (int)Math.Clamp(BinaryPrimitives.ReadInt64BigEndian(buffer.AsSpan(pos)), int.MinValue, int.MaxValue);
+                pos += 8;
+                return true;
+            case 'd':
+                if (pos + 8 > length)
+                {
+                    return false;
+                }
+                value.Type = OscValueType.Float;
+                value.FloatValue = (float)BinaryPrimitives.ReadDoubleBigEndian(buffer.AsSpan(pos));
+                pos += 8;
+                return true;
+            case 'c':
+            case 'r':
+            case 'm':
+                if (pos + 4 > length)
+                {
+                    return false;
+                }
+                value.Type = OscValueType.Int;
+                value.IntValue = BinaryPrimitives.ReadInt32BigEndian(buffer.AsSpan(pos));
+                pos += 4;
+                return true;
+            case 't':
+                if (pos + 8 > length)
+                {
+                    return false;
+                }
+                value.Type = OscValueType.Null;
+                pos += 8;
+                return true;
+            case 'N':
+            case 'I':
+                value.Type = OscValueType.Null;
                 return true;
             default:
                 return false;
@@ -172,8 +250,8 @@ public static class OscCodec
         OscValueType.Blob => (byte)'b',
         OscValueType.ArrayBegin => (byte)'[',
         OscValueType.ArrayEnd => (byte)']',
-        OscValueType.Null => 0,
-        _ => 0,
+        OscValueType.Null => (byte)'N',
+        _ => (byte)'N',
     };
 
     private static bool TryWriteValue(Span<byte> buffer, ref int pos, in OscValue value)
@@ -193,7 +271,7 @@ public static class OscCodec
                 {
                     return false;
                 }
-                BinaryPrimitives.WriteSingleBigEndian(buffer[pos..], value.FloatValue);
+                BinaryPrimitives.WriteSingleBigEndian(buffer[pos..], float.IsFinite(value.FloatValue) ? value.FloatValue : 0f);
                 pos += 4;
                 return true;
             case OscValueType.String:

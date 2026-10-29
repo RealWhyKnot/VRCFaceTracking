@@ -49,16 +49,9 @@ public sealed partial class OscQueryConfigParser : IDisposable
                 LogAvatarUsesVRChatFaceTracking(_parserLogger, avatarInfo.Id, leftToVrchat.Count, driven);
             }
 
-            (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? configFileInfo = await _configParser.ParseAvatarAsync(avatarInfo.Id, skipParams: true, fullFaceTracking: false, cancellationToken).ConfigureAwait(false);
-            LogAttemptingResolveAvatarConfigFile(_parserLogger, avatarInfo.Id);
-            if (!string.IsNullOrEmpty(configFileInfo?.avatarInfo.Name))
+            if (string.Equals(avatarInfo.Name, OscQueryAvatarInfo.UnknownName, StringComparison.Ordinal))
             {
-                avatarInfo.Name = configFileInfo.Value.avatarInfo.Name;
-                LogSuccessfullyFoundConfigContainingAvatar(_parserLogger, avatarInfo.Name);
-            }
-            else
-            {
-                LogOddAttemptFindLegacyOsc(_parserLogger);
+                await ResolveNameFromConfigFileAsync(avatarInfo, cancellationToken).ConfigureAwait(false);
             }
 
             return (avatarInfo, paramList);
@@ -74,7 +67,22 @@ public sealed partial class OscQueryConfigParser : IDisposable
     public async Task<string?> GetAvatarIdAsync(IPEndPoint endpoint, CancellationToken cancellationToken)
     {
         string json = await _httpClient.GetStringAsync(new Uri("http://" + endpoint + "/avatar/change"), cancellationToken).ConfigureAwait(false);
-        return JsonConvert.DeserializeObject<OscQueryNode>(json)?.Value is { Count: > 0 } value ? value[0] as string : null;
+        return JsonConvert.DeserializeObject<OscQueryNode>(json)?.Value is [string id, ..] && !string.IsNullOrWhiteSpace(id) ? id : null;
+    }
+
+    private async Task ResolveNameFromConfigFileAsync(OscQueryAvatarInfo avatarInfo, CancellationToken cancellationToken)
+    {
+        LogAttemptingResolveAvatarConfigFile(_parserLogger, avatarInfo.Id);
+        (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? configFileInfo = await _configParser.ParseAvatarAsync(avatarInfo.Id, skipParams: true, fullFaceTracking: false, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(configFileInfo?.avatarInfo.Name))
+        {
+            avatarInfo.Name = configFileInfo.Value.avatarInfo.Name;
+            LogSuccessfullyFoundConfigContainingAvatar(_parserLogger, avatarInfo.Name);
+        }
+        else
+        {
+            LogOddAttemptFindLegacyOsc(_parserLogger);
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Avatar {AvatarId} uses VRChat face tracking. Not sending {Count} parameters VRChat drives: {Parameters}")]

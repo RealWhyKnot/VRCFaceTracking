@@ -109,7 +109,12 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
 
         _httpHandler.HostInfoQueried += HandleNewAvatarWrapper;
 
-        var destination = IPAddress.Parse(_oscTarget.DestinationAddress ?? throw new InvalidOperationException("The OSC address isn't set"));
+        if (!IPAddress.TryParse(_oscTarget.DestinationAddress, out IPAddress? destination))
+        {
+            LogOscAddressNotAnIp(_logger, _oscTarget.DestinationAddress);
+            destination = IPAddress.Loopback;
+        }
+
         IPEndPoint? recvEndpoint = _recvService.UpdateTarget(new IPEndPoint(destination, 0));
         if (recvEndpoint == null)
         {
@@ -346,6 +351,9 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Very strange. We were unable to bind to a random port.")]
     private static partial void LogVeryStrangeWereUnableBind(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "OSC address {Address} isn't an IP address; using 127.0.0.1 for OSCQuery")]
+    private static partial void LogOscAddressNotAnIp(ILogger logger, string? address);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "diag.avatar skipping reload, {Id} is already loaded")]
     private static partial void LogDiagAvatarSkippingReloadAlready(ILogger logger, string? id);

@@ -1,3 +1,4 @@
+using System.Text;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Osc.DataTypes;
 using VRCFaceTracking.Core.Params.DataTypes;
@@ -7,9 +8,13 @@ namespace VRCFaceTracking.Core.Params;
 
 internal static class AvatarParameters
 {
+    private const int MaxAddressBytes = 1024;
+
     private static readonly HashSet<Parameter> SentAlongsideNativeFaceTracking =
-        [.. TrackingOutput.AllParameters.Where(parameter => parameter is ConditionalBoolParameter)
-, .. TrackingOutput.HeadParameters];
+    [
+        .. TrackingOutput.AllParameters.Where(parameter => parameter is ConditionalBoolParameter),
+        .. TrackingOutput.HeadParameters,
+    ];
 
     private static readonly Lazy<string[]> LeftToVrchatNames = new(() =>
         [.. TrackingOutput.AllParameters.Where(parameter => !SentAlongsideNativeFaceTracking.Contains(parameter))
@@ -17,8 +22,9 @@ internal static class AvatarParameters
             .Select(name => name.paramName)
             .Distinct(StringComparer.Ordinal)]);
 
-    public static List<Parameter> Reset(IReadOnlyList<IParameterDefinition> definitions, bool fullFaceTracking, List<string> leftToVrchat)
+    public static List<Parameter> Reset(IReadOnlyList<IParameterDefinition> offeredDefinitions, bool fullFaceTracking, List<string> leftToVrchat)
     {
+        IReadOnlyList<IParameterDefinition> definitions = [.. offeredDefinitions.Where(IsSendable)];
         var relevant = new List<Parameter>();
         bool gate = fullFaceTracking && !ParameterSenderService.AllParametersRelevantStatic;
         foreach (Parameter parameter in TrackingOutput.AllParameters)
@@ -36,6 +42,9 @@ internal static class AvatarParameters
 
         return relevant;
     }
+
+    private static bool IsSendable(IParameterDefinition definition) =>
+        definition.Address is ['/', ..] address && Encoding.UTF8.GetByteCount(address) <= MaxAddressBytes;
 
     private static bool IsLeftToVrchat(IParameterDefinition definition) =>
         LeftToVrchatNames.Value.Any(name =>

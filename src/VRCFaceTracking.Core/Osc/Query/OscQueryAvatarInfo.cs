@@ -4,10 +4,12 @@ namespace VRCFaceTracking.Core.Osc.Query;
 
 public sealed class OscQueryAvatarInfo : IAvatarInfo
 {
+    internal const string UnknownName = "Unknown";
+
     public string Name
     {
         get; internal set;
-    } = "Unknown";
+    } = UnknownName;
 
     public string Id
     {
@@ -31,21 +33,40 @@ public sealed class OscQueryAvatarInfo : IAvatarInfo
             return;
         }
 
-        if (contents.TryGetValue("change", out OscQueryNode? change) && change.Value is [string id, ..])
+        if (contents.TryGetValue("change", out OscQueryNode? change) && change is { Value: [string id, ..] })
         {
             Id = id;
         }
-        FullFaceTracking = contents.TryGetValue("avatarfullfacetracking", out OscQueryNode? fullFaceTracking)
-            && fullFaceTracking.Value is [true, ..];
 
-        static IEnumerable<IParameterDefinition> ConstructParameterArray(IReadOnlyDictionary<string, OscQueryNode> entries)
+        if (contents.TryGetValue("name", out OscQueryNode? name) && name is { Value: [string avatarName, ..] } && !string.IsNullOrWhiteSpace(avatarName))
         {
-            return entries
-                .SelectMany(entry =>
-                    entry.Value.Contents != null ? ConstructParameterArray(entry.Value.Contents) : !string.IsNullOrEmpty(entry.Value.OscType) ? [new OscQueryParameterDefinition(entry.Value.FullPath, entry.Value)] : Array.Empty<OscQueryParameterDefinition>()
-                );
+            Name = avatarName;
         }
 
-        Parameters = parameters.Contents is { } entries ? [.. ConstructParameterArray(entries)] : [];
+        FullFaceTracking = contents.TryGetValue("avatarfullfacetracking", out OscQueryNode? fullFaceTracking)
+            && fullFaceTracking is { Value: [true, ..] };
+
+        var definitions = new List<IParameterDefinition>();
+        if (parameters is { Contents: { } entries })
+        {
+            CollectParameters(entries, definitions);
+        }
+
+        Parameters = definitions;
+    }
+
+    private static void CollectParameters(IReadOnlyDictionary<string, OscQueryNode> entries, List<IParameterDefinition> definitions)
+    {
+        foreach (OscQueryNode? node in entries.Values)
+        {
+            if (node?.Contents is { } contents)
+            {
+                CollectParameters(contents, definitions);
+            }
+            else if (node != null && OscQueryParameterDefinition.TryCreate(node, out OscQueryParameterDefinition? definition))
+            {
+                definitions.Add(definition);
+            }
+        }
     }
 }

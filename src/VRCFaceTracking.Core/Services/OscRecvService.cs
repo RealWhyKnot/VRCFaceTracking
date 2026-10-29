@@ -18,9 +18,11 @@ public sealed partial class OscRecvService : BackgroundService
 
     private const int SioUdpConnReset = -1744830452;
     private const int ReceiveTimeoutMs = 250;
+    private const int MaxDatagramSize = 65536;
+    private const int MaxBundleDepth = 8;
 
     private Socket? _recvSocket;
-    private readonly byte[] _recvBuffer = new byte[4096];
+    private readonly byte[] _recvBuffer = new byte[MaxDatagramSize];
 
     private CancellationToken _stoppingToken;
 
@@ -38,12 +40,11 @@ public sealed partial class OscRecvService : BackgroundService
         }
     }
 
-    private bool IsHandled(byte[] buffer, int length)
+    private bool IsHandled(ReadOnlySpan<byte> datagram)
     {
-        Span<byte> span = buffer.AsSpan(0, Math.Min(length, buffer.Length));
         foreach (byte[] address in _handledAddressBytes)
         {
-            if (OscCodec.AddressMatches(span, address))
+            if (OscCodec.AddressMatches(datagram, address))
             {
                 return true;
             }
@@ -205,19 +206,7 @@ public sealed partial class OscRecvService : BackgroundService
                 }
 
                 OnMessagesReceived(1);
-
-                if (!IsHandled(_recvBuffer, bytesReceived))
-                {
-                    continue;
-                }
-
-                int offset = 0;
-                if (!OscCodec.TryParse(_recvBuffer, bytesReceived, ref offset, out OscMessage? newMsg))
-                {
-                    continue;
-                }
-
-                OnMessageReceived(newMsg);
+                Dispatch(0, bytesReceived, depth: 0);
             }
             catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException
                 or SocketException { SocketErrorCode: SocketError.OperationAborted or SocketError.Interrupted })
@@ -229,6 +218,32 @@ public sealed partial class OscRecvService : BackgroundService
                 LogErrorEncounteredOscReceiveThread(_logger, e);
                 Thread.Sleep(500);
             }
+        }
+    }
+
+    private void Dispatch(int start, int end, int depth)
+    {
+        ReadOnlySpan<byte> datagram = _recvBuffer.AsSpan(start, end - start);
+        if (OscCodec.IsBundle(datagram))
+        {
+            if (depth >= MaxBundleDepth)
+            {
+                return;
+            }
+
+            int pos = start + OscCodec.BundleHeaderSize;
+            while (OscCodec.TryReadBundleElement(_recvBuffer.AsSpan(0, end), ref pos, out int elementStart, out int elementEnd))
+            {
+                Dispatch(elementStart, elementEnd, depth + 1);
+            }
+
+            return;
+        }
+
+        int offset = start;
+        if (IsHandled(datagram) && OscCodec.TryParse(_recvBuffer, end, ref offset, out OscMessage? message))
+        {
+            OnMessageReceived(message);
         }
     }
 

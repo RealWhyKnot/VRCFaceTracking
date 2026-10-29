@@ -6,7 +6,7 @@ namespace VRCFaceTracking.Core.Models.ParameterDefinition.FileBased;
 public sealed class AvatarConfigFileParameter : IParameterDefinition
 {
     [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; set => field = value ?? string.Empty; } = string.Empty;
 
     [JsonPropertyName("input")]
     public AvatarConfigFileIODefinition? Input { get; set; }

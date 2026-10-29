@@ -15,12 +15,19 @@ internal sealed class StreamToBitmapConverter : IValueConverter
             return null;
         }
 
-        if (stream.CanSeek)
+        try
         {
-            stream.Position = 0;
-        }
+            if (stream.CanSeek)
+            {
+                stream.Position = 0;
+            }
 
-        return new Bitmap(stream);
+            return new Bitmap(stream);
+        }
+        catch (Exception e) when (e is ArgumentException or IOException or ObjectDisposedException)
+        {
+            return null;
+        }
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

@@ -74,6 +74,10 @@ public sealed class ReplyInitPacket : IpcPacket
         int streamCount = BitConverter.ToInt32(data, 13 + moduleInfoStringLength);
 
         int offset = 13 + moduleInfoStringLength + 4;
+        if (streamCount < 0 || streamCount > (data.Length - offset) / 4)
+        {
+            throw new InvalidDataException("Init reply has more icon streams than bytes");
+        }
 
         var streams = new List<Stream>(streamCount);
         for (int i = 0; i < streamCount; i++)

@@ -48,7 +48,6 @@ public sealed partial class VrcftSandboxServer : UdpFullDuplex
                 }
             }
         }
-
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Starting sandbox host on port {Port}...")]

@@ -198,8 +198,10 @@ public sealed partial class MulticastDnsService : ObservableObject
             return;
         }
 
-        if (packet.Answers[0].Labels.Count != 3 || !string.Equals(packet.Answers[0].Labels[0], "_oscjson", StringComparison.Ordinal) ||
-!string.Equals(packet.Answers[0].Labels[1], "_tcp", StringComparison.Ordinal) || !string.Equals(packet.Answers[0].Labels[2], "local", StringComparison.Ordinal))
+        if (packet.Answers[0].Labels.Count != 3
+            || !string.Equals(packet.Answers[0].Labels[0], "_oscjson", StringComparison.Ordinal)
+            || !string.Equals(packet.Answers[0].Labels[1], "_tcp", StringComparison.Ordinal)
+            || !string.Equals(packet.Answers[0].Labels[2], "local", StringComparison.Ordinal))
         {
             return;
         }
@@ -211,15 +213,12 @@ public sealed partial class MulticastDnsService : ObservableObject
             return;
         }
 
-        var vrChatClientIp = aRecord.Data as ARecord;
-        var vrChatClientPort = srvRecord.Data as SrvRecord;
-
-        if (vrChatClientIp?.Address == null || vrChatClientPort?.Port == null)
+        if (aRecord.Data is not ARecord vrChatClientIp || srvRecord.Data is not SrvRecord vrChatClientPort || vrChatClientPort.Port == 0)
         {
             return;
         }
 
-        IPAddress hostAddress = vrChatClientIp.Address;
+        IPAddress hostAddress = vrChatClientIp.Address.Equals(IPAddress.Any) ? remoteEndpoint.Address : vrChatClientIp.Address;
 
         if (IPAddress.IsLoopback(hostAddress) && !_localIpAddresses.Contains(remoteEndpoint.Address))
         {
@@ -276,6 +275,10 @@ public sealed partial class MulticastDnsService : ObservableObject
             catch (Exception e) when (e is EndOfStreamException or InvalidDataException or SocketException)
             {
                 LogFailedHandleMDNSPacket(_logger, e, result.RemoteEndPoint);
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
             }
         }
     }
