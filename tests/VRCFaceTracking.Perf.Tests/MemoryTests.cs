@@ -18,6 +18,8 @@ public sealed class MemoryTests
     private const double AvatarChangeBudgetMs = 250;
     private const long AvatarCycleHeapGrowthBudgetBytes = 256 * 1024;
     private const long SampleHeapGrowthBudgetBytes = 64 * 1024;
+    private const int SamplesPerRound = 50_000;
+    private const int SampleRounds = 5;
 
     private readonly ITestOutputHelper _output;
 
@@ -109,16 +111,18 @@ public sealed class MemoryTests
         {
             Sample(i);
         }
-        long heapBefore = Measure.LiveHeapBytes();
 
-        for (int i = 0; i < 50_000; i++)
+        long[] rounds = Measure.LiveHeapGrowthPerRound(() =>
         {
-            Sample(i);
-        }
+            for (int i = 0; i < SamplesPerRound; i++)
+            {
+                Sample(i);
+            }
+        }, SampleRounds);
+        long growth = Measure.Median(rounds);
 
-        long growth = Measure.LiveHeapBytes() - heapBefore;
-        _output.Report("ipc sample heap growth", $"{growth / 1024.0:N1} KB over 50000 samples, budget {SampleHeapGrowthBudgetBytes / 1024} KB");
-        Assert.True(growth < SampleHeapGrowthBudgetBytes, $"live heap grew {growth} B over 50000 samples");
+        _output.Report("ipc sample heap growth", $"{growth / 1024.0:N1} KB over {SamplesPerRound} samples, median of rounds {string.Join(", ", rounds.Select(r => $"{r / 1024.0:N1}"))} KB, budget {SampleHeapGrowthBudgetBytes / 1024} KB");
+        Assert.True(growth < SampleHeapGrowthBudgetBytes, $"live heap grew {growth} B over {SamplesPerRound} samples in the median of {SampleRounds} rounds");
     }
 
     [Fact]

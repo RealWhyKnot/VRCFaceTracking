@@ -68,6 +68,27 @@ internal static class Measure
         return GC.GetTotalMemory(forceFullCollection: true);
     }
 
+    public static long[] LiveHeapGrowthPerRound(Action round, int rounds)
+    {
+        long[] growth = new long[rounds];
+        long before = LiveHeapBytes();
+        for (int i = 0; i < rounds; i++)
+        {
+            round();
+            long after = LiveHeapBytes();
+            growth[i] = after - before;
+            before = after;
+        }
+        return growth;
+    }
+
+    public static long Median(long[] values)
+    {
+        long[] sorted = [.. values];
+        Array.Sort(sorted);
+        return sorted[sorted.Length / 2];
+    }
+
     public static void Report(this ITestOutputHelper output, string name, string value) =>
         output.WriteLine($"perf {name}: {value}");
 }
