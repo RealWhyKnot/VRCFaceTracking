@@ -9,7 +9,6 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 end_of_line = crlf
-
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
 dotnet_style_predefined_type_for_locals_parameters_members = true:warning
@@ -19,7 +18,6 @@ dotnet_style_collection_initializer = true:warning
 dotnet_style_coalesce_expression = true:warning
 dotnet_style_null_propagation = true:warning
 dotnet_style_namespace_match_folder = true:warning
-
 csharp_style_namespace_declarations = file_scoped:warning
 csharp_using_directive_placement = outside_namespace:warning
 csharp_style_var_for_built_in_types = false:warning
@@ -35,7 +33,6 @@ csharp_new_line_before_catch = true
 csharp_new_line_before_finally = true
 csharp_indent_case_contents = true
 csharp_indent_switch_labels = true
-
 dotnet_naming_symbols.constants.applicable_kinds = field, local
 dotnet_naming_symbols.constants.required_modifiers = const
 dotnet_naming_symbols.static_fields.applicable_kinds = field
@@ -49,7 +46,6 @@ dotnet_naming_symbols.interfaces.applicable_kinds = interface
 dotnet_naming_symbols.type_parameters.applicable_kinds = type_parameter
 dotnet_naming_symbols.members.applicable_kinds = namespace, class, struct, enum, delegate, event, method, property, local_function
 dotnet_naming_symbols.locals.applicable_kinds = parameter, local
-
 dotnet_naming_style.pascal.capitalization = pascal_case
 dotnet_naming_style.underscore_camel.capitalization = camel_case
 dotnet_naming_style.underscore_camel.required_prefix = _
@@ -58,7 +54,6 @@ dotnet_naming_style.prefix_i.capitalization = pascal_case
 dotnet_naming_style.prefix_i.required_prefix = I
 dotnet_naming_style.prefix_t.capitalization = pascal_case
 dotnet_naming_style.prefix_t.required_prefix = T
-
 dotnet_naming_rule.constants_pascal.symbols = constants
 dotnet_naming_rule.constants_pascal.style = pascal
 dotnet_naming_rule.constants_pascal.severity = warning
@@ -83,7 +78,6 @@ dotnet_naming_rule.members_pascal.severity = warning
 dotnet_naming_rule.locals_camel.symbols = locals
 dotnet_naming_rule.locals_camel.style = camel
 dotnet_naming_rule.locals_camel.severity = warning
-
 dotnet_analyzer_diagnostic.category-Style.severity = warning
 dotnet_diagnostic.IDE0005.severity = warning
 dotnet_diagnostic.IDE0011.severity = warning
@@ -120,9 +114,11 @@ dotnet_diagnostic.CA2007.severity = none
 
 [{vendor,third_party,node_modules,.yarn}/**]
 generated_code = true
+ignore = true
 
 [**/{vendor,third_party,node_modules,.yarn}/**]
 generated_code = true
+ignore = true
 
 [*.{csproj,props,targets,xml,xaml,slnx}]
 indent_style = space
@@ -137,3 +133,19 @@ end_of_line = crlf
 indent_style = space
 indent_size = 2
 end_of_line = lf
+
+[*.{sh,bash}]
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+binary_next_line = true
+simplify = true
+
+[[shell]]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+binary_next_line = true
+simplify = true
