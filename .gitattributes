@@ -6,6 +6,10 @@
 
 *.ps1 text eol=crlf
 *.sh text eol=lf
+*.bash text eol=lf
+*.sh.tpl text eol=lf
+*.bash.tpl text eol=lf
+.shellcheckrc text eol=lf
 
 *.cs text eol=crlf
 *.xaml text eol=crlf
