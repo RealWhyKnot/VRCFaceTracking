@@ -89,7 +89,7 @@ jobs:
           $global:LASTEXITCODE = 0
           $status = ([string]@($response)[0] -split ' ')[1]
           if ($status -eq '200') {
-            Write-Host "Reusing published release $tag"
+            throw "$tag is already published and its assets can't change; tag a new version instead"
           } elseif ($status -ne '404') {
             throw "repos/${{ github.repository }}/releases/tags/$tag returned HTTP '$status'"
           } else {
