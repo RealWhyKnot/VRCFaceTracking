@@ -300,6 +300,12 @@
   <data name="VerboseLoggingForcedDescription" xml:space="preserve">
     <value>Always on for dev and beta builds. Warnings and errors are always written.</value>
   </data>
+  <data name="ShapeLoggingHeader" xml:space="preserve">
+    <value>Face shape stats</value>
+  </data>
+  <data name="ShapeLoggingDescription" xml:space="preserve">
+    <value>Every 30 seconds, write each face shape's range and how often it moved to the log file. On by default in dev and beta builds.</value>
+  </data>
   <data name="LogFilesToKeepHeader" xml:space="preserve">
     <value>Log files to keep</value>
   </data>

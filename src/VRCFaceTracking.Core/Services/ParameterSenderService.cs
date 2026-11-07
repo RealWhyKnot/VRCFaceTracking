@@ -41,6 +41,8 @@ public sealed partial class ParameterSenderService : BackgroundService
     private readonly UnifiedTrackingMutator _mutator;
     private readonly EyeLidMonitor _eyeLids;
     private readonly TimerResolutionHold _timerResolution;
+    private readonly LoggingSettings? _loggingSettings;
+    private readonly ShapeStatsLog? _shapeLog;
     private int _lastDataVersion;
     private long _lastTick;
     private long _lastReport;
@@ -77,8 +79,15 @@ public sealed partial class ParameterSenderService : BackgroundService
     {
     }
 
-    internal ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger, TimerResolutionHold timerResolution)
+    public ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger, LoggingSettings loggingSettings, FileLoggerProvider fileLog)
+        : this(sendService, mutator, logger, new TimerResolutionHold(logger), loggingSettings, ShapeStatsLog.ToFile(fileLog))
     {
+    }
+
+    internal ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger, TimerResolutionHold timerResolution, LoggingSettings? loggingSettings = null, ShapeStatsLog? shapeLog = null)
+    {
+        _loggingSettings = loggingSettings;
+        _shapeLog = shapeLog;
         _sendService = sendService;
         _logger = logger;
         _mutator = mutator;
@@ -173,6 +182,7 @@ public sealed partial class ParameterSenderService : BackgroundService
             }
         }
 
+        _shapeLog?.Report(Stopwatch.GetTimestamp());
         _timerResolution.Release();
     }
 
@@ -274,8 +284,18 @@ public sealed partial class ParameterSenderService : BackgroundService
         }
 
         _lastDataVersion = UnifiedTracking.DataVersion;
+        ShapeStatsLog? shapeLog = ActiveShapeLog();
+        if (shapeLog is not null)
+        {
+            using (UnifiedTracking.LockData())
+            {
+                shapeLog.RecordRaw(UnifiedTracking.Data);
+            }
+        }
+
         TrackingOutput.UpdateData();
         _lastDataUpdate = _lastUpdate = Stopwatch.GetTimestamp();
+        shapeLog?.RecordOutput(_lastDataUpdate, _mutator.LastOutput);
 
         if (diag)
         {
@@ -283,6 +303,25 @@ public sealed partial class ParameterSenderService : BackgroundService
             (float rawLeft, float rawRight, float outLeft, float outRight) = _mutator.LastEyeOpenness;
             _eyeLids.Observe(_lastDataUpdate, rawLeft, rawRight, outLeft, outRight);
         }
+    }
+
+    private ShapeStatsLog? ActiveShapeLog()
+    {
+        if (_shapeLog is null || _loggingSettings is null)
+        {
+            return null;
+        }
+
+        if (_loggingSettings.ShapeLoggingEffective)
+        {
+            return _shapeLog;
+        }
+
+        if (_shapeLog.HasSamples)
+        {
+            _shapeLog.Report(Stopwatch.GetTimestamp());
+        }
+        return null;
     }
 
     private void SendBatch(bool diag)

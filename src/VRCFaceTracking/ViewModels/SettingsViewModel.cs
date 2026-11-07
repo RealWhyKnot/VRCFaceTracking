@@ -102,6 +102,17 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
 
     public static bool IsVerboseToggleEnabled => !BuildInfo.VerboseForced;
 
+    public bool ShapeLogging
+    {
+        get => _loggingSettings.ShapeLoggingEffective;
+        set
+        {
+            _loggingSettings.ShapeLoggingChoice = value ? LoggingSettings.ShapeLoggingOn : LoggingSettings.ShapeLoggingOff;
+            _ = _localSettingsService.SaveAsync(_loggingSettings, CancellationToken.None);
+            OnPropertyChanged();
+        }
+    }
+
     public static string VerboseDescription => BuildInfo.VerboseForced
         ? Strings.Resources.VerboseLoggingForcedDescription
         : Strings.Resources.VerboseLoggingDescription;

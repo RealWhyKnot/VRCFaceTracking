@@ -158,6 +158,14 @@
                 </ui:SettingsExpander>
 
                 <ui:SettingsExpander
+                    Header="{x:Static s:Resources.ShapeLoggingHeader}"
+                    Description="{x:Static s:Resources.ShapeLoggingDescription}">
+                    <ui:SettingsExpander.Footer>
+                        <ToggleSwitch IsChecked="{Binding ShapeLogging, Mode=TwoWay}" />
+                    </ui:SettingsExpander.Footer>
+                </ui:SettingsExpander>
+
+                <ui:SettingsExpander
                     Header="{x:Static s:Resources.LogFilesToKeepHeader}"
                     Description="{x:Static s:Resources.LogFilesToKeepDescription}">
                     <ui:SettingsExpander.Footer>

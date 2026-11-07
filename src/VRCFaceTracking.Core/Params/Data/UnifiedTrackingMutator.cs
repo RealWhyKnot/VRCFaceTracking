@@ -59,6 +59,8 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
         return _inputBuffer;
     }
 
+    public UnifiedTrackingData LastOutput => _inputBuffer;
+
     public (float RawLeft, float RawRight, float OutLeft, float OutRight) LastEyeOpenness
     {
         get; private set;
