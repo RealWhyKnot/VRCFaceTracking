@@ -3,53 +3,14 @@ set -euo pipefail
 shopt -s inherit_errexit
 
 die() {
-  printf 'pre-push BLOCKED: %s\n  Bypass: git push --no-verify\n' "$*" >&2
+  printf 'pre-push BLOCKED: %s\n' "$*" >&2
   exit 1
 }
 
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
-[[ -f "${repo_root}/VRCFaceTracking.slnx" ]] || exit 0
+repo_root=$(git rev-parse --show-toplevel)
 cd "${repo_root}"
 
-upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) || upstream=origin/main
-git rev-parse --verify -q "${upstream}" >/dev/null || upstream=HEAD~1
-
-dotnet_paths=(
-  '*.cs' '*.csproj' '*.props' '*.targets' '*.slnx' '*.axaml' '*.editorconfig' '*packages.lock.json' '.github/lint/*'
-)
-changed=$(git diff --name-only "${upstream}...HEAD" -- "${dotnet_paths[@]}" 2>/dev/null) || changed=unknown
-
-if [[ -z ${changed} ]]; then
-  printf 'pre-push: no .NET changes since %s; skipping the .NET checks.\n' "${upstream}" >&2
-elif ! command -v dotnet >/dev/null 2>&1; then
-  echo "pre-push: dotnet not found; skipping the .NET checks." >&2
-else
-  plat=()
-  os=$(uname -s)
-  case "${os}" in
-    MINGW* | MSYS* | CYGWIN*) plat=(-p:Platform=x64) ;;
-    *) ;;
-  esac
-
-  echo "pre-push: restore (locked)..." >&2
-  dotnet restore VRCFaceTracking.slnx ${plat[@]+"${plat[@]}"} --locked-mode -v q \
-    || die "restore failed; if a package changed, restore without --locked-mode and commit packages.lock.json."
-
-  echo "pre-push: dotnet format..." >&2
-  dotnet format VRCFaceTracking.slnx --verify-no-changes --no-restore -v q \
-    || die "formatting drift; fix it with 'dotnet format VRCFaceTracking.slnx'."
-
-  echo "pre-push: Release build..." >&2
-  dotnet build VRCFaceTracking.slnx -c Release ${plat[@]+"${plat[@]}"} --no-restore -v q -nologo \
-    || die "the Release build failed."
-
-  echo "pre-push: tests..." >&2
-  dotnet test VRCFaceTracking.slnx -c Release ${plat[@]+"${plat[@]}"} --no-build -v q \
-    || die "tests failed."
-
-  echo "pre-push: C# style rules..." >&2
-  dotnet run .github/lint/CSharpStyle.cs -- . || die "C# style rules failed."
-fi
+command -v dotnet >/dev/null 2>&1 || die "dotnet isn't installed, so the .NET checks can't run."
 
 python_bin=""
 for c in python3 python py; do
@@ -58,12 +19,44 @@ for c in python3 python py; do
     break
   fi
 done
+[[ -n ${python_bin} ]] || die "Python isn't installed, so style_check.py can't run."
 
-if [[ -z ${python_bin} ]]; then
-  echo "pre-push: Python not found; skipping style_check.py." >&2
+plat=()
+os=$(uname -s)
+case "${os}" in
+  MINGW* | MSYS* | CYGWIN*) plat=(-p:Platform=x64) ;;
+  *) ;;
+esac
+
+echo "pre-push: restore (locked)..." >&2
+dotnet restore VRCFaceTracking.slnx ${plat[@]+"${plat[@]}"} --locked-mode -v q \
+  || die "restore failed; if a package changed, restore without --locked-mode and commit packages.lock.json."
+
+echo "pre-push: dotnet format..." >&2
+dotnet format VRCFaceTracking.slnx --verify-no-changes --no-restore -v q \
+  || die "formatting drift; fix it with 'dotnet format VRCFaceTracking.slnx'."
+
+echo "pre-push: Release build..." >&2
+dotnet build VRCFaceTracking.slnx -c Release ${plat[@]+"${plat[@]}"} --no-restore -v q -nologo \
+  || die "the Release build failed."
+
+echo "pre-push: tests..." >&2
+dotnet test VRCFaceTracking.slnx -c Release ${plat[@]+"${plat[@]}"} --no-build -v q \
+  || die "tests failed."
+
+echo "pre-push: C# style rules..." >&2
+dotnet run .github/lint/CSharpStyle.cs -- . || die "C# style rules failed."
+
+echo "pre-push: style_check.py..." >&2
+"${python_bin}" -B .github/lint/style_check.py || die "style_check.py failed."
+
+echo "pre-push: shell checks..." >&2
+if [[ ${OSTYPE} == msys* || ${OSTYPE} == cygwin* ]]; then
+  windows_root=$(pwd -W)
+  MSYS_NO_PATHCONV=1 timeout 180 wsl --distribution "${LINT_WSL_DISTRO:?}" \
+    --cd "${windows_root}" -- bash .githooks/check-shell || die "shell checks failed."
 else
-  echo "pre-push: style_check.py..." >&2
-  "${python_bin}" -B .github/lint/style_check.py || die "style_check.py failed."
+  bash .githooks/check-shell || die "shell checks failed."
 fi
 
 echo "pre-push: checks passed." >&2
