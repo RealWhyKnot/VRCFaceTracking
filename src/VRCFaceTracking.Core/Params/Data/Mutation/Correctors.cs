@@ -7,7 +7,7 @@ public sealed class Correctors : TrackingMutation
     public override string Name => "Unified Correctors";
     public override string Description => "Processes data to conform to Unified Expressions.";
     public override MutationPriority Priority => MutationPriority.Postprocessor;
-    public override int PageOrder => 5;
+    public override int PageOrder => 6;
     public override bool IsActive { get; set; } = true;
 
     [MutationProperty("MouthClosed/JawOpen Clamp", true, Group = "Mouth")]

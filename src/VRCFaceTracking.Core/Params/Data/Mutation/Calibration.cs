@@ -24,7 +24,7 @@ public sealed partial class Calibration : TrackingMutation
     public override string Name => "Calibration";
     public override string Description => "Normalizes tracking data.";
     public override MutationPriority Priority => MutationPriority.Preprocessor;
-    public override int PageOrder => 4;
+    public override int PageOrder => 5;
     public override bool IsSaved => true;
 
     public override void Initialize(UnifiedTrackingData data) => CalData ??= new();

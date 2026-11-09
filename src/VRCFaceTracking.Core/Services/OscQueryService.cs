@@ -17,6 +17,8 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
 {
     private static readonly TimeSpan AvatarPollInterval = TimeSpan.FromSeconds(1);
     internal const string FullFaceTrackingAddress = "/avatar/avatarfullfacetracking";
+    internal const string VoiceAddress = "/avatar/parameters/Voice";
+    internal const string MuteSelfAddress = "/avatar/parameters/MuteSelf";
 
     private readonly ILogger<OscQueryService> _logger;
     private readonly OscQueryConfigParser _oscQueryConfigParser;
@@ -81,6 +83,8 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
         _recvService.HandleAddress("/avatar/change");
         _recvService.HandleAddress(FullFaceTrackingAddress);
         _recvService.HandleAddress("/vrcft/settings/forceRelevant");
+        _recvService.HandleAddress(VoiceAddress);
+        _recvService.HandleAddress(MuteSelfAddress);
 
         await _settingsService.LoadAsync(_oscTarget, cancellationToken).ConfigureAwait(false);
 
@@ -288,6 +292,20 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
                 }
 
                 break;
+            case VoiceAddress:
+                if (msg.Value is float level && VoiceActivity.SetLevel(level))
+                {
+                    LogVoiceLevelReceived(_logger);
+                }
+
+                break;
+            case MuteSelfAddress:
+                if (msg.Value is bool muted)
+                {
+                    VoiceActivity.SetMuted(muted);
+                }
+
+                break;
             default:
                 break;
         }
@@ -381,4 +399,7 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} Legacy parameters detected. Please consider updating the avatar to use the latest documented parameters.")]
     private static partial void LogLegacyParametersDetected(ILogger logger, int count);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Receiving the voice level from VRChat")]
+    private static partial void LogVoiceLevelReceived(ILogger logger);
 }

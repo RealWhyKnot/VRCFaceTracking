@@ -74,7 +74,7 @@ public sealed class ParameterAdjustment : TrackingMutation
     public override string Name => "Parameter Adjustment";
     public override string Description => "Adjust VRCFaceTracking Parameters.";
     public override MutationPriority Priority => MutationPriority.None;
-    public override int PageOrder => 3;
+    public override int PageOrder => 4;
 
     [MutationButton("Reset Values")]
     public void Reset()
