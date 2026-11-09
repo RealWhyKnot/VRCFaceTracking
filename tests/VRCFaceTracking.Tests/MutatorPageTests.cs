@@ -22,6 +22,7 @@ public sealed class MutatorPageTests
     [
         "Eye Assists",
         "Mouth & Brow Assists",
+        "Cheek & Dimple Fill-In",
         "Parameter Adjustment",
         "Calibration",
         "Unified Correctors",

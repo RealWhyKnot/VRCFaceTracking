@@ -22,6 +22,8 @@ internal static class AvatarParameters
             .Select(name => name.paramName)
             .Distinct(StringComparer.Ordinal)]);
 
+    internal static AvatarParameterSnapshot? Current { get; private set; }
+
     public static List<Parameter> Reset(IReadOnlyList<IParameterDefinition> offeredDefinitions, bool fullFaceTracking, List<string> leftToVrchat)
     {
         IReadOnlyList<IParameterDefinition> definitions = [.. offeredDefinitions.Where(IsSendable)];
@@ -40,6 +42,7 @@ internal static class AvatarParameters
             leftToVrchat.AddRange(definitions.Where(IsLeftToVrchat).Select(definition => definition.Name).Distinct(StringComparer.Ordinal));
         }
 
+        Current = new AvatarParameterSnapshot(fullFaceTracking, relevant);
         return relevant;
     }
 

@@ -42,7 +42,7 @@ public sealed class Filter : TrackingMutation
     public override string Description => "Default data filtering for VRCFaceTracking expressions.";
     public override MutationPriority Priority => MutationPriority.Postprocessor;
     public override int Order => 100;
-    public override int PageOrder => 5;
+    public override int PageOrder => 6;
     public override bool IsSaved => true;
 
     public override void MutateData(ref UnifiedTrackingData data)
