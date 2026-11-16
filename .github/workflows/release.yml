@@ -444,8 +444,13 @@ jobs:
       - name: Remove partial draft
         shell: pwsh
         run: |
-          $draft = gh release view $env:RELEASE_TAG --repo '${{ github.repository }}' --json isDraft --jq .isDraft 2>$null
-          if ($draft -eq 'true') {
+          $draft = gh release view $env:RELEASE_TAG --repo '${{ github.repository }}' --json isDraft --jq .isDraft 2>&1
+          $viewed = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if (-not $viewed -and ($draft | Out-String) -notmatch 'release not found') {
+            throw "Could not check for a draft release $($env:RELEASE_TAG): $($draft | Out-String)"
+          }
+          if ($viewed -and $draft -eq 'true') {
             gh release delete $env:RELEASE_TAG --repo '${{ github.repository }}' --yes
             if ($LASTEXITCODE -ne 0) { throw "Could not delete the draft release $env:RELEASE_TAG ($LASTEXITCODE)" }
             Write-Host "Deleted the draft release $env:RELEASE_TAG."
@@ -453,7 +458,7 @@ jobs:
           $global:LASTEXITCODE = 0
 
       - name: Remove the nightly tag
-        if: inputs.delete-tag-on-failure
+        if: always() && inputs.delete-tag-on-failure
         shell: pwsh
         run: |
           $tag = $env:RELEASE_TAG
