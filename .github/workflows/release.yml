@@ -15,6 +15,10 @@ on:
       tag:
         required: true
         type: string
+      delete-tag-on-failure:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -426,3 +430,45 @@ jobs:
           if ('${{ needs.validate.outputs.prerelease }}' -eq 'true') { $extra = @('--prerelease', '--latest=false') }
           gh release edit $env:RELEASE_TAG --repo '${{ github.repository }}' --notes-file build/notes.md --verify-tag --draft=false @extra
           if ($LASTEXITCODE -ne 0) { throw "gh release edit failed ($LASTEXITCODE)" }
+
+  cleanup:
+    name: Clean up a failed release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [validate, prepare, build, smoke, notes]
+    if: always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.validate.outputs.tag || inputs.tag || github.ref_name }}
+    steps:
+      - name: Remove partial draft
+        shell: pwsh
+        run: |
+          $draft = gh release view $env:RELEASE_TAG --repo '${{ github.repository }}' --json isDraft --jq .isDraft 2>$null
+          if ($draft -eq 'true') {
+            gh release delete $env:RELEASE_TAG --repo '${{ github.repository }}' --yes
+            if ($LASTEXITCODE -ne 0) { throw "Could not delete the draft release $env:RELEASE_TAG ($LASTEXITCODE)" }
+            Write-Host "Deleted the draft release $env:RELEASE_TAG."
+          }
+          $global:LASTEXITCODE = 0
+
+      - name: Remove the nightly tag
+        if: inputs.delete-tag-on-failure
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          if ($tag -notmatch '-beta$') {
+            Write-Host "Keeping $tag because it is not a beta tag."
+            exit 0
+          }
+          $lookup = gh api "repos/${{ github.repository }}/releases/tags/$tag" 2>&1
+          $found = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($found) {
+            Write-Host "Keeping $tag because a published release still uses it."
+            exit 0
+          }
+          if (($lookup | Out-String) -notmatch 'HTTP 404') { throw "Could not check for a $tag release, so the tag stays: $($lookup | Out-String)" }
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw "Could not delete the tag $tag ($LASTEXITCODE)" }
+          Write-Host "Deleted $tag so the next nightly can tag again."

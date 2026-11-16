@@ -29,3 +29,4 @@ jobs:
     uses: ./.github/workflows/release.yml
     with:
       tag: ${{ needs.tag.outputs.tag }}
+      delete-tag-on-failure: true
