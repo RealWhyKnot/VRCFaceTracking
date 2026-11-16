@@ -68,25 +68,27 @@ internal static class Measure
         return GC.GetTotalMemory(forceFullCollection: true);
     }
 
-    public static long[] LiveHeapGrowthPerRound(Action round, int rounds)
+    public static long[] LiveHeapAfterEachRound(Action round, int rounds)
     {
-        long[] growth = new long[rounds];
-        long before = LiveHeapBytes();
-        for (int i = 0; i < rounds; i++)
+        long[] heap = new long[rounds + 1];
+        heap[0] = LiveHeapBytes();
+        for (int i = 1; i <= rounds; i++)
         {
             round();
-            long after = LiveHeapBytes();
-            growth[i] = after - before;
-            before = after;
+            heap[i] = LiveHeapBytes();
         }
-        return growth;
+        return heap;
     }
 
-    public static long Median(long[] values)
+    public static long FloorGrowthPerRound(long[] heap, int window)
     {
-        long[] sorted = [.. values];
-        Array.Sort(sorted);
-        return sorted[sorted.Length / 2];
+        if (window < 1 || heap.Length <= window)
+        {
+            throw new ArgumentOutOfRangeException(nameof(window), window, $"needs more than {window} heap readings, got {heap.Length}");
+        }
+        long first = heap[..window].Min();
+        long last = heap[^window..].Min();
+        return (last - first) / (heap.Length - window);
     }
 
     public static void Report(this ITestOutputHelper output, string name, string value) =>

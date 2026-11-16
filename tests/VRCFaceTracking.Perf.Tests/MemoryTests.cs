@@ -20,6 +20,7 @@ public sealed class MemoryTests
     private const long SampleHeapGrowthBudgetBytes = 64 * 1024;
     private const int SamplesPerRound = 50_000;
     private const int SampleRounds = 5;
+    private const int HeapFloorWindow = 3;
 
     private readonly ITestOutputHelper _output;
 
@@ -112,18 +113,27 @@ public sealed class MemoryTests
             Sample(i);
         }
 
-        long[] rounds = Measure.LiveHeapGrowthPerRound(() =>
+        long[] heap = Measure.LiveHeapAfterEachRound(() =>
         {
             for (int i = 0; i < SamplesPerRound; i++)
             {
                 Sample(i);
             }
         }, SampleRounds);
-        long growth = Measure.Median(rounds);
+        long growth = Measure.FloorGrowthPerRound(heap, HeapFloorWindow);
 
-        _output.Report("ipc sample heap growth", $"{growth / 1024.0:N1} KB over {SamplesPerRound} samples, median of rounds {string.Join(", ", rounds.Select(r => $"{r / 1024.0:N1}"))} KB, budget {SampleHeapGrowthBudgetBytes / 1024} KB");
-        Assert.True(growth < SampleHeapGrowthBudgetBytes, $"live heap grew {growth} B over {SamplesPerRound} samples in the median of {SampleRounds} rounds");
+        _output.Report("ipc sample heap growth", $"{growth / 1024.0:N1} KB per {SamplesPerRound} samples, live heap after each round {string.Join(", ", heap.Select(h => $"{(h - heap[0]) / 1024.0:N1}"))} KB, budget {SampleHeapGrowthBudgetBytes / 1024} KB");
+        Assert.True(growth < SampleHeapGrowthBudgetBytes, $"live heap floor grew {growth} B per {SamplesPerRound} samples over {SampleRounds} rounds");
     }
+
+    [Theory]
+    [InlineData(new long[] { 0, 432840, -87962, 539953, -87962, 548837 }, 0)]
+    [InlineData(new long[] { 0, -89088, 538214, -89088, 538624, -89088 }, 0)]
+    [InlineData(new long[] { 0, 0, 0, 101171, 101171, 101171 }, 33723)]
+    [InlineData(new long[] { 0, 70000, 140000, 210000, 280000, 350000 }, 70000)]
+    [InlineData(new long[] { 0, 700000, 140000, 840000, 280000, 980000 }, 93333)]
+    public void HeapFloorIgnoresAChunkThatComesAndGoes(long[] heap, long expected) =>
+        Assert.Equal(expected, Measure.FloorGrowthPerRound(heap, HeapFloorWindow));
 
     [Fact]
     public void SendQueueWithoutAnOscTargetStillDrains()
