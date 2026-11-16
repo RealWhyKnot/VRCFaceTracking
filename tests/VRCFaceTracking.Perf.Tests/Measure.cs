@@ -82,9 +82,9 @@ internal static class Measure
 
     public static long FloorGrowthPerRound(long[] heap, int window)
     {
-        if (window < 1 || heap.Length <= window)
+        if (window < 1 || heap.Length < 2 * window)
         {
-            throw new ArgumentOutOfRangeException(nameof(window), window, $"needs more than {window} heap readings, got {heap.Length}");
+            throw new ArgumentOutOfRangeException(nameof(window), window, $"needs at least {2 * window} heap readings, got {heap.Length}");
         }
         long first = heap[..window].Min();
         long last = heap[^window..].Min();
