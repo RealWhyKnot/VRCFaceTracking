@@ -91,11 +91,6 @@ jobs:
             rid: linux-x64
             plat: ''
             extra_rid: linux-arm64
-          - image: macos-26-intel
-            channel: dev
-            rid: osx-x64
-            plat: ''
-            extra_rid: osx-arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v7
