@@ -365,7 +365,7 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (Exception e) when (cancellationToken.IsCancellationRequested && e is OperationCanceledException or HttpRequestException or JsonException)
         {
             return;
         }

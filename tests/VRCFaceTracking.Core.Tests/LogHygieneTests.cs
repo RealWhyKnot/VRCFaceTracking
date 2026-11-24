@@ -14,7 +14,7 @@ namespace VRCFaceTracking.Core.Tests;
 
 public sealed class LogHygieneTests : IDisposable
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
     private static readonly IPEndPoint Endpoint = new(IPAddress.Loopback, 1);
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "vrcft-tests-" + Guid.NewGuid().ToString("N"));
@@ -282,12 +282,23 @@ public sealed class LogHygieneTests : IDisposable
     [Fact]
     public async Task NotFoundPollsBackOffInsteadOfChurning()
     {
+        const int TargetTicks = 40;
         int fetches = 0;
+        int ticks = 0;
+        var enoughTicks = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource();
         var logger = new RecordingLogger();
 
         Task poll = OscQueryService.PollAvatarIdAsync(
-            () => Endpoint,
+            () =>
+            {
+                if (Interlocked.Increment(ref ticks) >= TargetTicks)
+                {
+                    enoughTicks.TrySetResult();
+                }
+
+                return Endpoint;
+            },
             (_, _) =>
             {
                 Interlocked.Increment(ref fetches);
@@ -299,13 +310,42 @@ public sealed class LogHygieneTests : IDisposable
             logger,
             cts.Token);
 
-        await Task.Delay(400, cts.Token);
+        await enoughTicks.Task.WaitAsync(Timeout, CancellationToken.None);
         await cts.CancelAsync();
         await poll.WaitAsync(Timeout, CancellationToken.None);
 
         Assert.InRange(fetches, 2, 12);
         Assert.Single(logger.Entries, entry => entry.Message.Contains("failed", StringComparison.Ordinal));
         Assert.DoesNotContain(logger.Entries, entry => entry.Level >= LogLevel.Warning);
+    }
+
+    [Fact]
+    public async Task PollEndsQuietlyWhenAFetchFailsDuringShutdown()
+    {
+        var fetching = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource();
+
+        Task poll = OscQueryService.PollAvatarIdAsync(
+            () => Endpoint,
+            async (_, _) =>
+            {
+                fetching.TrySetResult();
+                await release.Task.WaitAsync(Timeout, CancellationToken.None);
+                throw new HttpRequestException("aborted", inner: null, HttpStatusCode.NotFound);
+            },
+            () => null,
+            _ => Task.FromResult(true),
+            TimeSpan.FromMilliseconds(5),
+            NullLogger.Instance,
+            cts.Token);
+
+        await fetching.Task.WaitAsync(Timeout, CancellationToken.None);
+        await cts.CancelAsync();
+        release.SetResult();
+        await poll.WaitAsync(Timeout, CancellationToken.None);
+
+        Assert.True(poll.IsCompletedSuccessfully);
     }
 
     [Fact]
