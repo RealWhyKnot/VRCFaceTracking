@@ -2,7 +2,7 @@
 
 My fork of [benaclejames/VRCFaceTracking](https://github.com/benaclejames/VRCFaceTracking). Docs for avatars, parameters and modules are at [docs.vrcft.io](https://docs.vrcft.io).
 
-It runs on Windows and Linux, and the macOS builds are experimental. You can run several tracking modules at once and limit each one to the data it should provide (eyes, brows, mouth, tongue or head). For debugging I added a live view of the module camera feeds, under the developer section of the settings page.
+It runs on Windows and Linux. The macOS builds are experimental: releases include them, but CI only builds and tests on Windows and Linux. You can run several tracking modules at once and limit each one to the data it should provide (eyes, brows, mouth, tongue or head). For debugging I added a live view of the module camera feeds, under the developer section of the settings page.
 
 ## Install
 
@@ -24,7 +24,7 @@ Extract the archive and run `./VRCFaceTracking`. If Gatekeeper blocks it, run `x
 
 ## Build
 
-You need the .NET 10 SDK.
+You need the .NET 10 SDK (10.0.203 or newer, from `global.json`). Release downloads bundle the runtime, so you only need .NET installed to build.
 
 ```
 powershell -ExecutionPolicy Bypass -File build.ps1

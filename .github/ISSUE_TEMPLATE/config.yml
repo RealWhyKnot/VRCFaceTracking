@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/RealWhyKnot/VRCFaceTracking/security/advisories/new
+    about: Report it privately through a security advisory, not a public issue.
