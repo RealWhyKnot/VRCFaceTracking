@@ -10,6 +10,8 @@ using VRCFaceTracking.Core.Models.ParameterDefinition;
 using VRCFaceTracking.Core.Osc;
 using VRCFaceTracking.Core.Osc.Query;
 using VRCFaceTracking.Core.Params;
+using VRCFaceTracking.Core.Params.Data;
+using VRCFaceTracking.Core.Params.Data.Mutation;
 
 namespace VRCFaceTracking.Core.Services;
 
@@ -34,9 +36,11 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
     private readonly CancellationTokenSource _stopping = new();
     private readonly SemaphoreSlim _avatarParseLock = new(1, 1);
     private readonly AvatarPoll _avatarPoll;
+    private readonly SignalCapabilityTracker _capabilities;
 
     [ObservableProperty] private IAvatarInfo _avatarInfo = new NullAvatarDef("Loading...", "Loading...");
     [ObservableProperty] private List<Parameter>? _avatarParameters;
+    [ObservableProperty] private AvatarGapReport? _gapReport;
 
     private int _clientDiscovered;
     private string? _loadedAvatarId;
@@ -44,6 +48,9 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
     private string? _requestedAvatarId;
     private string? _seenAvatarId;
     private bool? _reportedFullFaceTracking;
+    private AvatarSupport? _support;
+    private AvatarGapReport? _previousGapReport;
+    private bool _gapLogged;
 
     public OscQueryService(
         ILogger<OscQueryService> logger,
@@ -55,7 +62,8 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
         ILocalSettingsService settingsService,
         HttpHandler httpHandler,
         IDispatcherService dispatcherService,
-        BinaryFaceDataSender binaryFaceDataSender)
+        BinaryFaceDataSender binaryFaceDataSender,
+        SignalCapabilityTracker capabilities)
     {
         _logger = logger;
         _oscQueryConfigParser = oscQueryConfigParser;
@@ -67,11 +75,14 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
         _httpHandler = httpHandler;
         _dispatcherService = dispatcherService;
         _binaryFaceDataSender = binaryFaceDataSender;
+        _capabilities = capabilities;
+        _capabilities.Published += OnCapabilitiesPublished;
         _avatarPoll = new AvatarPoll(this);
     }
 
     public void Dispose()
     {
+        _capabilities.Published -= OnCapabilitiesPublished;
         _avatarPoll.Dispose();
         _stopping.Dispose();
         _avatarParseLock.Dispose();
@@ -177,6 +188,7 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
             {
                 AvatarInfo = newAvatar.Value.avatarInfo;
                 AvatarParameters = newAvatar.Value.relevantParameters;
+                BeginGapReport(new AvatarParameterSnapshot(newAvatar.Value.avatarInfo.FullFaceTracking, newAvatar.Value.relevantParameters));
             });
             return true;
         }
@@ -193,6 +205,55 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
         {
             _avatarParseLock.Release();
         }
+    }
+
+    private void OnCapabilitiesPublished(object? sender, SignalCapabilityEventArgs e)
+    {
+        if (Volatile.Read(ref _support) != null)
+        {
+            _dispatcherService.Run(RefreshGapReport);
+        }
+    }
+
+    private void BeginGapReport(AvatarParameterSnapshot avatar)
+    {
+        Volatile.Write(ref _support, AvatarSupport.From(avatar));
+        _previousGapReport = null;
+        _gapLogged = false;
+        RefreshGapReport();
+    }
+
+    private void RefreshGapReport()
+    {
+        AvatarSupport? support = _support;
+        if (support == null)
+        {
+            return;
+        }
+
+        var report = AvatarGapReport.Build(_capabilities.Snapshot, support, CurrentFillRoutes());
+        if (!report.SameAs(GapReport))
+        {
+            GapReport = report;
+        }
+
+        bool settled = report.SameAs(_previousGapReport);
+        _previousGapReport = report;
+        if (settled && !_gapLogged && report.AbsentCount > 0)
+        {
+            _gapLogged = true;
+            string missing = report.Describe(AvatarGapStatus.Missing);
+            string filled = report.Describe(AvatarGapStatus.Filled);
+            LogAvatarMissingShapes(_logger, report.AbsentCount, missing.Length == 0 ? "none" : missing, filled.Length == 0 ? "none" : filled);
+        }
+    }
+
+    private static IReadOnlyList<SignalRoute> CurrentFillRoutes()
+    {
+        UnifiedTrackingMutator mutator = TrackingOutput.Mutator;
+        return mutator is { Enabled: true }
+            ? mutator.Mutations.OfType<SignalFillIn>().FirstOrDefault()?.ActiveRoutes ?? []
+            : [];
     }
 
     private async Task<OscQueryLoadResult> LoadConfigAsync(string? newId, bool? reportedFullFaceTracking, CancellationToken cancellationToken)
@@ -419,6 +480,9 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "OSC address {Address} isn't an IP address; using 127.0.0.1 for OSCQuery")]
     private static partial void LogOscAddressNotAnIp(ILogger logger, string? address);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Avatar lacks {Count} tracked shapes. Missing: {Missing}. Filled in: {Filled}.")]
+    private static partial void LogAvatarMissingShapes(ILogger logger, int count, string missing, string filled);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "diag.avatar skipping reload, {Id} is already loaded")]
     private static partial void LogDiagAvatarSkippingReloadAlready(ILogger logger, string? id);

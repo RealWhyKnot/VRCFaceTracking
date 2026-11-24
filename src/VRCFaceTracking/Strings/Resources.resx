@@ -861,17 +861,59 @@
   <data name="Tracking_Correctors_EyeLookSymmetrize_Tip" xml:space="preserve">
     <value>Both eyes share the same up and down gaze.</value>
   </data>
-  <data name="Tracking_CheekDimpleFill_CheekToEyeSquint" xml:space="preserve">
+  <data name="Tracking_SignalFillIn_CheekToEyeSquint" xml:space="preserve">
     <value>Eye squint from cheeks</value>
   </data>
-  <data name="Tracking_CheekDimpleFill_CheekStrength" xml:space="preserve">
+  <data name="Tracking_SignalFillIn_CheekStrength" xml:space="preserve">
     <value>Cheek strength</value>
   </data>
-  <data name="Tracking_CheekDimpleFill_DimpleToSmile" xml:space="preserve">
+  <data name="Tracking_SignalFillIn_DimpleToSmile" xml:space="preserve">
     <value>Smile from dimples</value>
   </data>
-  <data name="Tracking_CheekDimpleFill_DimpleStrength" xml:space="preserve">
+  <data name="Tracking_SignalFillIn_DimpleStrength" xml:space="preserve">
     <value>Dimple strength</value>
+  </data>
+  <data name="Tracking_SignalFillIn_NoseMouthFill" xml:space="preserve">
+    <value>Nose and lip</value>
+  </data>
+  <data name="Tracking_SignalFillIn_NoseMouthFill_Tip" xml:space="preserve">
+    <value>Copies a nose sneer to the upper lip, or the reverse.</value>
+  </data>
+  <data name="Tracking_SignalFillIn_NoseMouthStrength" xml:space="preserve">
+    <value>Nose and lip strength</value>
+  </data>
+  <data name="Tracking_SignalFillIn_BrowFill" xml:space="preserve">
+    <value>Brow frown</value>
+  </data>
+  <data name="Tracking_SignalFillIn_BrowFill_Tip" xml:space="preserve">
+    <value>Copies a brow frown to the matching brow shape.</value>
+  </data>
+  <data name="Tracking_SignalFillIn_BrowStrength" xml:space="preserve">
+    <value>Brow strength</value>
+  </data>
+  <data name="Tracking_SignalFillIn_EyeLidFill" xml:space="preserve">
+    <value>Eyelid squint and wide</value>
+  </data>
+  <data name="Tracking_SignalFillIn_EyeLidFill_Tip" xml:space="preserve">
+    <value>For eye-only headsets. Uses how open your eyelids are.</value>
+  </data>
+  <data name="Tracking_SignalFillIn_EyeLidStrength" xml:space="preserve">
+    <value>Eyelid strength</value>
+  </data>
+  <data name="AvatarGap_AllSupported" xml:space="preserve">
+    <value>All tracked shapes supported</value>
+  </data>
+  <data name="AvatarGap_Missing_One" xml:space="preserve">
+    <value>1 tracked shape missing on avatar</value>
+  </data>
+  <data name="AvatarGap_Missing_Many" xml:space="preserve">
+    <value>{0} tracked shapes missing on avatar</value>
+  </data>
+  <data name="AvatarGap_MissingFilled_One" xml:space="preserve">
+    <value>1 tracked shape missing on avatar (1 filled)</value>
+  </data>
+  <data name="AvatarGap_MissingFilled_Many" xml:space="preserve">
+    <value>{0} tracked shapes missing on avatar ({1} filled)</value>
   </data>
   <data name="Tracking_TrackingGlitchFixes_QuietMouth" xml:space="preserve">
     <value>Quiet mouth while silent</value>

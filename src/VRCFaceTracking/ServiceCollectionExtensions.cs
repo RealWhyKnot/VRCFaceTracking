@@ -68,6 +68,7 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<ParameterSenderService>();
         services.AddSingleton<BinaryFaceDataSender>();
         services.AddSingleton<UnifiedTrackingMutator>();
+        services.AddSingleton(SignalCapabilityTracker.Shared);
     }
 
     private static void AddViewModels(IServiceCollection services)

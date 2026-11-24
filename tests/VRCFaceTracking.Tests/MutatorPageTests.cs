@@ -10,6 +10,7 @@ using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Params;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
+using VRCFaceTracking.Core.Services;
 using VRCFaceTracking.Strings;
 using VRCFaceTracking.ViewModels;
 using VRCFaceTracking.Views;
@@ -45,7 +46,7 @@ public sealed partial class MutatorPageTests
         new(NullLogger<UnifiedTrackingMutator>.Instance, App.GetService<ILocalSettingsService>(), App.GetService<IDispatcherService>());
 
     private static MutatorViewModel CreateViewModel(UnifiedTrackingMutator mutator) =>
-        new(mutator, App.GetService<DeveloperSettings>());
+        new(mutator, App.GetService<DeveloperSettings>(), App.GetService<OscQueryService>());
 
     private static void AddMutations(UnifiedTrackingMutator mutator, params TrackingMutation[] extra)
     {
@@ -103,7 +104,7 @@ public sealed partial class MutatorPageTests
         Unit<Filter>(mutator).IsActive = true;
         Unit<EyeAssists>(mutator).IsActive = true;
         Unit<MouthBrowAssists>(mutator).IsActive = true;
-        Unit<CheekDimpleFill>(mutator).IsActive = true;
+        Unit<SignalFillIn>(mutator).IsActive = true;
         Unit<TrackingGlitchFixes>(mutator).IsActive = true;
         Unit<ParameterAdjustment>(mutator).IsActive = true;
     }
@@ -419,7 +420,7 @@ public sealed partial class MutatorPageTests
     {
         (UnifiedTrackingMutator mutator, MutatorViewModel model) = Load();
         Prepare(mutator);
-        CheekDimpleFill fill = Unit<CheekDimpleFill>(mutator);
+        SignalFillIn fill = Unit<SignalFillIn>(mutator);
         TrackingCardViewModel card = model.FindCard(TrackingCard.FillIns)!;
 
         fill.IsActive = false;

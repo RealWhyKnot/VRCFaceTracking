@@ -134,7 +134,7 @@ internal sealed partial class MainViewModel : ObservableRecipient
         Cameras.Reset();
     }
 
-    public void RefreshStatus() => Tracking.Refresh(LibManager.GetOwnershipSnapshot(), _mutator.Activity);
+    public void RefreshStatus() => Tracking.Refresh(LibManager.GetOwnershipSnapshot(), _mutator.Activity, ParameterOutputService.GapReport);
 
     public void RefreshCameras() => Cameras.Refresh(UnifiedTracking.EyeImageData, UnifiedTracking.LipImageData);
 

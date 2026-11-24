@@ -2,6 +2,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using VRCFaceTracking.Core.Library;
 using VRCFaceTracking.Core.Params.Data;
+using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Strings;
 
 namespace VRCFaceTracking.ViewModels;
@@ -10,6 +11,8 @@ internal sealed class HomeTrackingViewModel : ObservableObject
 {
     private static readonly PropertyChangedEventArgs ActivityTextArgs = new(nameof(ActivityText));
     private static readonly PropertyChangedEventArgs ActivityKindArgs = new(nameof(ActivityKind));
+    private static readonly PropertyChangedEventArgs GapTextArgs = new(nameof(GapText));
+    private static readonly PropertyChangedEventArgs HasGapArgs = new(nameof(HasGap));
 
     public OwnerRowViewModel Eyes { get; } = new(Resources.HomeOwner_Eyes);
 
@@ -19,7 +22,11 @@ internal sealed class HomeTrackingViewModel : ObservableObject
 
     public ChipKind ActivityKind { get; private set; }
 
-    public void Refresh(TrackingOwnershipSnapshot ownership, TrackingActivity activity)
+    public string GapText { get; private set; } = string.Empty;
+
+    public bool HasGap => GapText.Length > 0;
+
+    public void Refresh(TrackingOwnershipSnapshot ownership, TrackingActivity activity, AvatarGapReport? gap = null)
     {
         Eyes.Update(ownership.Eyes);
         Mouth.Update(ownership.Mouth);
@@ -35,6 +42,18 @@ internal sealed class HomeTrackingViewModel : ObservableObject
         {
             ActivityKind = kind;
             OnPropertyChanged(ActivityKindArgs);
+        }
+
+        string gapText = AvatarGapText.Describe(gap) ?? string.Empty;
+        if (!string.Equals(gapText, GapText, StringComparison.Ordinal))
+        {
+            bool hadGap = HasGap;
+            GapText = gapText;
+            OnPropertyChanged(GapTextArgs);
+            if (hadGap != HasGap)
+            {
+                OnPropertyChanged(HasGapArgs);
+            }
         }
     }
 

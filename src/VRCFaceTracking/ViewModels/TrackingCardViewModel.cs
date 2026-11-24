@@ -19,6 +19,9 @@ internal sealed class TrackingCardViewModel : ObservableObject
     private static readonly PropertyChangedEventArgs HasMoreArgs = new(nameof(HasMore));
     private static readonly PropertyChangedEventArgs ShowMoreArgs = new(nameof(ShowMore));
     private static readonly PropertyChangedEventArgs CanToggleArgs = new(nameof(CanToggle));
+    private static readonly PropertyChangedEventArgs GapTextArgs = new(nameof(GapText));
+    private static readonly PropertyChangedEventArgs HasGapArgs = new(nameof(HasGap));
+    private static readonly PropertyChangedEventArgs ShowDescriptionArgs = new(nameof(ShowDescription));
 
     public TrackingCardViewModel(MutatorViewModel page, TrackingCard card, IReadOnlyList<TrackingMutation> units)
     {
@@ -45,6 +48,8 @@ internal sealed class TrackingCardViewModel : ObservableObject
     public string Description { get; }
 
     public bool HasDescription => Description.Length > 0;
+
+    public bool ShowDescription => HasDescription && !HasGap;
 
     public string SwitchName { get; }
 
@@ -89,6 +94,10 @@ internal sealed class TrackingCardViewModel : ObservableObject
     }
 
     public bool CanToggle => Page.MasterOn;
+
+    public string GapText { get; private set; } = string.Empty;
+
+    public bool HasGap => GapText.Length > 0;
 
     public string ChipText { get; private set; } = string.Empty;
 
@@ -193,6 +202,26 @@ internal sealed class TrackingCardViewModel : ObservableObject
             ShowProgress = showProgress;
             OnPropertyChanged(ShowProgressArgs);
         }
+
+        RefreshGap();
+    }
+
+    private void RefreshGap()
+    {
+        string gapText = Card == TrackingCard.FillIns && IsOn ? AvatarGapText.Describe(Page.GapReport) ?? string.Empty : string.Empty;
+        if (string.Equals(gapText, GapText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        bool hadGap = HasGap;
+        GapText = gapText;
+        OnPropertyChanged(GapTextArgs);
+        if (hadGap != HasGap)
+        {
+            OnPropertyChanged(HasGapArgs);
+            OnPropertyChanged(ShowDescriptionArgs);
+        }
     }
 
     private (string Text, ChipKind Kind, double Progress, bool ShowProgress) ComputeChip()
@@ -214,7 +243,7 @@ internal sealed class TrackingCardViewModel : ObservableObject
                 return CalibrationChip(calibration.Status);
             }
 
-            if (unit is CheekDimpleFill fill && Card == TrackingCard.FillIns)
+            if (unit is SignalFillIn fill && Card == TrackingCard.FillIns)
             {
                 return FillChip(fill.FillState);
             }

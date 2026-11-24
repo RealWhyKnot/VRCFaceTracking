@@ -8,13 +8,13 @@ using VRCFaceTracking.Core.Services;
 namespace VRCFaceTracking.Core.Tests;
 
 [Collection("UnifiedTrackingState")]
-public sealed class CheekDimpleFillTests
+public sealed class SignalFillInTests
 {
     private sealed record ParamDef(string Address, string Name, Type Type) : IParameterDefinition;
 
     private static readonly AvatarParameterSnapshot PlainV2Avatar = new(usesNativeFaceTracking: false, ["v2/EyeSquintLeft", "v2/EyeSquintRight", "v2/SmileFrownLeft", "v2/SmileFrownRight"]);
 
-    private static CheekDimpleFill Create(AvatarParameterSnapshot? avatar) => new() { CurrentAvatar = () => avatar };
+    private static SignalFillIn Create(AvatarParameterSnapshot? avatar) => new() { CurrentAvatar = () => avatar };
 
     private static float Shape(UnifiedTrackingData data, UnifiedExpressions shape) => data.Shapes[(int)shape].Weight;
 
@@ -41,7 +41,7 @@ public sealed class CheekDimpleFillTests
     [InlineData(0f, 0.4f, 1f, 0.4f)]
     public void CheekSquintRaisesEyeSquintUpToTheMeasuredCheek(float cheek, float eyeSquint, float strength, float expected)
     {
-        CheekDimpleFill fill = Create(PlainV2Avatar);
+        SignalFillIn fill = Create(PlainV2Avatar);
         fill.CheekStrength = strength;
         UnifiedTrackingData data = CheekAndDimple(cheek, eyeSquint, 0f, 0f);
 
@@ -58,7 +58,7 @@ public sealed class CheekDimpleFillTests
     [InlineData(0.3f, 0.8f, 1f, 0.8f)]
     public void DimpleRaisesCornerPullUpToTheMeasuredDimple(float dimple, float cornerPull, float strength, float expected)
     {
-        CheekDimpleFill fill = Create(PlainV2Avatar);
+        SignalFillIn fill = Create(PlainV2Avatar);
         fill.DimpleStrength = strength;
         UnifiedTrackingData data = CheekAndDimple(0f, 0f, dimple, cornerPull);
 
@@ -71,7 +71,7 @@ public sealed class CheekDimpleFillTests
     [Fact]
     public void SidesStayIndependent()
     {
-        CheekDimpleFill fill = Create(PlainV2Avatar);
+        SignalFillIn fill = Create(PlainV2Avatar);
         var data = new UnifiedTrackingData();
         SetShape(data, UnifiedExpressions.CheekSquintLeft, 0.7f);
         SetShape(data, UnifiedExpressions.MouthDimpleRight, 0.4f);
@@ -91,7 +91,7 @@ public sealed class CheekDimpleFillTests
     [InlineData("CheeksSquint")]
     public void AvatarWithItsOwnCheekSquintKeepsEyeSquintAsMeasured(string avatarParameter)
     {
-        CheekDimpleFill fill = Create(new AvatarParameterSnapshot(usesNativeFaceTracking: false, [avatarParameter]));
+        SignalFillIn fill = Create(new AvatarParameterSnapshot(usesNativeFaceTracking: false, [avatarParameter]));
         UnifiedTrackingData data = CheekAndDimple(0.8f, 0.1f, 0.6f, 0f);
 
         fill.MutateData(ref data);
@@ -106,7 +106,7 @@ public sealed class CheekDimpleFillTests
     [InlineData("MouthDimpleRight")]
     public void AvatarWithItsOwnDimpleKeepsTheSmileAsMeasured(string avatarParameter)
     {
-        CheekDimpleFill fill = Create(new AvatarParameterSnapshot(usesNativeFaceTracking: false, [avatarParameter]));
+        SignalFillIn fill = Create(new AvatarParameterSnapshot(usesNativeFaceTracking: false, [avatarParameter]));
         UnifiedTrackingData data = CheekAndDimple(0.8f, 0.1f, 0.6f, 0.2f);
 
         fill.MutateData(ref data);
@@ -118,7 +118,7 @@ public sealed class CheekDimpleFillTests
     [Fact]
     public void NativeFaceTrackingAvatarIsLeftAlone()
     {
-        CheekDimpleFill fill = Create(new AvatarParameterSnapshot(usesNativeFaceTracking: true, parameterNames: []));
+        SignalFillIn fill = Create(new AvatarParameterSnapshot(usesNativeFaceTracking: true, parameterNames: []));
         UnifiedTrackingData data = CheekAndDimple(0.8f, 0.1f, 0.6f, 0.2f);
 
         fill.MutateData(ref data);
@@ -130,7 +130,7 @@ public sealed class CheekDimpleFillTests
     [Fact]
     public void NothingChangesBeforeAnAvatarLoads()
     {
-        CheekDimpleFill fill = Create(avatar: null);
+        SignalFillIn fill = Create(avatar: null);
         UnifiedTrackingData data = CheekAndDimple(0.8f, 0.1f, 0.6f, 0.2f);
 
         fill.MutateData(ref data);
@@ -142,7 +142,7 @@ public sealed class CheekDimpleFillTests
     [Fact]
     public void SwitchedOffRoutesStayUntouched()
     {
-        CheekDimpleFill fill = Create(PlainV2Avatar);
+        SignalFillIn fill = Create(PlainV2Avatar);
         fill.CheekToEyeSquint = false;
         fill.DimpleToSmile = false;
         UnifiedTrackingData data = CheekAndDimple(0.8f, 0.1f, 0.6f, 0.2f);
@@ -169,7 +169,7 @@ public sealed class CheekDimpleFillTests
         try
         {
             AvatarParameters.Reset(avatar, fullFaceTracking, []);
-            var fill = new CheekDimpleFill();
+            var fill = new SignalFillIn();
             UnifiedTrackingData data = CheekAndDimple(0.8f, 0.1f, 0f, 0f);
 
             fill.MutateData(ref data);

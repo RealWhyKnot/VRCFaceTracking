@@ -40,7 +40,7 @@ public sealed class LiveStatusTests
     public void CheekFillReportsEachSituation()
     {
         AvatarParameterSnapshot? avatar = null;
-        var fill = new CheekDimpleFill { CurrentAvatar = () => avatar };
+        var fill = new SignalFillIn { CurrentAvatar = () => avatar };
 
         Assert.Equal("Off", fill.StatusSummary);
 
@@ -61,7 +61,7 @@ public sealed class LiveStatusTests
     public void CheekFillStampsLastTriggeredOnlyWhenItRoutesAValue()
     {
         var now = new DateTimeOffset(2026, 5, 6, 7, 8, 9, TimeSpan.Zero);
-        var fill = new CheekDimpleFill
+        var fill = new SignalFillIn
         {
             IsActive = true,
             CurrentAvatar = () => new AvatarParameterSnapshot(usesNativeFaceTracking: false, parameterNames: []),

@@ -57,13 +57,13 @@ public sealed class ParameterSenderServiceTests
         public void Run(Action action) => action();
     }
 
-    private sealed class Harness : IAsyncDisposable
+    internal sealed class Harness : IAsyncDisposable
     {
         public readonly Socket Listener = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         public readonly ParameterSenderService Sender;
         private readonly EventHandler<TrackingDataEventArgs> _handler;
 
-        public Harness(EventHandler<TrackingDataEventArgs> handler, TimerResolutionHold? timerResolution = null)
+        public Harness(EventHandler<TrackingDataEventArgs> handler, TimerResolutionHold? timerResolution = null, SignalCapabilityTracker? capabilities = null)
         {
             Listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
             Listener.ReceiveTimeout = 1000;
@@ -71,7 +71,7 @@ public sealed class ParameterSenderServiceTests
             var send = new OscSendService(NullLogger<OscSendService>.Instance, target);
             target.OutPort = ((IPEndPoint)Listener.LocalEndPoint!).Port;
             var mutator = new UnifiedTrackingMutator(NullLogger<UnifiedTrackingMutator>.Instance, new NullSettings(), new InlineDispatcher());
-            Sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance, timerResolution ?? new TimerResolutionHold(NullLogger.Instance));
+            Sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance, timerResolution ?? new TimerResolutionHold(NullLogger.Instance), capabilities: capabilities);
             _handler = handler;
             TrackingOutput.DataUpdated += _handler;
         }

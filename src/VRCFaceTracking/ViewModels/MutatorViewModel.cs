@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
+using VRCFaceTracking.Core.Services;
 using VRCFaceTracking.Strings;
 
 namespace VRCFaceTracking.ViewModels;
@@ -20,12 +21,14 @@ internal sealed class MutatorViewModel : ObservableRecipient
     private static readonly PropertyChangedEventArgs ActivityKindArgs = new(nameof(ActivityKind));
 
     private readonly UnifiedTrackingMutator _mutator;
+    private readonly OscQueryService _oscQuery;
     private readonly DispatcherTimer _timer;
     private int _tick;
 
-    public MutatorViewModel(UnifiedTrackingMutator trackingMutator, DeveloperSettings developer)
+    public MutatorViewModel(UnifiedTrackingMutator trackingMutator, DeveloperSettings developer, OscQueryService oscQuery)
     {
         _mutator = trackingMutator;
+        _oscQuery = oscQuery;
         Developer = developer;
         Channels =
         [
@@ -49,6 +52,8 @@ internal sealed class MutatorViewModel : ObservableRecipient
     }
 
     public DeveloperSettings Developer { get; }
+
+    public AvatarGapReport? GapReport => _oscQuery.GapReport;
 
     public ObservableCollection<TrackingCardViewModel> Cards { get; } = [];
 

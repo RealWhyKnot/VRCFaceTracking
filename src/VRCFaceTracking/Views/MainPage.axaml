@@ -70,6 +70,7 @@
                         <StackPanel Grid.Column="0" Classes="tracking-label">
                             <TextBlock Classes="tracking-card-title" Text="{x:Static s:Resources.HomeTracking_Title}" />
                             <TextBlock Classes="tracking-card-description" Text="{x:Static s:Resources.HomeTracking_Description}" />
+                            <TextBlock Classes="tracking-card-description" Text="{Binding GapText}" IsVisible="{Binding HasGap}" />
                         </StackPanel>
                         <Border Grid.Column="1"
                                 Classes="chip"

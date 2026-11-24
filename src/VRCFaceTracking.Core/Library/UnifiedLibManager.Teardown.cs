@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Sandboxing;
 using VRCFaceTracking.Core.Sandboxing.Ipc;
 
@@ -52,6 +53,7 @@ public sealed partial class UnifiedLibManager
 
             EyeStatus = ModuleState.Uninitialized;
             ExpressionStatus = ModuleState.Uninitialized;
+            SignalCapabilityTracker.Shared.Reset();
         }
         finally
         {

@@ -44,6 +44,7 @@ public sealed partial class ParameterSenderService : BackgroundService
     private readonly TimerResolutionHold _timerResolution;
     private readonly LoggingSettings? _loggingSettings;
     private readonly ShapeStatsLog? _shapeLog;
+    private readonly SignalCapabilityTracker _capabilities;
     private int _lastDataVersion;
     private long _lastTick;
     private long _lastReport;
@@ -85,10 +86,11 @@ public sealed partial class ParameterSenderService : BackgroundService
     {
     }
 
-    internal ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger, TimerResolutionHold timerResolution, LoggingSettings? loggingSettings = null, ShapeStatsLog? shapeLog = null)
+    internal ParameterSenderService(OscSendService sendService, UnifiedTrackingMutator mutator, ILogger<ParameterSenderService> logger, TimerResolutionHold timerResolution, LoggingSettings? loggingSettings = null, ShapeStatsLog? shapeLog = null, SignalCapabilityTracker? capabilities = null)
     {
         _loggingSettings = loggingSettings;
         _shapeLog = shapeLog;
+        _capabilities = capabilities ?? SignalCapabilityTracker.Shared;
         _sendService = sendService;
         _logger = logger;
         _mutator = mutator;
@@ -313,12 +315,10 @@ public sealed partial class ParameterSenderService : BackgroundService
 
         _lastDataVersion = UnifiedTracking.DataVersion;
         ShapeStatsLog? shapeLog = ActiveShapeLog();
-        if (shapeLog is not null)
+        using (UnifiedTracking.LockData())
         {
-            using (UnifiedTracking.LockData())
-            {
-                shapeLog.RecordRaw(UnifiedTracking.Data);
-            }
+            _capabilities.Observe(UnifiedTracking.Data, Stopwatch.GetTimestamp());
+            shapeLog?.RecordRaw(UnifiedTracking.Data);
         }
 
         TrackingOutput.UpdateData();
