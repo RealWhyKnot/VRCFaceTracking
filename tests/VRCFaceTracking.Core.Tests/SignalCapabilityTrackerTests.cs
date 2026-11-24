@@ -112,13 +112,15 @@ public sealed class SignalCapabilityTrackerTests
         }
 
         long deadline = Stopwatch.GetTimestamp() + (Second * 5);
-        while (!tracker.Snapshot.HasData && Stopwatch.GetTimestamp() < deadline)
+        SignalCapabilitySnapshot seen = tracker.Snapshot;
+        while (!seen.IsLive(UnifiedExpressions.CheekSquintLeft) && Stopwatch.GetTimestamp() < deadline)
         {
             UnifiedTracking.MarkDataUpdated();
             await Task.Delay(20);
+            seen = tracker.Snapshot;
         }
 
         await harness.Sender.StopAsync(CancellationToken.None);
-        Assert.True(tracker.Snapshot.IsLive(UnifiedExpressions.CheekSquintLeft));
+        Assert.True(seen.IsLive(UnifiedExpressions.CheekSquintLeft));
     }
 }

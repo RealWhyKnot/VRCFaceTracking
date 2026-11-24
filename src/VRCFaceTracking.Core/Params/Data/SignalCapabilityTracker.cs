@@ -12,12 +12,18 @@ public sealed class SignalCapabilityTracker
     private static readonly int ShapeCount = ShapeStats.ShapeCount;
     private static readonly long PublishTicks = Stopwatch.Frequency;
     private static readonly long WindowTicks = Stopwatch.Frequency * WindowSeconds;
+    private static readonly long StaleTicks = Stopwatch.Frequency / 2;
 
     private readonly Lock _gate = new();
     private readonly ShapeStats[] _windows = [new(), new()];
+    private readonly ShapeStats[] _externalEyes = [new(), new()];
     private int _current;
+    private int _externalCurrent;
     private long _windowStart;
+    private long _externalWindowStart;
     private long _lastPublish;
+    private long _lastModuleSample;
+    private bool _moduleStale;
     private long _version;
     private SignalCapabilitySnapshot _snapshot = SignalCapabilitySnapshot.Empty;
     private bool[]? _external;
@@ -41,12 +47,66 @@ public sealed class SignalCapabilityTracker
                 _lastPublish = nowTicks;
             }
 
+            _lastModuleSample = nowTicks;
+            bool resumed = _moduleStale;
+            _moduleStale = false;
             _windows[_current].Add(data);
             if (nowTicks - _windowStart >= WindowTicks)
             {
                 _current = 1 - _current;
                 _windows[_current].Reset();
                 _windowStart = nowTicks;
+            }
+
+            if (resumed || nowTicks - _lastPublish >= PublishTicks)
+            {
+                _lastPublish = nowTicks;
+                published = Build();
+                Volatile.Write(ref _snapshot, published);
+            }
+        }
+
+        if (published is not null)
+        {
+            Published?.Invoke(this, new SignalCapabilityEventArgs(published));
+        }
+    }
+
+    public void Expire(long nowTicks)
+    {
+        SignalCapabilitySnapshot published;
+        lock (_gate)
+        {
+            if (_moduleStale || _lastModuleSample == 0 || nowTicks - _lastModuleSample < StaleTicks)
+            {
+                return;
+            }
+
+            _moduleStale = true;
+            _lastPublish = nowTicks;
+            published = Build();
+            Volatile.Write(ref _snapshot, published);
+        }
+
+        Published?.Invoke(this, new SignalCapabilityEventArgs(published));
+    }
+
+    public void ObserveExternalEyes(UnifiedTrackingData data, long nowTicks)
+    {
+        SignalCapabilitySnapshot? published = null;
+        lock (_gate)
+        {
+            if (_externalWindowStart == 0)
+            {
+                _externalWindowStart = nowTicks;
+            }
+
+            _externalEyes[_externalCurrent].Add(data);
+            if (nowTicks - _externalWindowStart >= WindowTicks)
+            {
+                _externalCurrent = 1 - _externalCurrent;
+                _externalEyes[_externalCurrent].Reset();
+                _externalWindowStart = nowTicks;
             }
 
             if (nowTicks - _lastPublish >= PublishTicks)
@@ -71,7 +131,12 @@ public sealed class SignalCapabilityTracker
             _external = shapes;
             _externalEyeLeft = eyeLeft;
             _externalEyeRight = eyeRight;
-            published = _windowStart == 0 ? EmptySnapshot() : Build();
+            if (!eyeLeft && !eyeRight)
+            {
+                ResetExternalEyes();
+            }
+
+            published = Build();
             Volatile.Write(ref _snapshot, published);
         }
 
@@ -88,34 +153,44 @@ public sealed class SignalCapabilityTracker
             _current = 0;
             _windowStart = 0;
             _lastPublish = 0;
-            empty = EmptySnapshot();
+            _lastModuleSample = 0;
+            _moduleStale = false;
+            empty = Build();
             Volatile.Write(ref _snapshot, empty);
         }
 
         Published?.Invoke(this, new SignalCapabilityEventArgs(empty));
     }
 
-    private SignalCapabilitySnapshot EmptySnapshot() =>
-        new(new bool[ShapeCount], eyeLeftLive: false, eyeRightLive: false, DefaultOpenness, DefaultOpenness, sampleCount: 0, ++_version, _external, _externalEyeLeft, _externalEyeRight);
+    private void ResetExternalEyes()
+    {
+        _externalEyes[0].Reset();
+        _externalEyes[1].Reset();
+        _externalCurrent = 0;
+        _externalWindowStart = 0;
+    }
 
     private SignalCapabilitySnapshot Build()
     {
         ShapeStats current = _windows[_current];
         ShapeStats previous = _windows[1 - _current];
+        bool fresh = !_moduleStale;
         bool[] live = new bool[ShapeCount];
         for (int i = 0; i < ShapeCount; i++)
         {
-            live[i] = Moved(current, i) || Moved(previous, i);
+            live[i] = fresh && (Moved(current, i) || Moved(previous, i));
         }
 
         int left = ShapeCount;
         int right = ShapeCount + 1;
+        bool moduleLeft = fresh && (EyeMeasured(current, left) || EyeMeasured(previous, left));
+        bool moduleRight = fresh && (EyeMeasured(current, right) || EyeMeasured(previous, right));
         return new SignalCapabilitySnapshot(
             live,
-            EyeMeasured(current, left) || EyeMeasured(previous, left),
-            EyeMeasured(current, right) || EyeMeasured(previous, right),
-            Resting(current, previous, left),
-            Resting(current, previous, right),
+            moduleLeft,
+            moduleRight,
+            _externalEyeLeft && !moduleLeft ? ExternalResting(left) : Resting(current, previous, left),
+            _externalEyeRight && !moduleRight ? ExternalResting(right) : Resting(current, previous, right),
             current.Samples + previous.Samples,
             ++_version,
             _external,
@@ -124,6 +199,8 @@ public sealed class SignalCapabilityTracker
     }
 
     private static bool Moved(ShapeStats stats, int channel) => stats.Count(channel) > 0 && !stats.IsZero(channel);
+
+    private float ExternalResting(int channel) => Resting(_externalEyes[_externalCurrent], _externalEyes[1 - _externalCurrent], channel);
 
     private static bool EyeMeasured(ShapeStats stats, int channel) =>
         stats.Count(channel) > 0 && (stats.Min(channel) != DefaultOpenness || stats.Max(channel) != DefaultOpenness);

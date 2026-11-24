@@ -56,6 +56,58 @@ public sealed class HomeExternalTrackerTests
         Assert.Equal(string.Empty, tracking.ExternalTrackerText);
     }
 
+    [Fact]
+    public void ExternalEyesFillTheEmptyEyesRow()
+    {
+        var tracking = new HomeTrackingViewModel();
+        var activity = new TrackingActivity(TrackingActivityState.Active, SecondsSinceData: 0, VrChatNativeFaceTrackingActive: false) { ExternalEyes = true };
+
+        tracking.Refresh(NoOwners, activity);
+
+        Assert.True(tracking.Eyes.HasOwner);
+        Assert.Equal(Resources.ExternalOsc_Label, tracking.Eyes.Owner);
+        Assert.False(tracking.Mouth.HasOwner);
+        Assert.Equal(Resources.HomeOwner_None, tracking.Mouth.Owner);
+        Assert.Equal(Resources.HomeActivity_Tracking, tracking.ActivityText);
+    }
+
+    [Fact]
+    public void ExternalFaceFillsTheEmptyMouthRow()
+    {
+        var tracking = new HomeTrackingViewModel();
+        var activity = new TrackingActivity(TrackingActivityState.Active, SecondsSinceData: 0, VrChatNativeFaceTrackingActive: false) { ExternalFace = true };
+
+        tracking.Refresh(NoOwners, activity);
+
+        Assert.Equal(Resources.ExternalOsc_Label, tracking.Mouth.Owner);
+        Assert.Equal(Resources.HomeOwner_None, tracking.Eyes.Owner);
+    }
+
+    [Fact]
+    public void ModuleOwnerKeepsItsRowWhenExternalAlsoSends()
+    {
+        var tracking = new HomeTrackingViewModel();
+        var owners = new TrackingOwnershipSnapshot(new CapabilityOwnership("Quest Pro", ["Quest Pro"]), new CapabilityOwnership(Owner: null, []));
+        var activity = new TrackingActivity(TrackingActivityState.Active, SecondsSinceData: 0, VrChatNativeFaceTrackingActive: false) { ExternalEyes = true, ExternalFace = true };
+
+        tracking.Refresh(owners, activity);
+
+        Assert.Equal("Quest Pro", tracking.Eyes.Owner);
+        Assert.Equal(Resources.ExternalOsc_Label, tracking.Mouth.Owner);
+    }
+
+    [Fact]
+    public void ExternalRowsClearWhenTheTrackerStops()
+    {
+        var tracking = new HomeTrackingViewModel();
+        tracking.Refresh(NoOwners, new TrackingActivity(TrackingActivityState.Active, SecondsSinceData: 0, VrChatNativeFaceTrackingActive: false) { ExternalEyes = true, ExternalFace = true });
+        tracking.Refresh(NoOwners, Quiet);
+
+        Assert.False(tracking.Eyes.HasOwner);
+        Assert.False(tracking.Mouth.HasOwner);
+        Assert.Equal(Resources.HomeActivity_NoData, tracking.ActivityText);
+    }
+
     [AvaloniaFact]
     public void HomePageShowsTheDetectedLineOnlyWhenPresent()
     {

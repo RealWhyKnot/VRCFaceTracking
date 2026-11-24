@@ -280,7 +280,7 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         {
             ExternalOscState.Listening => TrackingText.Format(Strings.Resources.ExternalOsc_Listening, _externalOsc.Settings.Port),
             ExternalOscState.Receiving => TrackingText.Format(Strings.Resources.ExternalOsc_Receiving, status.PacketsPerSecond),
-            ExternalOscState.Error => Strings.Resources.ExternalOsc_Unavailable,
+            ExternalOscState.Error => DescribeError(status.LastError),
             ExternalOscState.Disabled => string.Empty,
             _ => string.Empty,
         };
@@ -297,6 +297,14 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
             OnPropertyChanged(nameof(HasExternalOscStatus));
         }
     }
+
+    private static string DescribeError(string? error) => error switch
+    {
+        nameof(ExternalOscPortCheck.Conflicting) => Strings.Resources.ExternalOsc_PortConflict,
+        nameof(ExternalOscPortCheck.OutOfRange) => Strings.Resources.Settings_Port_Error,
+        nameof(System.Net.Sockets.SocketError.AddressAlreadyInUse) => Strings.Resources.ExternalOsc_PortInUse,
+        _ => Strings.Resources.ExternalOsc_Unavailable,
+    };
 
     private string? ApplyExternalPort(string text)
     {
@@ -318,15 +326,20 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         return null;
     }
 
-    private static string? ApplyPort(string text, Action<int> commit)
+    private string? ApplyPort(string text, Action<int> commit)
     {
-        if (int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int port) && port is >= Core.Models.OscTarget.MinPort and <= Core.Models.OscTarget.MaxPort)
+        if (!int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int port) || port is < Core.Models.OscTarget.MinPort or > Core.Models.OscTarget.MaxPort)
         {
-            commit(port);
-            return null;
+            return Strings.Resources.Settings_Port_Error;
         }
 
-        return Strings.Resources.Settings_Port_Error;
+        if (_externalOsc.Settings.Enabled && port == _externalOsc.Settings.Port)
+        {
+            return Strings.Resources.Settings_Port_ExternalConflict;
+        }
+
+        commit(port);
+        return null;
     }
 
     private string? ApplyAddress(string text)
@@ -346,6 +359,7 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         InPortField.Sync();
         OutPortField.Sync();
         AddressField.Sync();
+        RefreshExternalOsc();
     }
 
     public Task<string?> ReadThemeAsync(CancellationToken cancellationToken) =>

@@ -12,7 +12,7 @@ using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public sealed class ExternalOscMergeTests : IDisposable
+public sealed partial class ExternalOscMergeTests : IDisposable
 {
     private readonly ManualClock _clock = new();
     private readonly SignalCapabilityTracker _tracker = new();

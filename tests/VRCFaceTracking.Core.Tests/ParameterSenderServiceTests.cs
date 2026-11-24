@@ -63,15 +63,15 @@ public sealed class ParameterSenderServiceTests
         public readonly ParameterSenderService Sender;
         private readonly EventHandler<TrackingDataEventArgs> _handler;
 
-        public Harness(EventHandler<TrackingDataEventArgs> handler, TimerResolutionHold? timerResolution = null, SignalCapabilityTracker? capabilities = null)
+        public Harness(EventHandler<TrackingDataEventArgs> handler, TimerResolutionHold? timerResolution = null, SignalCapabilityTracker? capabilities = null, IExternalTrackingSource? external = null)
         {
             Listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
             Listener.ReceiveTimeout = 1000;
             var target = new FakeOscTarget();
             var send = new OscSendService(NullLogger<OscSendService>.Instance, target);
             target.OutPort = ((IPEndPoint)Listener.LocalEndPoint!).Port;
-            var mutator = new UnifiedTrackingMutator(NullLogger<UnifiedTrackingMutator>.Instance, new NullSettings(), new InlineDispatcher());
-            Sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance, timerResolution ?? new TimerResolutionHold(NullLogger.Instance), capabilities: capabilities);
+            var mutator = new UnifiedTrackingMutator(NullLogger<UnifiedTrackingMutator>.Instance, new NullSettings(), new InlineDispatcher(), external);
+            Sender = new ParameterSenderService(send, mutator, NullLogger<ParameterSenderService>.Instance, timerResolution ?? new TimerResolutionHold(NullLogger.Instance), capabilities: capabilities ?? new SignalCapabilityTracker());
             _handler = handler;
             TrackingOutput.DataUpdated += _handler;
         }
@@ -239,6 +239,80 @@ public sealed class ParameterSenderServiceTests
         await Task.Delay(1000);
 
         Assert.InRange(harness.Sender.Wakes - wakes, 1, 8);
+    }
+
+    private static byte[] ExternalPacket(string address, float value)
+    {
+        List<byte> bytes = [];
+        AddOscString(bytes, address);
+        AddOscString(bytes, ",f");
+        byte[] number = BitConverter.GetBytes(value);
+        Array.Reverse(number);
+        bytes.AddRange(number);
+        return [.. bytes];
+    }
+
+    private static void AddOscString(List<byte> bytes, string text)
+    {
+        bytes.AddRange(Encoding.ASCII.GetBytes(text));
+        bytes.Add(0);
+        while (bytes.Count % 4 != 0)
+        {
+            bytes.Add(0);
+        }
+    }
+
+    [Fact]
+    public async Task ExternalInputWithoutAModuleKeepsTheActiveRate()
+    {
+        using var external = new ExternalOscInputService(NullLogger<ExternalOscInputService>.Instance, new ExternalOscInputSettings(), new FakeOscTarget(), new NullSettings(), capabilities: new SignalCapabilityTracker());
+        await using var harness = new Harness((_, _) => { }, external: external);
+        await harness.Sender.StartAsync(CancellationToken.None);
+        await Task.Delay(300);
+
+        byte[] packet = ExternalPacket("/jawOpen", 0.5f);
+        for (int i = 0; i < 20; i++)
+        {
+            int before = harness.Sender.DataUpdates;
+            external.Ingest(packet, packet.Length);
+            Assert.True(SpinWait.SpinUntil(() => harness.Sender.DataUpdates > before, TimeSpan.FromSeconds(2)), $"packet {i} never reached the output");
+        }
+
+        int start = harness.Sender.DataUpdates;
+        var watch = Stopwatch.StartNew();
+        for (int i = 0; i < 200; i++)
+        {
+            external.Ingest(packet, packet.Length);
+            long next = Stopwatch.GetTimestamp() + (Stopwatch.Frequency / 1000);
+            while (Stopwatch.GetTimestamp() < next)
+            {
+                Thread.SpinWait(50);
+            }
+        }
+
+        int updates = harness.Sender.DataUpdates - start;
+        double elapsedMs = watch.Elapsed.TotalMilliseconds;
+        Assert.True(updates <= (int)(elapsedMs / 5) + 3, $"{updates} data updates in {elapsedMs:F0} ms");
+    }
+
+    [Fact]
+    public async Task UnmappedExternalTrafficLetsTheSenderIdle()
+    {
+        using var external = new ExternalOscInputService(NullLogger<ExternalOscInputService>.Instance, new ExternalOscInputSettings(), new FakeOscTarget(), new NullSettings(), capabilities: new SignalCapabilityTracker());
+        await using var harness = new Harness((_, _) => { }, external: external);
+        await harness.Sender.StartAsync(CancellationToken.None);
+        await Task.Delay(200);
+
+        byte[] packet = ExternalPacket("/avatar/parameters/NotAShape", 0.5f);
+        int before = harness.Sender.DataUpdates;
+        var watch = Stopwatch.StartNew();
+        while (watch.ElapsedMilliseconds < 300)
+        {
+            Assert.False(external.Ingest(packet, packet.Length));
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(before, harness.Sender.DataUpdates);
     }
 
     [Fact]

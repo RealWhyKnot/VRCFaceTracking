@@ -9,7 +9,7 @@ using VRCFaceTracking.Core.Services;
 
 namespace VRCFaceTracking.Core.Tests;
 
-public sealed class ExternalOscInputServiceTests
+public sealed partial class ExternalOscInputServiceTests
 {
     private sealed class TestTarget : IOscTarget
     {
@@ -30,6 +30,37 @@ public sealed class ExternalOscInputServiceTests
         public int OutPort { get; set; } = 9000;
 
         public string? DestinationAddress { get; set; } = "127.0.0.1";
+    }
+
+    private sealed class NotifyingTarget : IOscTarget
+    {
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public bool IsConnected { get; set; }
+
+        public int InPort
+        {
+            get;
+            set
+            {
+                field = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(InPort)));
+            }
+        } = 9001;
+
+        public int OutPort
+        {
+            get;
+            set
+            {
+                field = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(OutPort)));
+            }
+        } = 9000;
+
+        public string? DestinationAddress { get; set; } = "127.0.0.1";
+
+        public int Subscribers => PropertyChanged?.GetInvocationList().Length ?? 0;
     }
 
     private sealed class MemorySettings : ILocalSettingsService
@@ -238,6 +269,12 @@ public sealed class ExternalOscInputServiceTests
     [InlineData("/RightEyeLid", ExternalOscEyeChannel.RightOpenness)]
     [InlineData("/avatar/parameters/EyesY", ExternalOscEyeChannel.CombinedY)]
     [InlineData("/avatar/parameters/EyeX", ExternalOscEyeChannel.CombinedX)]
+    [InlineData("/avatar/parameters/EyesX", ExternalOscEyeChannel.CombinedX)]
+    [InlineData("/EyesX", ExternalOscEyeChannel.CombinedX)]
+    [InlineData("/avatar/parameters/EyeOpenLeft", ExternalOscEyeChannel.LeftOpenness)]
+    [InlineData("/avatar/parameters/v2/EyeOpenRight", ExternalOscEyeChannel.RightOpenness)]
+    [InlineData("/avatar/parameters/EyeOpen", ExternalOscEyeChannel.CombinedOpenness)]
+    [InlineData("/avatar/parameters/CombinedEyeLid", ExternalOscEyeChannel.CombinedOpenness)]
     public void RealSenderEyeNamesResolveToChannels(string address, ExternalOscEyeChannel expected)
     {
         ExternalOscTarget? target = ExternalOscParameterMap.Resolve(address);
@@ -249,8 +286,8 @@ public sealed class ExternalOscInputServiceTests
 
     [Theory]
     [InlineData("/eye/LeftX")]
-    [InlineData("/avatar/parameters/EyeLidLeft")]
-    [InlineData("/avatar/parameters/LeftEyeLidExpandedSqueeze")]
+    [InlineData("/avatar/parameters/EyeLidMiddle")]
+    [InlineData("/avatar/parameters/LeftEyeLidSqueeze")]
     public void UnconfirmedEyeNamesAreIgnored(string address) => Assert.Null(ExternalOscParameterMap.Resolve(address));
 
     [Theory]

@@ -331,24 +331,25 @@ public sealed partial class UnifiedLibManager
             return;
         }
 
-        var frame = new Image
-        {
-            ImageSize = (framePacket.Width, framePacket.Height),
-            ImageData = framePacket.GetData(),
-            SupportsImage = true,
-        };
         TrackingCapability capabilities = module.ModuleInformation.EffectiveCapabilities;
         if (framePacket.Kind == ImageFrameUpdatePacket.EyeKind && capabilities.Allows(TrackingCapability.Eyes))
         {
-            UnifiedTracking.EyeImageData = frame;
+            UnifiedTracking.EyeImageData = ToImage(framePacket);
             CameraStreams.UpdateLegacy(module.Id, DisplayName(module), framePacket.Kind, framePacket.Width, framePacket.Height, framePacket.GetData());
         }
         else if (framePacket.Kind == ImageFrameUpdatePacket.LipKind && capabilities.Allows(TrackingCapability.Mouth))
         {
-            UnifiedTracking.LipImageData = frame;
+            UnifiedTracking.LipImageData = ToImage(framePacket);
             CameraStreams.UpdateLegacy(module.Id, DisplayName(module), framePacket.Kind, framePacket.Width, framePacket.Height, framePacket.GetData());
         }
     }
+
+    private static Image ToImage(ImageFrameUpdatePacket framePacket) => new()
+    {
+        ImageSize = (framePacket.Width, framePacket.Height),
+        ImageData = framePacket.GetData(),
+        SupportsImage = true,
+    };
 
     private void HandleDebugStreamFrameV2(ImageFrameV2Packet framePacket, ModuleRuntimeInfo module)
     {

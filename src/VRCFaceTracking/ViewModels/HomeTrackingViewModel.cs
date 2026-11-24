@@ -35,8 +35,8 @@ internal sealed class HomeTrackingViewModel : ObservableObject
 
     public void Refresh(TrackingOwnershipSnapshot ownership, TrackingActivity activity, AvatarGapReport? gap = null, IReadOnlyList<DetectedExternalTracker>? external = null)
     {
-        Eyes.Update(ownership.Eyes);
-        Mouth.Update(ownership.Mouth);
+        Eyes.Update(WithExternal(ownership.Eyes, activity.ExternalEyes));
+        Mouth.Update(WithExternal(ownership.Mouth, activity.ExternalFace));
         RefreshExternal(external);
 
         (string text, ChipKind kind) = Describe(activity);
@@ -64,6 +64,11 @@ internal sealed class HomeTrackingViewModel : ObservableObject
             }
         }
     }
+
+    private static CapabilityOwnership WithExternal(CapabilityOwnership ownership, bool external) =>
+        external && string.IsNullOrEmpty(ownership.Owner)
+            ? new CapabilityOwnership(Resources.ExternalOsc_Label, [Resources.ExternalOsc_Label])
+            : ownership;
 
     private void RefreshExternal(IReadOnlyList<DetectedExternalTracker>? external)
     {

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Expressions;
 
@@ -5,6 +6,14 @@ namespace VRCFaceTracking.Core.Services;
 
 public sealed partial class ExternalOscInputService
 {
+    private static readonly Dictionary<UnifiedExpressions, (ExternalOscEyeChannel Side, ExternalOscEyeChannel Both)> DerivedShapes = new()
+    {
+        [UnifiedExpressions.EyeWideLeft] = (ExternalOscEyeChannel.LeftWiden, ExternalOscEyeChannel.CombinedWiden),
+        [UnifiedExpressions.EyeWideRight] = (ExternalOscEyeChannel.RightWiden, ExternalOscEyeChannel.CombinedWiden),
+        [UnifiedExpressions.EyeSquintLeft] = (ExternalOscEyeChannel.LeftSquint, ExternalOscEyeChannel.CombinedSquint),
+        [UnifiedExpressions.EyeSquintRight] = (ExternalOscEyeChannel.RightSquint, ExternalOscEyeChannel.CombinedSquint),
+    };
+
     public void Merge(UnifiedTrackingData data)
     {
         if (Volatile.Read(ref _session) == null || !Settings.Enabled)
@@ -20,9 +29,9 @@ public sealed partial class ExternalOscInputService
         int epoch;
         lock (_valuesLock)
         {
-            bool changed = MergeShapesLocked(data, modules, now);
-            bool eyeLeft = MergeEye(ref data.Eye.Left, ExternalOscEyeChannel.LeftX, ExternalOscEyeChannel.LeftY, ExternalOscEyeChannel.LeftOpenness, modules.ModuleEyeLeftLive, now);
-            bool eyeRight = MergeEye(ref data.Eye.Right, ExternalOscEyeChannel.RightX, ExternalOscEyeChannel.RightY, ExternalOscEyeChannel.RightOpenness, modules.ModuleEyeRightLive, now);
+            bool changed = MergeShapesLocked(data, modules, now, out bool eyeShapes, out bool faceShapes);
+            bool eyeLeft = MergeEye(ref data.Eye.Left, left: true, modules.ModuleEyeLeftLive, now);
+            bool eyeRight = MergeEye(ref data.Eye.Right, left: false, modules.ModuleEyeRightLive, now);
             if (eyeLeft != _drivenEyeLeft || eyeRight != _drivenEyeRight)
             {
                 _drivenEyeLeft = eyeLeft;
@@ -30,6 +39,8 @@ public sealed partial class ExternalOscInputService
                 changed = true;
             }
 
+            _drivesEyes = eyeShapes || eyeLeft || eyeRight;
+            _drivesFace = faceShapes;
             epoch = Volatile.Read(ref _releaseEpoch);
             publishedEyeLeft = _drivenEyeLeft;
             publishedEyeRight = _drivenEyeRight;
@@ -37,6 +48,11 @@ public sealed partial class ExternalOscInputService
             {
                 published = SnapshotDrivenLocked();
             }
+        }
+
+        if (publishedEyeLeft || publishedEyeRight)
+        {
+            _capabilities.ObserveExternalEyes(data, Stopwatch.GetTimestamp());
         }
 
         if (published != null)
@@ -51,18 +67,31 @@ public sealed partial class ExternalOscInputService
         }
     }
 
-    private bool MergeShapesLocked(UnifiedTrackingData data, SignalCapabilitySnapshot modules, long now)
+    private static bool IsEyeShape(UnifiedExpressions shape) =>
+        shape is UnifiedExpressions.EyeSquintLeft or UnifiedExpressions.EyeSquintRight or UnifiedExpressions.EyeWideLeft or UnifiedExpressions.EyeWideRight;
+
+    private bool MergeShapesLocked(UnifiedTrackingData data, SignalCapabilitySnapshot modules, long now, out bool eyeShapes, out bool faceShapes)
     {
         bool changed = false;
+        eyeShapes = false;
+        faceShapes = false;
         for (int i = 0; i < _shapes.Length; i++)
         {
-            bool apply = _hasShape[i]
-                && now - _shapeStamp[i] <= _staleTicks
-                && !modules.IsModuleLive((UnifiedExpressions)i)
+            var shape = (UnifiedExpressions)i;
+            bool apply = TryFreshShape(shape, modules, now, out float value)
+                && !modules.IsModuleLive(shape)
                 && data.Shapes[i].Weight == 0f;
             if (apply)
             {
-                data.Shapes[i].Weight = Math.Clamp(_shapes[i], 0f, 1f);
+                data.Shapes[i].Weight = Math.Clamp(value, 0f, 1f);
+                if (IsEyeShape(shape))
+                {
+                    eyeShapes = true;
+                }
+                else
+                {
+                    faceShapes = true;
+                }
             }
 
             if (apply != _driven[i])
@@ -75,7 +104,34 @@ public sealed partial class ExternalOscInputService
         return changed;
     }
 
-    private bool MergeEye(ref UnifiedSingleEyeData eye, ExternalOscEyeChannel x, ExternalOscEyeChannel y, ExternalOscEyeChannel openness, bool moduleLive, long now)
+    private bool TryFreshShape(UnifiedExpressions shape, SignalCapabilitySnapshot modules, long now, out float value)
+    {
+        int index = (int)shape;
+        if (_hasShape[index] && now - _shapeStamp[index] <= _staleTicks)
+        {
+            value = _shapes[index];
+            return true;
+        }
+
+        if (DerivedShapes.TryGetValue(shape, out (ExternalOscEyeChannel Side, ExternalOscEyeChannel Both) derived))
+        {
+            bool sideLive = shape is UnifiedExpressions.EyeWideLeft or UnifiedExpressions.EyeSquintLeft
+                ? modules.ModuleEyeLeftLive
+                : modules.ModuleEyeRightLive;
+            if (sideLive)
+            {
+                value = 0f;
+                return false;
+            }
+
+            return TryFreshEye(now, out value, derived.Side, derived.Both);
+        }
+
+        value = 0f;
+        return false;
+    }
+
+    private bool MergeEye(ref UnifiedSingleEyeData eye, bool left, bool moduleLive, long now)
     {
         if (moduleLive)
         {
@@ -85,40 +141,44 @@ public sealed partial class ExternalOscInputService
         bool applied = false;
         if (eye.Gaze.x == 0f && eye.Gaze.y == 0f)
         {
-            if (TryFreshEye(x, ExternalOscEyeChannel.CombinedX, now, out float gazeX))
+            if (TryFreshEye(now, out float gazeX, left ? ExternalOscEyeChannel.LeftX : ExternalOscEyeChannel.RightX, ExternalOscEyeChannel.CombinedX))
             {
                 eye.Gaze.x = gazeX;
                 applied = true;
             }
 
-            if (TryFreshEye(y, ExternalOscEyeChannel.CombinedY, now, out float gazeY))
+            if (TryFreshEye(now, out float gazeY, left ? ExternalOscEyeChannel.LeftY : ExternalOscEyeChannel.RightY, ExternalOscEyeChannel.CombinedY))
             {
                 eye.Gaze.y = gazeY;
                 applied = true;
             }
         }
 
-        if (eye.Openness == 1f && TryFreshEye(openness, openness, now, out float value))
+        bool fresh = TryFreshEye(
+            now,
+            out float openness,
+            left ? ExternalOscEyeChannel.LeftOpenness : ExternalOscEyeChannel.RightOpenness,
+            left ? ExternalOscEyeChannel.LeftOpennessDerived : ExternalOscEyeChannel.RightOpennessDerived,
+            ExternalOscEyeChannel.CombinedOpenness,
+            ExternalOscEyeChannel.CombinedOpennessDerived);
+        if (eye.Openness == 1f && fresh)
         {
-            eye.Openness = Math.Clamp(value, 0f, 1f);
+            eye.Openness = Math.Clamp(openness, 0f, 1f);
             applied = true;
         }
 
         return applied;
     }
 
-    private bool TryFreshEye(ExternalOscEyeChannel channel, ExternalOscEyeChannel fallback, long now, out float value)
+    private bool TryFreshEye(long now, out float value, params ReadOnlySpan<ExternalOscEyeChannel> channels)
     {
-        if (IsFreshEye(channel, now))
+        foreach (ExternalOscEyeChannel channel in channels)
         {
-            value = _eye[(int)channel];
-            return true;
-        }
-
-        if (IsFreshEye(fallback, now))
-        {
-            value = _eye[(int)fallback];
-            return true;
+            if (IsFreshEye(channel, now))
+            {
+                value = _eye[(int)channel];
+                return true;
+            }
         }
 
         value = 0f;
@@ -155,6 +215,8 @@ public sealed partial class ExternalOscInputService
             Array.Clear(_driven);
             _drivenEyeLeft = false;
             _drivenEyeRight = false;
+            _drivesEyes = false;
+            _drivesFace = false;
             if (_anyDriven)
             {
                 _anyDriven = false;

@@ -8,6 +8,10 @@ public readonly record struct TrackingActivity(TrackingActivityState State, doub
 {
     public const double IdleAfterSeconds = 3;
 
+    public bool ExternalEyes { get; init; }
+
+    public bool ExternalFace { get; init; }
+
     public string Summary
     {
         get

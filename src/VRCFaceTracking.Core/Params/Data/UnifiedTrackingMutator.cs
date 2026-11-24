@@ -20,12 +20,11 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
     private readonly Lock _mutationsLock = new();
     private UnifiedTrackingData _inputBuffer;
     private readonly Lock _previewLock = new();
-    private readonly IExternalTrackingSource? _externalSource;
     public ObservableCollection<TrackingMutation> Mutations { get; } = [];
 
     public UnifiedTrackingMutator(ILogger<UnifiedTrackingMutator> logger, ILocalSettingsService localSettingsService, IDispatcherService dispatcherService, IExternalTrackingSource? externalSource = null)
     {
-        _externalSource = externalSource;
+        ExternalSource = externalSource;
         TrackingOutput.Mutator = this;
         _logger = logger;
         _localSettingsService = localSettingsService;
@@ -42,7 +41,7 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
             _inputBuffer.CopyPropertiesOf(input);
         }
 
-        _externalSource?.Merge(_inputBuffer);
+        ExternalSource?.Merge(_inputBuffer);
 
         float rawLeft = _inputBuffer.Eye.Left.Openness;
         float rawRight = _inputBuffer.Eye.Right.Openness;
@@ -90,11 +89,27 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
 
     internal Func<AvatarParameterSnapshot?> CurrentAvatar { get; set; } = () => AvatarParameters.Current;
 
-    public TrackingActivity Activity => TrackingActivity.Classify(
-        UnifiedTracking.LastDataUpdateTicks,
-        Stopwatch.GetTimestamp(),
-        Stopwatch.Frequency,
-        CurrentAvatar()?.UsesNativeFaceTracking == true);
+    public IExternalTrackingSource? ExternalSource { get; }
+
+    public TrackingActivity Activity
+    {
+        get
+        {
+            long now = Stopwatch.GetTimestamp();
+            long last = UnifiedTracking.LastDataUpdateTicks;
+            if (ExternalSource?.SinceLastData is { } since)
+            {
+                long external = Math.Max(1, now - (long)(since.TotalSeconds * Stopwatch.Frequency));
+                last = Math.Max(last, external);
+            }
+
+            return TrackingActivity.Classify(last, now, Stopwatch.Frequency, CurrentAvatar()?.UsesNativeFaceTracking == true) with
+            {
+                ExternalEyes = ExternalSource?.DrivesEyes == true,
+                ExternalFace = ExternalSource?.DrivesFace == true,
+            };
+        }
+    }
 
     public UnifiedTrackingData LastOutput => _inputBuffer;
 

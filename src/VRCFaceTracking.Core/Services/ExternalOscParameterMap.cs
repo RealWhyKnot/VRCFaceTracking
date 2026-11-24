@@ -25,6 +25,29 @@ public static class ExternalOscParameterMap
         ["EyeX"] = ExternalOscEyeChannel.CombinedX,
         ["EyeY"] = ExternalOscEyeChannel.CombinedY,
         ["EyesY"] = ExternalOscEyeChannel.CombinedY,
+        ["EyesX"] = ExternalOscEyeChannel.CombinedX,
+        ["EyeOpenLeft"] = ExternalOscEyeChannel.LeftOpenness,
+        ["EyeOpenRight"] = ExternalOscEyeChannel.RightOpenness,
+        ["EyeOpen"] = ExternalOscEyeChannel.CombinedOpenness,
+        ["CombinedEyeLid"] = ExternalOscEyeChannel.CombinedOpenness,
+    };
+
+    private static readonly Dictionary<string, ExternalOscLid> Lids = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["EyeClosedLeft"] = new(ExternalOscLidSide.Left, ExternalOscLidFormat.Closed),
+        ["EyeClosedRight"] = new(ExternalOscLidSide.Right, ExternalOscLidFormat.Closed),
+        ["EyeClosed"] = new(ExternalOscLidSide.Both, ExternalOscLidFormat.Closed),
+        ["EyeLidLeft"] = new(ExternalOscLidSide.Left, ExternalOscLidFormat.Unified),
+        ["EyeLidRight"] = new(ExternalOscLidSide.Right, ExternalOscLidFormat.Unified),
+        ["EyeLid"] = new(ExternalOscLidSide.Both, ExternalOscLidFormat.Unified),
+        ["LeftEyeLidExpanded"] = new(ExternalOscLidSide.Left, ExternalOscLidFormat.Expanded),
+        ["RightEyeLidExpanded"] = new(ExternalOscLidSide.Right, ExternalOscLidFormat.Expanded),
+        ["CombinedEyeLidExpanded"] = new(ExternalOscLidSide.Both, ExternalOscLidFormat.Expanded),
+        ["EyeLidExpanded"] = new(ExternalOscLidSide.Both, ExternalOscLidFormat.Expanded),
+        ["LeftEyeLidExpandedSqueeze"] = new(ExternalOscLidSide.Left, ExternalOscLidFormat.ExpandedSqueeze),
+        ["RightEyeLidExpandedSqueeze"] = new(ExternalOscLidSide.Right, ExternalOscLidFormat.ExpandedSqueeze),
+        ["CombinedEyeLidExpandedSqueeze"] = new(ExternalOscLidSide.Both, ExternalOscLidFormat.ExpandedSqueeze),
+        ["EyeLidExpandedSqueeze"] = new(ExternalOscLidSide.Both, ExternalOscLidFormat.ExpandedSqueeze),
     };
 
     public static ExternalOscTarget? Resolve(string address)
@@ -47,7 +70,9 @@ public static class ExternalOscParameterMap
 
         return EyeChannels.TryGetValue(rest, out ExternalOscEyeChannel channel)
             ? new ExternalOscTarget([], channel)
-            : Shapes.TryGetValue(rest, out UnifiedExpressions[]? shapes) ? new ExternalOscTarget(shapes, EyeChannel: null) : null;
+            : Lids.TryGetValue(rest, out ExternalOscLid lid)
+                ? new ExternalOscTarget([], EyeChannel: null, lid)
+                : Shapes.TryGetValue(rest, out UnifiedExpressions[]? shapes) ? new ExternalOscTarget(shapes, EyeChannel: null) : null;
     }
 
     private static Dictionary<string, UnifiedExpressions[]> BuildShapes()

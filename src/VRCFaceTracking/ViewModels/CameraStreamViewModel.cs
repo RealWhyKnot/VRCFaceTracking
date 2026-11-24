@@ -4,9 +4,11 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 using VRCFaceTracking.Core.Types;
 using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Strings;
@@ -30,17 +32,30 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
 
     private readonly TimeProvider _time;
     private readonly Func<Guid, CameraControlCommand, bool> _send;
+    private readonly Decoding _decoding;
+    private readonly Lock _gate = new();
+    private readonly Action _decodeLoop;
+    private readonly Action _deliver;
     private byte[] _scratch = [];
     private WriteableBitmap? _front;
     private WriteableBitmap? _back;
     private Bitmap? _decoded;
+    private CameraStreamSnapshot? _pending;
+    private Bitmap? _ready;
+    private bool _hasReady;
+    private bool _decodeRunning;
+    private bool _deliveryPosted;
+    private int _generation;
+    private int _pendingGeneration;
+    private int _readyGeneration;
     private long _lastFrameStamp;
     private long _windowStamp;
     private int _windowCount;
     private int _rate;
     private int _width;
     private int _height;
-    private bool _wasFrozen;
+    private bool _frozen;
+    private (int Width, int Height, int Rate)? _shown;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowCover))]
@@ -58,12 +73,15 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasControls))]
     private CameraControlCapabilities _capabilities;
 
-    public CameraStreamViewModel(CameraStreamSnapshot first, Func<Guid, CameraControlCommand, bool> send, TimeProvider time)
+    public CameraStreamViewModel(CameraStreamSnapshot first, Func<Guid, CameraControlCommand, bool> send, TimeProvider time, Decoding? decoding = null)
     {
         ModuleId = first.ModuleId;
         StreamId = first.StreamId;
         _send = send;
         _time = time;
+        _decoding = decoding ?? Decoding.Default;
+        _decodeLoop = DecodeLoop;
+        _deliver = Deliver;
         _title = TitleFor(first);
         Detail = Resources.CameraStreamsWaiting;
     }
@@ -95,6 +113,7 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
     public bool Update(CameraStreamSnapshot snapshot, bool frozen)
     {
         long now = _time.GetTimestamp();
+        _frozen = frozen;
         Title = TitleFor(snapshot);
         Capabilities = snapshot.Capabilities;
         if (snapshot.Sequence != LastSequence && CameraPixels.IsDrawable(snapshot.Format, snapshot.Width, snapshot.Height, snapshot.Data.Length))
@@ -102,17 +121,39 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
             AcceptFrame(snapshot, frozen, now);
         }
 
+        return Tick(frozen, now);
+    }
+
+    public bool Tick(bool frozen) => Tick(frozen, _time.GetTimestamp());
+
+    public void Clear()
+    {
+        Release();
+        _lastFrameStamp = 0;
+        _windowStamp = 0;
+        _windowCount = 0;
+        _rate = 0;
+        _shown = null;
+        SetText(Resources.CameraStreamsWaiting);
+    }
+
+    private static string TitleFor(CameraStreamSnapshot snapshot)
+    {
+        string legacy = string.Equals(snapshot.StreamId, CameraStreamRegistry.LegacyEyeId, StringComparison.Ordinal)
+            ? Resources.CameraStreamsEye
+            : Resources.CameraStreamsLip;
+        return snapshot.IsLegacy ? legacy : snapshot.Label.Length > 0 ? snapshot.Label : snapshot.StreamId;
+    }
+
+    private static double WidthFor(int width, int height) => Math.Clamp(Math.Round(FrameHeight * width / height), MinFrameWidth, MaxFrameWidth);
+
+    private bool Tick(bool frozen, long now)
+    {
+        _frozen = frozen;
         if (_lastFrameStamp == 0 || _time.GetElapsedTime(_lastFrameStamp, now) >= StaleAfter)
         {
             Clear();
             return false;
-        }
-
-        if (!HasFrame)
-        {
-            HasFrame = true;
-            OnPropertyChanged(HasFrameArgs);
-            OnPropertyChanged(ShowCoverArgs);
         }
 
         TimeSpan elapsed = _time.GetElapsedTime(_windowStamp, now);
@@ -124,34 +165,7 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
         }
 
         SetDetail(frozen);
-        _wasFrozen = frozen;
         return true;
-    }
-
-    public void Clear()
-    {
-        Release();
-        _lastFrameStamp = 0;
-        _windowStamp = 0;
-        _windowCount = 0;
-        _rate = 0;
-        _wasFrozen = false;
-        if (HasFrame)
-        {
-            HasFrame = false;
-            OnPropertyChanged(HasFrameArgs);
-            OnPropertyChanged(ShowCoverArgs);
-        }
-
-        SetText(Resources.CameraStreamsWaiting);
-    }
-
-    private static string TitleFor(CameraStreamSnapshot snapshot)
-    {
-        string legacy = string.Equals(snapshot.StreamId, CameraStreamRegistry.LegacyEyeId, StringComparison.Ordinal)
-            ? Resources.CameraStreamsEye
-            : Resources.CameraStreamsLip;
-        return snapshot.IsLegacy ? legacy : snapshot.Label.Length > 0 ? snapshot.Label : snapshot.StreamId;
     }
 
     private void AcceptFrame(CameraStreamSnapshot snapshot, bool frozen, long now)
@@ -165,27 +179,44 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
         LastSequence = snapshot.Sequence;
         _lastFrameStamp = now;
         _windowCount++;
+        if (frozen && Source != null)
+        {
+            return;
+        }
+
+        if (snapshot.Format == CameraPixelFormat.Jpeg)
+        {
+            QueueDecode(snapshot);
+            return;
+        }
+
         _width = snapshot.Width;
         _height = snapshot.Height;
-        FrameWidth = Math.Clamp(Math.Round(FrameHeight * snapshot.Width / snapshot.Height), MinFrameWidth, MaxFrameWidth);
-        if (!frozen || Source == null)
-        {
-            Draw(snapshot);
-        }
+        FrameWidth = WidthFor(snapshot.Width, snapshot.Height);
+        DrawRaw(snapshot);
     }
 
     private void SetDetail(bool frozen)
     {
-        string size = TrackingText.Format(Resources.CameraDetail_Size, _width, _height);
-        string text = frozen
+        if (!HasFrame)
+        {
+            _shown = null;
+            SetText(Resources.CameraStreamsWaiting);
+            return;
+        }
+
+        (int Width, int Height, int Rate) shown = (_width, _height, frozen ? -1 : _rate);
+        if (_shown == shown)
+        {
+            return;
+        }
+
+        _shown = shown;
+        SetText(frozen
             ? TrackingText.Format(Resources.CameraDetail_Frozen, _width, _height)
             : _rate > 0
                 ? TrackingText.Format(Resources.CameraDetail_Rate, _width, _height, _rate.ToString(CultureInfo.CurrentCulture))
-                : size;
-        if (frozen != _wasFrozen || !string.Equals(text, Detail, StringComparison.Ordinal))
-        {
-            SetText(text);
-        }
+                : TrackingText.Format(Resources.CameraDetail_Size, _width, _height));
     }
 
     private void SetText(string text)
@@ -199,25 +230,16 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
         OnPropertyChanged(DetailArgs);
     }
 
-    private void Draw(CameraStreamSnapshot snapshot)
+    private void DrawRaw(CameraStreamSnapshot snapshot)
     {
-        if (snapshot.Format == CameraPixelFormat.Jpeg)
-        {
-            DrawEncoded(snapshot.Data);
-            return;
-        }
-
-        if (_decoded != null)
-        {
-            Release();
-        }
-
+        Invalidate();
         int width = snapshot.Width;
         int height = snapshot.Height;
         var size = new PixelSize(width, height);
-        if (_front != null && _front.PixelSize != size)
+        if (_back != null && _back.PixelSize != size)
         {
-            Release();
+            _back.Dispose();
+            _back = null;
         }
 
         int bytes = width * height * CameraPixels.BytesPerPixel;
@@ -237,33 +259,210 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
             }
         }
 
-        _back = _front;
+        WriteableBitmap? previous = _front;
+        Bitmap? decoded = _decoded;
         _front = target;
-        Source = target;
-        OnPropertyChanged(SourceArgs);
+        _back = previous != null && previous.PixelSize == size ? previous : null;
+        _decoded = null;
+        SetSource(target);
+        if (previous != null && _back == null)
+        {
+            previous.Dispose();
+        }
+
+        decoded?.Dispose();
     }
 
-    private void DrawEncoded(ReadOnlyMemory<byte> data)
+    private void QueueDecode(CameraStreamSnapshot snapshot)
     {
+        lock (_gate)
+        {
+            _pending = snapshot;
+            _pendingGeneration = _generation;
+            if (_decodeRunning)
+            {
+                return;
+            }
+
+            _decodeRunning = true;
+        }
+
+        _decoding.Run(_decodeLoop);
+    }
+
+    private void DecodeLoop()
+    {
+        bool finished = false;
         try
         {
-            using var stream = new MemoryStream(data.ToArray(), writable: false);
-            var decoded = new Bitmap(stream);
-            Release();
-            _decoded = decoded;
-            Source = decoded;
-            OnPropertyChanged(SourceArgs);
+            DecodePending();
+            finished = true;
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or NotSupportedException or InvalidDataException)
+        finally
         {
-            Release();
+            if (!finished)
+            {
+                RecoverDecode();
+            }
         }
+    }
+
+    private void RecoverDecode()
+    {
+        lock (_gate)
+        {
+            if (_pending == null)
+            {
+                _decodeRunning = false;
+                return;
+            }
+        }
+
+        _decoding.Run(_decodeLoop);
+    }
+
+    private void DecodePending()
+    {
+        while (true)
+        {
+            CameraStreamSnapshot snapshot;
+            int generation;
+            lock (_gate)
+            {
+                if (_pending == null)
+                {
+                    _decodeRunning = false;
+                    return;
+                }
+
+                snapshot = _pending;
+                generation = _pendingGeneration;
+                _pending = null;
+            }
+
+            Bitmap? decoded = JpegHeader.Fits(snapshot.Data.Span, ImageFrameV2Packet.MaxDimension)
+                ? Checked(_decoding.Decode(snapshot.Data))
+                : null;
+            Bitmap? dropped;
+            bool post = false;
+            lock (_gate)
+            {
+                if (generation != _generation)
+                {
+                    dropped = decoded;
+                }
+                else
+                {
+                    dropped = _ready;
+                    _ready = decoded;
+                    _hasReady = true;
+                    _readyGeneration = generation;
+                    post = !_deliveryPosted;
+                    _deliveryPosted = true;
+                }
+            }
+
+            dropped?.Dispose();
+            if (post)
+            {
+                _decoding.Post(_deliver);
+            }
+        }
+    }
+
+    private static Bitmap? Checked(Bitmap? decoded)
+    {
+        if (decoded == null)
+        {
+            return null;
+        }
+
+        PixelSize size = decoded.PixelSize;
+        if (size.Width >= 1 && size.Width <= ImageFrameV2Packet.MaxDimension && size.Height >= 1 && size.Height <= ImageFrameV2Packet.MaxDimension)
+        {
+            return decoded;
+        }
+
+        decoded.Dispose();
+        return null;
+    }
+
+    private void Deliver()
+    {
+        Bitmap? decoded;
+        bool current;
+        lock (_gate)
+        {
+            _deliveryPosted = false;
+            if (!_hasReady)
+            {
+                return;
+            }
+
+            decoded = _ready;
+            current = _readyGeneration == _generation;
+            _ready = null;
+            _hasReady = false;
+        }
+
+        if (!current || (_frozen && Source != null))
+        {
+            decoded?.Dispose();
+            return;
+        }
+
+        if (decoded == null)
+        {
+            DropSource();
+            SetDetail(_frozen);
+            return;
+        }
+
+        PixelSize size = decoded.PixelSize;
+        _width = size.Width;
+        _height = size.Height;
+        FrameWidth = WidthFor(size.Width, size.Height);
+        Bitmap? previous = _decoded;
+        WriteableBitmap? front = _front;
+        WriteableBitmap? back = _back;
+        _decoded = decoded;
+        _front = null;
+        _back = null;
+        SetSource(decoded);
+        previous?.Dispose();
+        front?.Dispose();
+        back?.Dispose();
+        SetDetail(_frozen);
+    }
+
+    private void Invalidate()
+    {
+        Bitmap? ready;
+        lock (_gate)
+        {
+            _generation++;
+            _pending = null;
+            ready = _ready;
+            _ready = null;
+            _hasReady = false;
+        }
+
+        ready?.Dispose();
     }
 
     private void Release()
     {
-        Source = null;
-        OnPropertyChanged(SourceArgs);
+        Invalidate();
+        DropSource();
+    }
+
+    private void DropSource()
+    {
+        if (Source != null)
+        {
+            SetSource(source: null);
+        }
+
         _front?.Dispose();
         _back?.Dispose();
         _decoded?.Dispose();
@@ -272,9 +471,62 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
         _decoded = null;
     }
 
+    private void SetSource(Bitmap? source)
+    {
+        Source = source;
+        OnPropertyChanged(SourceArgs);
+        bool hasFrame = source != null;
+        if (hasFrame != HasFrame)
+        {
+            HasFrame = hasFrame;
+            OnPropertyChanged(HasFrameArgs);
+            OnPropertyChanged(ShowCoverArgs);
+        }
+    }
+
     [RelayCommand]
     private void Recenter() => _send(ModuleId, new CameraControlCommand(StreamId, CameraControlKind.Recenter));
 
     [RelayCommand]
     private void Recalibrate() => _send(ModuleId, new CameraControlCommand(StreamId, CameraControlKind.Recalibrate));
+
+    internal sealed class Decoding
+    {
+        public static readonly Decoding Default = new(
+            work => ThreadPool.QueueUserWorkItem(static run => run(), work, preferLocal: false),
+            work => Dispatcher.UIThread.Post(work),
+            DecodeJpeg);
+
+        public Decoding(Action<Action> run, Action<Action> post, Func<ReadOnlyMemory<byte>, Bitmap?> decode)
+        {
+            Run = run;
+            Post = post;
+            Decode = decode;
+        }
+
+        public Action<Action> Run { get; }
+
+        public Action<Action> Post { get; }
+
+        public Func<ReadOnlyMemory<byte>, Bitmap?> Decode { get; }
+
+        public static Bitmap? DecodeJpeg(ReadOnlyMemory<byte> data)
+        {
+            try
+            {
+                using MemoryStream stream = MemoryMarshal.TryGetArray(data, out ArraySegment<byte> segment)
+                    ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+                    : new MemoryStream(data.ToArray(), writable: false);
+                return new Bitmap(stream);
+            }
+            catch (OutOfMemoryException)
+            {
+                return null;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                return null;
+            }
+        }
+    }
 }

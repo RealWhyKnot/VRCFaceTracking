@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
@@ -12,11 +13,11 @@ namespace VRCFaceTracking.Core.Services;
 public sealed partial class ExternalOscInputService : IExternalTrackingSource, IDisposable
 {
     private const int MaxBundleDepth = 8;
-    private const int EyeChannelCount = 8;
     private const int ReceiveTimeoutMs = 250;
     private const int MaxDatagramSize = 65535;
     private static readonly TimeSpan ReceivingWindow = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan StaleWindow = TimeSpan.FromSeconds(1);
+    private static readonly int EyeChannelCount = Enum.GetValues<ExternalOscEyeChannel>().Length;
 
     private readonly ILogger<ExternalOscInputService> _logger;
     private readonly IOscTarget _target;
@@ -33,11 +34,15 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
     private readonly bool[] _hasEye = new bool[EyeChannelCount];
     private readonly long[] _eyeStamp = new long[EyeChannelCount];
     private readonly SignalCapabilityTracker _capabilities;
+    private readonly AutoResetEvent _arrived = new(initialState: false);
     private readonly bool[] _driven = new bool[(int)UnifiedExpressions.Max];
     private readonly long _staleTicks;
     private bool _drivenEyeLeft;
     private bool _drivenEyeRight;
     private bool _anyDriven;
+    private volatile bool _drivesEyes;
+    private volatile bool _drivesFace;
+    private bool _disposed;
     private int _releaseEpoch;
 
     private ReceiveSession? _session;
@@ -58,11 +63,34 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
         _time = time ?? TimeProvider.System;
         _capabilities = capabilities ?? SignalCapabilityTracker.Shared;
         _staleTicks = (long)(StaleWindow.TotalSeconds * _time.TimestampFrequency);
+        _target.PropertyChanged += OnTargetChanged;
     }
 
     public ExternalOscInputSettings Settings { get; }
 
     public int Version => Volatile.Read(ref _version);
+
+    public WaitHandle DataArrived => _arrived;
+
+    public bool DrivesEyes => _drivesEyes;
+
+    public bool DrivesFace => _drivesFace;
+
+    public TimeSpan? SinceLastData
+    {
+        get
+        {
+            if (Volatile.Read(ref _session) == null || !Settings.Enabled)
+            {
+                return null;
+            }
+
+            lock (_rateLock)
+            {
+                return _lastPacket == 0 ? null : _time.GetElapsedTime(_lastPacket);
+            }
+        }
+    }
 
     public ExternalOscStatus Status
     {
@@ -101,6 +129,11 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
     {
         lock (_stateLock)
         {
+            if (_disposed)
+            {
+                return false;
+            }
+
             StopLocked();
             if (!Settings.Enabled)
             {
@@ -172,6 +205,12 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
         {
             StopLocked();
             _state = ExternalOscState.Disabled;
+            if (!_disposed)
+            {
+                _disposed = true;
+                _target.PropertyChanged -= OnTargetChanged;
+                _arrived.Dispose();
+            }
         }
     }
 
@@ -182,9 +221,38 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
         if (any)
         {
             Interlocked.Increment(ref _version);
+            Count();
+            _arrived.Set();
         }
 
         return any;
+    }
+
+    private void OnTargetChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(IOscTarget.InPort) or nameof(IOscTarget.OutPort) or null or "")
+        {
+            Revalidate();
+        }
+    }
+
+    private void Revalidate()
+    {
+        lock (_stateLock)
+        {
+            if (_disposed || !Settings.Enabled)
+            {
+                return;
+            }
+
+            bool valid = ExternalOscInputSettings.Check(Settings.Port, _target) == ExternalOscPortCheck.Valid;
+            bool running = _session != null;
+            bool blockedByConflict = _state == ExternalOscState.Error && string.Equals(_lastError, nameof(ExternalOscPortCheck.Conflicting), StringComparison.Ordinal);
+            if ((running && !valid) || (!running && valid && blockedByConflict))
+            {
+                Apply();
+            }
+        }
     }
 
     private bool TryBind(int port)
@@ -282,7 +350,6 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
                 return;
             }
 
-            Count();
             Ingest(buffer, length);
         }
     }
@@ -387,6 +454,11 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
         long now = _time.GetTimestamp();
         lock (_valuesLock)
         {
+            if (target.Lid is { } lid)
+            {
+                StoreLidLocked(lid, lid.Decode(value), now);
+            }
+
             foreach (UnifiedExpressions shape in target.Shapes)
             {
                 _shapes[(int)shape] = Math.Clamp(value, 0f, 1f);
@@ -396,13 +468,40 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
 
             if (target.EyeChannel is { } channel)
             {
-                _eye[(int)channel] = Math.Clamp(value, -1f, 1f);
-                _hasEye[(int)channel] = true;
-                _eyeStamp[(int)channel] = now;
+                PutEyeLocked(channel, Math.Clamp(value, -1f, 1f), now);
             }
         }
 
         return true;
+    }
+
+    private void StoreLidLocked(ExternalOscLid lid, ExternalOscLidValue decoded, long now)
+    {
+        (ExternalOscEyeChannel openness, ExternalOscEyeChannel widen, ExternalOscEyeChannel squint) = lid.Side switch
+        {
+            ExternalOscLidSide.Left => (lid.Format == ExternalOscLidFormat.Closed ? ExternalOscEyeChannel.LeftOpenness : ExternalOscEyeChannel.LeftOpennessDerived, ExternalOscEyeChannel.LeftWiden, ExternalOscEyeChannel.LeftSquint),
+            ExternalOscLidSide.Right => (lid.Format == ExternalOscLidFormat.Closed ? ExternalOscEyeChannel.RightOpenness : ExternalOscEyeChannel.RightOpennessDerived, ExternalOscEyeChannel.RightWiden, ExternalOscEyeChannel.RightSquint),
+            ExternalOscLidSide.Both => (lid.Format == ExternalOscLidFormat.Closed ? ExternalOscEyeChannel.CombinedOpenness : ExternalOscEyeChannel.CombinedOpennessDerived, ExternalOscEyeChannel.CombinedWiden, ExternalOscEyeChannel.CombinedSquint),
+            _ => (lid.Format == ExternalOscLidFormat.Closed ? ExternalOscEyeChannel.CombinedOpenness : ExternalOscEyeChannel.CombinedOpennessDerived, ExternalOscEyeChannel.CombinedWiden, ExternalOscEyeChannel.CombinedSquint),
+        };
+
+        PutEyeLocked(openness, decoded.Openness, now);
+        if (decoded.Widen is { } widenValue)
+        {
+            PutEyeLocked(widen, widenValue, now);
+        }
+
+        if (decoded.Squint is { } squintValue)
+        {
+            PutEyeLocked(squint, squintValue, now);
+        }
+    }
+
+    private void PutEyeLocked(ExternalOscEyeChannel channel, float value, long now)
+    {
+        _eye[(int)channel] = value;
+        _hasEye[(int)channel] = true;
+        _eyeStamp[(int)channel] = now;
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "External OSC input listening on port {Port}")]

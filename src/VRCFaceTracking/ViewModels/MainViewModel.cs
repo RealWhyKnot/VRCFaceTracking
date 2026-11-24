@@ -143,7 +143,7 @@ internal sealed partial class MainViewModel : ObservableRecipient
         Tracking.Refresh(LibManager.GetOwnershipSnapshot(), _mutator.Activity, ParameterOutputService.GapReport, _externalTrackers.Current);
     }
 
-    public void RefreshCameras() => Cameras.Refresh(LibManager.CameraStreams.Snapshot());
+    public void RefreshCameras() => Cameras.Refresh(LibManager.CameraStreams);
 
     private void OnLiveTick()
     {

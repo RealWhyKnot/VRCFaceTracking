@@ -7,6 +7,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Sandboxing.Ipc;
 using VRCFaceTracking.Core.Types;
 using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Strings;
@@ -130,12 +131,111 @@ public sealed class CameraStreamsTests
             source.Save(stream);
         }
 
-        var cameras = new CameraStreamsViewModel();
+        var cameras = new CameraStreamsViewModel(decoding: new CameraStreamViewModel.Decoding(work => work(), post => post(), CameraStreamViewModel.Decoding.DecodeJpeg));
         cameras.Refresh([CameraTestData.Snap("good", CameraPixelFormat.Jpeg, 8, 8, data: stream.ToArray())]);
         Assert.NotNull(cameras.Streams[0].Source);
 
         cameras.Refresh([CameraTestData.Snap("bad", CameraPixelFormat.Jpeg, 8, 8, data: [1, 2, 3, 4, 5])]);
         Assert.Null(cameras.Streams[0].Source);
+        Assert.False(cameras.Streams[0].HasFrame);
+    }
+
+    [AvaloniaFact]
+    public void QuietRegistryTicksWithoutCopyingStreams()
+    {
+        var clock = new ManualClock();
+        var registry = new CameraStreamRegistry(clock);
+        var cameras = new CameraStreamsViewModel(time: clock);
+        Assert.True(registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.EyeKind, 4, 4, new byte[64]));
+        cameras.Refresh(registry);
+        for (int i = 0; i < 50; i++)
+        {
+            cameras.Refresh(registry);
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 1000; i++)
+        {
+            cameras.Refresh(registry);
+        }
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(allocated, 0, 1024);
+        Assert.Single(cameras.Streams);
+    }
+
+    [AvaloniaFact]
+    public void QuietRegistryStillDropsStaleStreams()
+    {
+        var clock = new ManualClock();
+        var registry = new CameraStreamRegistry(clock);
+        var cameras = new CameraStreamsViewModel(time: clock);
+        registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.EyeKind, 4, 4, new byte[64]);
+        cameras.Refresh(registry);
+        Assert.True(cameras.HasCameras);
+
+        clock.Advance(TimeSpan.FromSeconds(6));
+        cameras.Refresh(registry);
+        Assert.False(cameras.HasCameras);
+
+        registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.LipKind, 4, 4, new byte[64]);
+        cameras.Refresh(registry);
+        Assert.Equal(CameraStreamRegistry.LegacyLipId, Assert.Single(cameras.Streams).StreamId);
+
+        registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.EyeKind, 4, 4, new byte[64]);
+        cameras.Refresh(registry);
+        Assert.Equal(2, cameras.Streams.Count);
+    }
+
+    [AvaloniaFact]
+    public void RegistryRefreshPicksUpEachNewFrame()
+    {
+        var clock = new ManualClock();
+        var registry = new CameraStreamRegistry(clock);
+        var cameras = new CameraStreamsViewModel(time: clock);
+        registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.EyeKind, 4, 4, new byte[64]);
+        cameras.Refresh(registry);
+        long first = cameras.Streams[0].LastSequence;
+
+        clock.Advance(TimeSpan.FromMilliseconds(50));
+        registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.EyeKind, 4, 4, new byte[64]);
+        cameras.Refresh(registry);
+
+        Assert.True(cameras.Streams[0].LastSequence > first);
+    }
+
+    [AvaloniaFact]
+    public void ResetReadsTheRegistryAgainOnTheNextRefresh()
+    {
+        var clock = new ManualClock();
+        var registry = new CameraStreamRegistry(clock);
+        var cameras = new CameraStreamsViewModel(time: clock);
+        registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.EyeKind, 4, 4, new byte[64]);
+        cameras.Refresh(registry);
+
+        cameras.Reset();
+        cameras.Refresh(registry);
+
+        Assert.True(cameras.HasCameras);
+        Assert.True(cameras.Streams[0].HasFrame);
+    }
+
+    [AvaloniaFact]
+    public void FreezeShowsInTheDetailWhileTheRegistryIsQuiet()
+    {
+        var clock = new ManualClock();
+        var registry = new CameraStreamRegistry(clock);
+        var cameras = new CameraStreamsViewModel(time: clock);
+        registry.UpdateLegacy(CameraTestData.Module, "Module", ImageFrameUpdatePacket.EyeKind, 4, 4, new byte[64]);
+        cameras.Refresh(registry);
+
+        cameras.IsFrozen = true;
+        cameras.Refresh(registry);
+        Assert.Equal(TrackingText.Format(Resources.CameraDetail_Frozen, 4, 4), cameras.Streams[0].Detail);
+
+        cameras.IsFrozen = false;
+        cameras.Refresh(registry);
+        Assert.Equal(TrackingText.Format(Resources.CameraDetail_Size, 4, 4), cameras.Streams[0].Detail);
     }
 
     [AvaloniaFact]

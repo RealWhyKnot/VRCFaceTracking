@@ -1143,6 +1143,12 @@
   <data name="ExternalOsc_Unavailable" xml:space="preserve">
     <value>Port unavailable</value>
   </data>
+  <data name="ExternalOsc_PortInUse" xml:space="preserve">
+    <value>Another app is already using this port.</value>
+  </data>
+  <data name="Settings_Port_ExternalConflict" xml:space="preserve">
+    <value>External tracker input uses this port.</value>
+  </data>
   <data name="Settings_Title" xml:space="preserve">
     <value>Settings</value>
   </data>

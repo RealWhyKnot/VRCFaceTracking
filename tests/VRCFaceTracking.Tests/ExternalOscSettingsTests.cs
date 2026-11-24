@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Services;
+using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Strings;
 using VRCFaceTracking.ViewModels;
 using VRCFaceTracking.Views;
@@ -176,6 +177,101 @@ public sealed class ExternalOscSettingsTests
         finally
         {
             target.InPort = originalIn;
+            Restore(service, original);
+            Close(window);
+        }
+    }
+
+    private static void Enable(ExternalOscInputService service, int port)
+    {
+        service.Settings.Port = port;
+        service.Settings.Enabled = true;
+        service.Apply();
+    }
+
+    [AvaloniaFact]
+    public void VrchatPortFieldsRejectTheExternalPort()
+    {
+        ExternalOscInputService service = App.GetService<ExternalOscInputService>();
+        IOscTarget target = App.GetService<IOscTarget>();
+        int original = service.Settings.Port;
+        int originalIn = target.InPort;
+        int originalOut = target.OutPort;
+        int port = FreePort();
+        Enable(service, port);
+        (_, Window window, SettingsViewModel vm) = Open(900, 600);
+
+        try
+        {
+            string text = port.ToString(CultureInfo.CurrentCulture);
+            vm.InPortField.Text = text;
+            vm.OutPortField.Text = text;
+
+            Assert.Equal(Resources.Settings_Port_ExternalConflict, vm.InPortField.Error);
+            Assert.Equal(Resources.Settings_Port_ExternalConflict, vm.OutPortField.Error);
+            Assert.Equal(originalIn, target.InPort);
+            Assert.Equal(originalOut, target.OutPort);
+            Assert.Equal(ExternalOscState.Listening, service.Status.State);
+        }
+        finally
+        {
+            Restore(service, original);
+            vm.ReloadOscFields();
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void VrchatPortMovedOntoTheExternalPortShowsTheConflict()
+    {
+        ExternalOscInputService service = App.GetService<ExternalOscInputService>();
+        IOscTarget target = App.GetService<IOscTarget>();
+        int original = service.Settings.Port;
+        int originalOut = target.OutPort;
+        int port = FreePort();
+        Enable(service, port);
+        (_, Window window, SettingsViewModel vm) = Open(900, 600);
+
+        try
+        {
+            target.OutPort = port;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(ExternalOscState.Error, service.Status.State);
+            Assert.Equal(Resources.ExternalOsc_PortConflict, vm.ExternalOscStatusText);
+
+            target.OutPort = originalOut;
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(ExternalOscState.Listening, service.Status.State);
+            Assert.Equal(TrackingText.Format(Resources.ExternalOsc_Listening, port), vm.ExternalOscStatusText);
+        }
+        finally
+        {
+            target.OutPort = originalOut;
+            Restore(service, original);
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public void PortHeldByAnotherAppSaysSo()
+    {
+        ExternalOscInputService service = App.GetService<ExternalOscInputService>();
+        int original = service.Settings.Port;
+        using var holder = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp) { ExclusiveAddressUse = true };
+        holder.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        int port = ((IPEndPoint)holder.LocalEndPoint!).Port;
+        Enable(service, port);
+        (_, Window window, SettingsViewModel vm) = Open(900, 600);
+
+        try
+        {
+            Assert.Equal(ExternalOscState.Error, service.Status.State);
+            Assert.Equal(Resources.ExternalOsc_PortInUse, vm.ExternalOscStatusText);
+        }
+        finally
+        {
             Restore(service, original);
             Close(window);
         }

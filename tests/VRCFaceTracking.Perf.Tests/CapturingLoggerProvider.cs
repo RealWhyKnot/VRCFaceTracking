@@ -9,6 +9,8 @@ internal sealed class CapturingLoggerProvider : ILoggerProvider
 
     public ILogger CreateLogger(string categoryName) => new CapturingLogger(this, categoryName.Replace("\0", "", StringComparison.Ordinal));
 
+    public bool Saw(string text) => _lines.Any(line => line.Contains(text, StringComparison.Ordinal));
+
     public string Tail(int count = 40) => string.Join(Environment.NewLine, _lines.TakeLast(count));
 
     public void Dispose()

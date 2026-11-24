@@ -62,6 +62,8 @@ public sealed partial class UnifiedLibManager
         }
     }
 
+    internal static int SandboxPort => SandboxServer?.Port ?? 0;
+
     public static void ShutdownSandboxServer()
     {
         VrcftSandboxServer? server = SandboxServer;

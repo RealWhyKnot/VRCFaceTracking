@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Osc;
 using VRCFaceTracking.Core.Params;
@@ -28,6 +29,7 @@ public sealed partial class ParameterSenderService : BackgroundService
     private long _diagStalls;
     private long _diagIdleTicks;
     private int _wakes;
+    private int _dataUpdates;
     private long _diagMessages;
     private long _staleSinceTicks;
     private TimeSpan _lastGcPause;
@@ -45,7 +47,9 @@ public sealed partial class ParameterSenderService : BackgroundService
     private readonly LoggingSettings? _loggingSettings;
     private readonly ShapeStatsLog? _shapeLog;
     private readonly SignalCapabilityTracker _capabilities;
+    private readonly IExternalTrackingSource? _external;
     private int _lastDataVersion;
+    private int _lastExternalVersion;
     private long _lastTick;
     private long _lastReport;
     private long _lastUpdate;
@@ -96,7 +100,9 @@ public sealed partial class ParameterSenderService : BackgroundService
         _mutator = mutator;
         _eyeLids = new EyeLidMonitor(logger);
         _timerResolution = timerResolution;
+        _external = mutator.ExternalSource;
         _lastDataVersion = UnifiedTracking.DataVersion;
+        _lastExternalVersion = _external?.Version ?? 0;
     }
 
     private void ReportDiagnostics()
@@ -122,6 +128,8 @@ public sealed partial class ParameterSenderService : BackgroundService
     public static void Clear() => SendQueue.Clear();
 
     internal int Wakes => Volatile.Read(ref _wakes);
+
+    internal int DataUpdates => Volatile.Read(ref _dataUpdates);
 
     internal int SendQueued()
     {
@@ -162,7 +170,9 @@ public sealed partial class ParameterSenderService : BackgroundService
 
     private void Run(CancellationToken cancellationToken)
     {
-        WaitHandle[] wakeHandles = [UnifiedTracking.DataArrived, cancellationToken.WaitHandle];
+        WaitHandle[] wakeHandles = _external is null
+            ? [UnifiedTracking.DataArrived, cancellationToken.WaitHandle]
+            : [UnifiedTracking.DataArrived, _external.DataArrived, cancellationToken.WaitHandle];
         long start = Stopwatch.GetTimestamp();
         _lastTick = start;
         _lastReport = start;
@@ -170,14 +180,23 @@ public sealed partial class ParameterSenderService : BackgroundService
 
         while (!cancellationToken.IsCancellationRequested)
         {
+            int waitMs = NextWaitMs();
             try
             {
-                int waitMs = NextWaitMs();
                 WaitHandle.WaitAny(wakeHandles, waitMs);
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
+            }
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            try
+            {
                 Tick(waitMs);
             }
             catch (Exception e) when (e is SocketException or ObjectDisposedException)
@@ -206,7 +225,7 @@ public sealed partial class ParameterSenderService : BackgroundService
         _lastTick = tickNow;
 
         bool diag = _logger.IsEnabled(LogLevel.Debug);
-        bool dataChanged = UnifiedTracking.DataVersion != _lastDataVersion;
+        bool dataChanged = ModuleDataChanged || ExternalDataChanged;
         int queued = diag ? SendQueue.Count : 0;
 
         UpdateOutput(tickNow, diag);
@@ -293,10 +312,20 @@ public sealed partial class ParameterSenderService : BackgroundService
         }
     }
 
+    private bool ModuleDataChanged => UnifiedTracking.DataVersion != _lastDataVersion;
+
+    private bool ExternalDataChanged => _external is not null && _external.Version != _lastExternalVersion;
+
     private void UpdateOutput(long tickNow, bool diag)
     {
-        bool dataChanged = UnifiedTracking.DataVersion != _lastDataVersion;
+        bool moduleChanged = ModuleDataChanged;
+        bool dataChanged = moduleChanged || ExternalDataChanged;
         _timerResolution.Observe(tickNow, dataChanged);
+        if (!moduleChanged)
+        {
+            _capabilities.Expire(tickNow);
+        }
+
         if (!dataChanged)
         {
             if ((tickNow - _lastUpdate) * ToMs >= RefreshIntervalMs)
@@ -314,20 +343,29 @@ public sealed partial class ParameterSenderService : BackgroundService
         }
 
         _lastDataVersion = UnifiedTracking.DataVersion;
-        ShapeStatsLog? shapeLog = ActiveShapeLog();
-        using (UnifiedTracking.LockData())
+        _lastExternalVersion = _external?.Version ?? 0;
+        ShapeStatsLog? shapeLog = moduleChanged ? ActiveShapeLog() : null;
+        if (moduleChanged)
         {
-            _capabilities.Observe(UnifiedTracking.Data, Stopwatch.GetTimestamp());
-            shapeLog?.RecordRaw(UnifiedTracking.Data);
+            using (UnifiedTracking.LockData())
+            {
+                _capabilities.Observe(UnifiedTracking.Data, Stopwatch.GetTimestamp());
+                shapeLog?.RecordRaw(UnifiedTracking.Data);
+            }
         }
 
         TrackingOutput.UpdateData();
+        Interlocked.Increment(ref _dataUpdates);
         _lastDataUpdate = _lastUpdate = Stopwatch.GetTimestamp();
         shapeLog?.RecordOutput(_lastDataUpdate, _mutator.LastOutput);
 
         if (diag)
         {
-            _sampleAgeMs.Add((_lastDataUpdate - UnifiedTracking.LastSampleTicks) * ToMs);
+            if (moduleChanged)
+            {
+                _sampleAgeMs.Add((_lastDataUpdate - UnifiedTracking.LastSampleTicks) * ToMs);
+            }
+
             (float rawLeft, float rawRight, float outLeft, float outRight) = _mutator.LastEyeOpenness;
             _eyeLids.Observe(_lastDataUpdate, rawLeft, rawRight, outLeft, outRight);
         }

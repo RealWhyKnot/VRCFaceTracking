@@ -34,7 +34,7 @@ internal sealed partial class ModuleProcessMain
                 ImageStreamEnabled = ((EventSetImageStreamPacket)packet).Enabled;
                 break;
             case IpcPacket.PacketType.EventCameraControl:
-                CameraControls.Enqueue(((CameraControlPacket)packet).Command, trackingModule as IModuleCameraControl);
+                CameraControls.Enqueue(((CameraControlPacket)packet).Command, trackingModule as IModuleCameraControl, fileLogger);
                 break;
             case IpcPacket.PacketType.EventUpdateStatus:
                 ApplyStatus((EventStatusUpdatePacket)packet, trackingModule);
@@ -105,7 +105,7 @@ internal sealed partial class ModuleProcessMain
         var snapshot = new UnifiedTrackingData();
         var controls = trackingModule as IModuleCameraControl;
         CameraFrameForwarder? forwarder = trackingModule is ICameraStreamProvider provider
-            ? new CameraFrameForwarder(provider, controls?.SupportedCameraControls ?? CameraControlCapabilities.None, PacketsToSend.Enqueue)
+            ? new CameraFrameForwarder(provider, CameraControls.SupportedBy(controls, fileLogger), PacketsToSend.Enqueue, logger: fileLogger)
             : null;
         byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
         var timerResolution = new TimerResolutionHold(Logger);
@@ -117,7 +117,7 @@ internal sealed partial class ModuleProcessMain
             long t0 = Stopwatch.GetTimestamp();
             if (controls != null)
             {
-                CameraControls.Drain(controls);
+                CameraControls.Drain(controls, fileLogger);
             }
 
             trackingModule.Update();
