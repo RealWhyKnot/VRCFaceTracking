@@ -112,27 +112,36 @@ public sealed class OscQueryTests
     [Fact]
     public async Task PollAvatarIdBacksOffWhenTheIdIsFoundButTheConfigIsNot()
     {
-        int loads = 0;
+        const int Ticks = 40;
+        int tick = 0;
+        var loadTicks = new List<int>();
         using var cts = new CancellationTokenSource();
 
         Task poll = OscQueryService.PollAvatarIdAsync(
-            () => Endpoint,
+            () =>
+            {
+                if (++tick > Ticks)
+                {
+                    cts.Cancel();
+                    return null;
+                }
+
+                return Endpoint;
+            },
             (_, _) => Task.FromResult<string?>("avtr_a"),
             () => null,
             _ =>
             {
-                Interlocked.Increment(ref loads);
+                loadTicks.Add(tick);
                 return Task.FromResult(false);
             },
             FastPoll,
             NullLogger.Instance,
             cts.Token);
 
-        await Task.Delay(400, cts.Token);
-        await cts.CancelAsync();
         await poll.WaitAsync(Timeout, CancellationToken.None);
 
-        Assert.InRange(Volatile.Read(ref loads), 2, 12);
+        Assert.Equal([1, 3, 7, 15, 24, 33], loadTicks);
     }
 
     [Fact]

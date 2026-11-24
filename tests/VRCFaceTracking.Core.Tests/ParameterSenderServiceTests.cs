@@ -122,6 +122,7 @@ public sealed class ParameterSenderServiceTests
     public async Task MarkDataUpdatedSendsWithoutWaitingForATick()
     {
         int armed = 0;
+        int refreshes = 0;
         OscMessage ping = Ping();
         await using var harness = new Harness((_, _) =>
         {
@@ -129,16 +130,18 @@ public sealed class ParameterSenderServiceTests
             {
                 ParameterSenderService.Enqueue(ping);
             }
+
+            Interlocked.Increment(ref refreshes);
         });
         await harness.Sender.StartAsync(CancellationToken.None);
-        await Task.Delay(100);
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref refreshes) > 0, TimeSpan.FromSeconds(2)), "the sender never ran an idle refresh");
 
         long start = Stopwatch.GetTimestamp();
         Volatile.Write(ref armed, 1);
         UnifiedTracking.MarkDataUpdated();
 
         Assert.True(harness.WaitForPing(out double elapsedMs, start));
-        Assert.True(elapsedMs < 50, $"took {elapsedMs:N2} ms");
+        Assert.True(elapsedMs < 150, $"took {elapsedMs:N2} ms, the next idle refresh was 250 ms away");
     }
 
     [Fact]
@@ -203,7 +206,8 @@ public sealed class ParameterSenderServiceTests
         await harness.Sender.StartAsync(CancellationToken.None);
 
         UnifiedTracking.MarkDataUpdated();
-        await Task.Delay(100);
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref raises) > 0, TimeSpan.FromSeconds(2)), "the sender never raised the timer resolution");
+        await Task.Delay(50);
         Assert.Equal(1, Volatile.Read(ref raises));
         Assert.Equal(0, Volatile.Read(ref releases));
 
