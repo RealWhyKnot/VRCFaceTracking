@@ -14,6 +14,7 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
     private const int MaxBundleDepth = 8;
     private const int EyeChannelCount = 8;
     private const int ReceiveTimeoutMs = 250;
+    private const int MaxDatagramSize = 65535;
     private static readonly TimeSpan ReceivingWindow = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan StaleWindow = TimeSpan.FromSeconds(1);
 
@@ -39,8 +40,7 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
     private bool _anyDriven;
     private int _releaseEpoch;
 
-    private UdpClient? _client;
-    private Thread? _thread;
+    private ReceiveSession? _session;
     private ExternalOscState _state;
     private string? _lastError;
     private long _lastPacket;
@@ -79,7 +79,10 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
                         state = ExternalOscState.Receiving;
                     }
 
-                    return new ExternalOscStatus(state, state == ExternalOscState.Receiving ? _rate : 0, _lastError);
+                    string? fault = _session?.Fault;
+                    return fault != null
+                        ? new ExternalOscStatus(ExternalOscState.Error, 0, fault)
+                        : new ExternalOscStatus(state, state == ExternalOscState.Receiving ? _rate : 0, _lastError);
                 }
             }
         }
@@ -186,26 +189,33 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
 
     private bool TryBind(int port)
     {
+        Socket? socket = null;
         try
         {
-            var client = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
-            client.Client.ReceiveTimeout = ReceiveTimeoutMs;
-            _client = client;
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+            {
+                ReceiveTimeout = ReceiveTimeoutMs,
+            };
+            socket.Bind(new IPEndPoint(IPAddress.Loopback, port));
+            var session = new ReceiveSession(socket);
+            socket = null;
             _state = ExternalOscState.Listening;
             _lastError = null;
             ResetRate();
             ClearValues();
-            _thread = new Thread(() => ReceiveLoop(client))
+            session.Thread = new Thread(() => ReceiveLoop(session))
             {
                 IsBackground = true,
                 Name = "External OSC input",
             };
-            _thread.Start();
+            _session = session;
+            session.Thread.Start();
             LogListening(_logger, port);
             return true;
         }
         catch (SocketException ex)
         {
+            socket?.Dispose();
             _state = ExternalOscState.Error;
             _lastError = ex.SocketErrorCode.ToString();
             LogBindFailed(_logger, port, ex.SocketErrorCode);
@@ -215,14 +225,12 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
 
     private void StopLocked()
     {
-        UdpClient? client = _client;
-        Thread? thread = _thread;
-        _client = null;
-        _thread = null;
-        client?.Dispose();
-        thread?.Join(TimeSpan.FromSeconds(1));
-        if (client != null)
+        ReceiveSession? session = _session;
+        _session = null;
+        if (session != null)
         {
+            session.Stop();
+            session.Thread?.Join();
             ClearValues();
         }
 
@@ -242,27 +250,64 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
         }
     }
 
-    private void ReceiveLoop(UdpClient client)
+    private void ReceiveLoop(ReceiveSession session)
     {
-        var remote = new IPEndPoint(IPAddress.Any, 0);
-        while (true)
+        Socket socket = session.Socket;
+        byte[] buffer = new byte[MaxDatagramSize];
+        EndPoint remote = new IPEndPoint(IPAddress.Any, 0);
+        while (!session.IsStopping)
         {
-            byte[] datagram;
+            int length;
             try
             {
-                datagram = client.Receive(ref remote);
+                length = socket.ReceiveFrom(buffer, ref remote);
             }
-            catch (SocketException ex) when (ex.SocketErrorCode is SocketError.TimedOut or SocketError.ConnectionReset)
+            catch (SocketException ex) when (!session.IsStopping && ex.SocketErrorCode is SocketError.TimedOut or SocketError.ConnectionReset)
             {
                 continue;
             }
             catch (Exception ex) when (ex is ObjectDisposedException or SocketException)
             {
+                if (!session.IsStopping)
+                {
+                    session.Fault = ex is SocketException socketEx ? socketEx.SocketErrorCode.ToString() : nameof(ObjectDisposedException);
+                    LogReceiveFailed(_logger, session.Fault);
+                }
+
+                return;
+            }
+
+            if (session.IsStopping)
+            {
                 return;
             }
 
             Count();
-            Ingest(datagram, datagram.Length);
+            Ingest(buffer, length);
+        }
+    }
+
+    private sealed class ReceiveSession
+    {
+        private volatile bool _isStopping;
+
+        public ReceiveSession(Socket socket)
+        {
+            Socket = socket;
+        }
+
+        public Socket Socket { get; }
+
+        public Thread? Thread { get; set; }
+
+        public bool IsStopping => _isStopping;
+
+        public volatile string? Fault;
+
+        public void Stop()
+        {
+            _isStopping = true;
+            Socket.Dispose();
         }
     }
 
@@ -362,6 +407,9 @@ public sealed partial class ExternalOscInputService : IExternalTrackingSource, I
 
     [LoggerMessage(Level = LogLevel.Information, Message = "External OSC input listening on port {Port}")]
     private static partial void LogListening(ILogger logger, int port);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "External OSC input stopped receiving ({Error})")]
+    private static partial void LogReceiveFailed(ILogger logger, string error);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "External OSC input could not use port {Port} ({Error})")]
     private static partial void LogBindFailed(ILogger logger, int port, SocketError error);

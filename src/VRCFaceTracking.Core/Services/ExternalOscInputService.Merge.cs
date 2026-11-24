@@ -7,7 +7,7 @@ public sealed partial class ExternalOscInputService
 {
     public void Merge(UnifiedTrackingData data)
     {
-        if (Volatile.Read(ref _client) == null || !Settings.Enabled)
+        if (Volatile.Read(ref _session) == null || !Settings.Enabled)
         {
             return;
         }

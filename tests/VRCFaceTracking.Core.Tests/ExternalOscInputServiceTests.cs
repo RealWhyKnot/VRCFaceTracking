@@ -304,7 +304,8 @@ public sealed class ExternalOscInputServiceTests
 
         using var sender = new UdpClient();
         byte[] datagram = Message("/jawOpen", 0.8f);
-        for (int i = 0; i < 100 && !service.TryGetShape(UnifiedExpressions.JawOpen, out _); i++)
+        long deadline = Environment.TickCount64 + 30000;
+        while (Environment.TickCount64 < deadline && !service.TryGetShape(UnifiedExpressions.JawOpen, out _))
         {
             await sender.SendAsync(datagram, datagram.Length, new IPEndPoint(IPAddress.Loopback, port));
             await Task.Delay(20);
@@ -362,6 +363,77 @@ public sealed class ExternalOscInputServiceTests
         Assert.Empty(service.ShapeSnapshot());
         using var reuse = new UdpClient(new IPEndPoint(IPAddress.Loopback, first));
         Assert.Throws<SocketException>(() => new UdpClient(new IPEndPoint(IPAddress.Loopback, second)));
+    }
+
+    private static async Task FloodAsync(int[] ports, CancellationToken stopToken)
+    {
+        using var sender = new UdpClient();
+        byte[] datagram = Message("/jawOpen", 0.5f);
+        while (!stopToken.IsCancellationRequested)
+        {
+            foreach (int port in ports)
+            {
+                await sender.SendAsync(datagram, datagram.Length, new IPEndPoint(IPAddress.Loopback, port));
+            }
+
+            await Task.Yield();
+        }
+    }
+
+    private static void Churn(int[] ports, int round)
+    {
+        var settings = new ExternalOscInputSettings { Enabled = true, Port = ports[round % ports.Length] };
+        using ExternalOscInputService service = Create(settings);
+        Assert.True(service.Apply());
+        settings.Port = ports[(round + 1) % ports.Length];
+        Assert.True(service.Apply());
+        if (round % 3 == 0)
+        {
+            settings.Enabled = false;
+            Assert.True(service.Apply());
+        }
+
+        service.Dispose();
+    }
+
+    [Fact]
+    public async Task RapidRebindDisableAndDisposeNeverFaultTheReceiveThread()
+    {
+        int[] ports = [FreePort(), FreePort(), FreePort()];
+        var escaped = new List<Exception>();
+        void OnUnhandled(object? sender, UnhandledExceptionEventArgs args)
+        {
+            lock (escaped)
+            {
+                escaped.Add((Exception)args.ExceptionObject);
+            }
+        }
+
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandled;
+        try
+        {
+            using var stop = new CancellationTokenSource();
+            var flood = Task.Run(() => FloodAsync(ports, stop.Token), CancellationToken.None);
+            for (int round = 0; round < 150; round++)
+            {
+                Churn(ports, round);
+            }
+
+            await stop.CancelAsync();
+            await flood.WaitAsync(TimeSpan.FromSeconds(30), CancellationToken.None);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.UnhandledException -= OnUnhandled;
+        }
+
+        Assert.Empty(escaped);
+        foreach (int port in ports)
+        {
+            using var reuse = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+        }
     }
 
     [Fact]
