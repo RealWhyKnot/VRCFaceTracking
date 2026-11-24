@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
@@ -68,6 +69,19 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
     public bool RelaxOnFreeze { get; set; } = true;
     [MutationProperty("Seconds Before Relaxing", true, MinFreezeSeconds, MaxFreezeSeconds, Group = "Dropouts", Indented = true)]
     public float FreezeSeconds { get; set; } = 2f;
+
+    [JsonIgnore]
+    public override string StatusSummary
+    {
+        get
+        {
+            bool anyEnabled = IsActive && (QuietMouth || StuckEyelidFallback || RelaxOnFreeze);
+            return !anyEnabled ? "Off"
+                : _relaxing ? "Active: relaxing frozen tracking"
+                : _coveringLeft || _coveringRight ? "Active: covering a stuck eyelid"
+                : "Active";
+        }
+    }
 
     internal Func<double> NowSeconds { get; set; } = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
     internal Func<UnifiedTrackingData> RawInput { get; set; } = () => UnifiedTracking.Data;
@@ -168,6 +182,7 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
             return;
         }
 
+        MarkTriggered();
         float trim = Math.Clamp(TwitchTrim, 0f, MaxTwitchTrim) * _quiet;
         foreach (UnifiedExpressions shape in TwitchShapes)
         {
@@ -202,6 +217,11 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
 
         _coveringLeft = coverLeft;
         _coveringRight = coverRight;
+
+        if (coverLeft || coverRight)
+        {
+            MarkTriggered();
+        }
 
         if (coverLeft)
         {
@@ -244,6 +264,7 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
             return;
         }
 
+        MarkTriggered();
         float keep = 1f - _relax;
         for (int i = 0; i < data.Shapes.Length; i++)
         {

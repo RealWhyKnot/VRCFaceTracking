@@ -2,15 +2,17 @@ using System.Diagnostics;
 using System.Runtime;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Core.Contracts.Services;
+using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Params.Data;
 
 namespace VRCFaceTracking.Core;
 
-public sealed partial class MainStandalone : IMainService
+public sealed partial class MainStandalone : IMainService, IDisposable
 {
     private readonly ILogger<MainStandalone> _logger;
     private readonly ILibManager _libManager;
     private readonly UnifiedTrackingMutator _mutator;
+    private readonly SessionHeartbeat _heartbeat;
 
     public Action<string, float> ParameterUpdate { get; set; } = (_, _) => { };
 
@@ -23,7 +25,10 @@ public sealed partial class MainStandalone : IMainService
         _logger = logger;
         _libManager = libManager;
         _mutator = mutator;
+        _heartbeat = new SessionHeartbeat(logger, LogDirectories.Current);
     }
+
+    public void Dispose() => _heartbeat.Dispose();
 
     public async Task TeardownAsync(CancellationToken cancellationToken)
     {
@@ -33,10 +38,12 @@ public sealed partial class MainStandalone : IMainService
         _libManager.TeardownAllAndReset();
 
         LogTeardownCompleteAwaitingExit(_logger);
+        _heartbeat.Stop();
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
+        _heartbeat.Start();
         try
         {
             VRChat.EnsureVRCOSCDirectory();

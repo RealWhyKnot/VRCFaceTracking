@@ -26,9 +26,27 @@ public abstract class TrackingMutation
     [JsonIgnore]
     public ObservableCollection<IMutationComponent> Components { get; private set; } = [];
 
-    public virtual bool IsSaved => false;
-
     public virtual bool IsActive { get; set; }
+
+    private long _lastTriggeredTicks;
+
+    [JsonIgnore]
+    public virtual string StatusSummary => IsActive ? "Active" : "Off";
+
+    [JsonIgnore]
+    public DateTimeOffset? LastTriggeredUtc
+    {
+        get
+        {
+            long ticks = Interlocked.Read(ref _lastTriggeredTicks);
+            return ticks == 0 ? null : new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
+    }
+
+    [JsonIgnore]
+    internal TimeProvider Clock { get; set; } = TimeProvider.System;
+
+    protected void MarkTriggered() => Interlocked.Exchange(ref _lastTriggeredTicks, Clock.GetUtcNow().UtcTicks);
 
     [JsonIgnore]
     public bool ActiveSwitch

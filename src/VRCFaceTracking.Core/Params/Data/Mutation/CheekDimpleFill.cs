@@ -1,3 +1,4 @@
+using Newtonsoft.Json;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
@@ -26,6 +27,33 @@ public sealed class CheekDimpleFill : TrackingMutation
 
     internal Func<AvatarParameterSnapshot?> CurrentAvatar { get; set; } = () => AvatarParameters.Current;
 
+    [JsonIgnore]
+    public override string StatusSummary
+    {
+        get
+        {
+            if (!IsActive || (!CheekToEyeSquint && !DimpleToSmile))
+            {
+                return "Off";
+            }
+
+            AvatarParameterSnapshot? avatar = CurrentAvatar();
+            if (avatar == null)
+            {
+                return "Waiting for avatar";
+            }
+
+            if (avatar.UsesNativeFaceTracking)
+            {
+                return "Skipped: VRChat native face tracking active";
+            }
+
+            bool cheek = CheekToEyeSquint && !avatar.DrivesAny(CheekSquintParameters);
+            bool dimple = DimpleToSmile && !avatar.DrivesAny(DimpleParameters);
+            return cheek || dimple ? "Active" : "Skipped: avatar already has Cheek & Dimple parameters";
+        }
+    }
+
     public override void MutateData(ref UnifiedTrackingData data)
     {
         AvatarParameterSnapshot? avatar = CurrentAvatar();
@@ -47,12 +75,13 @@ public sealed class CheekDimpleFill : TrackingMutation
         }
     }
 
-    private static void Fill(UnifiedTrackingData data, UnifiedExpressions source, UnifiedExpressions target, float strength)
+    private void Fill(UnifiedTrackingData data, UnifiedExpressions source, UnifiedExpressions target, float strength)
     {
         float routed = Math.Clamp(data.Shapes[(int)source].Weight * strength, 0f, 1f);
         if (routed > data.Shapes[(int)target].Weight)
         {
             data.Shapes[(int)target].Weight = routed;
+            MarkTriggered();
         }
     }
 }

@@ -1,17 +1,32 @@
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
 public sealed partial class Calibration : TrackingMutation
 {
+    internal const int DefaultWindowSize = 64;
+    internal const int MinWindowSize = 8;
+    internal const int MaxWindowSize = 1024;
+    internal const float DefaultStepDelta = 0.15f;
+
     private const float FrameSeconds = 0.1f;
+    private const float LearnedProgress = 0.999f;
 
-    [MutationProperty("Window Size", Developer = true)]
-    public static int WindowSize { get; set; } = 64;
+    [MutationProperty("Window Size", true, Developer = true)]
+    public int WindowSize
+    {
+        get;
+        set => field = Math.Clamp(value, MinWindowSize, MaxWindowSize);
+    } = DefaultWindowSize;
 
-    [MutationProperty("Step Delta", Developer = true)]
-    public static float StepDelta { get; set; } = 0.15f;
+    [MutationProperty("Step Delta", true, Developer = true)]
+    public float StepDelta
+    {
+        get;
+        set => field = float.IsFinite(value) && value > 0f ? value : DefaultStepDelta;
+    } = DefaultStepDelta;
 
     [MutationProperty("Calibration Blend", true)]
     public float CalibrationBlend { get; set; } = 1f;
@@ -19,13 +34,65 @@ public sealed partial class Calibration : TrackingMutation
     [MutationProperty("Continuous Calibration", true)]
     public bool ContinuousCalibration { get; set; }
 
-    public CalibrationData CalData { get; set; } = new();
+    public CalibrationData CalData
+    {
+        get;
+        set
+        {
+            field = value ?? new();
+            ApplyWindowSize();
+        }
+    } = new();
+
+    [JsonIgnore]
+    public CalibrationStatus Status
+    {
+        get
+        {
+            IReadOnlyList<CalibrationParameter> shapes = CalData.Shapes;
+            int total = shapes.Count;
+            int learned = 0;
+            int started = 0;
+            float sum = 0f;
+            for (int i = 0; i < total; i++)
+            {
+                float progress = shapes[i].Progress;
+                sum += progress;
+                if (progress > 0f)
+                {
+                    started++;
+                }
+
+                if (progress >= LearnedProgress)
+                {
+                    learned++;
+                }
+            }
+
+            float aggregate = total == 0 ? 0f : Math.Clamp(sum / total, 0f, 1f);
+            CalibrationState state = !IsActive
+                ? CalibrationState.Off
+                : learned > 0 && learned == started ? CalibrationState.Ready : CalibrationState.Learning;
+            return new CalibrationStatus(state, aggregate, learned, total);
+        }
+    }
+
+    [JsonIgnore]
+    public float Progress => Status.Progress;
+
+    [JsonIgnore]
+    public int LearnedShapeCount => Status.LearnedShapeCount;
+
+    [JsonIgnore]
+    public int TotalShapeCount => CalData.Shapes.Count;
+
+    [JsonIgnore]
+    public string StatusText => Status.Text;
 
     public override string Name => "Calibration";
     public override string Description => "Normalizes tracking data.";
     public override MutationPriority Priority => MutationPriority.Preprocessor;
     public override int PageOrder => 5;
-    public override bool IsSaved => true;
 
     public override void Initialize(UnifiedTrackingData data) => CalData ??= new();
 
@@ -36,7 +103,7 @@ public sealed partial class Calibration : TrackingMutation
         for (int i = 0; i < count; i++)
         {
             CalibrationParameter shape = shapes[i];
-            shape.UpdateCalibration(data.Shapes[i].Weight, ContinuousCalibration, Logger, FrameSeconds);
+            shape.UpdateCalibration(data.Shapes[i].Weight, ContinuousCalibration, Logger, FrameSeconds, StepDelta, WindowSize);
             data.Shapes[i].Weight = shape.CalculateParameter(data.Shapes[i].Weight, CalibrationBlend);
         }
     }
@@ -64,6 +131,15 @@ public sealed partial class Calibration : TrackingMutation
 
     [MutationButton("Reset Calibration")]
     public void ClearData() => CalData.Clear();
+
+    private void ApplyWindowSize()
+    {
+        IReadOnlyList<CalibrationParameter> shapes = CalData.Shapes;
+        for (int i = 0; i < shapes.Count; i++)
+        {
+            shapes[i].Resize(WindowSize);
+        }
+    }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Logging Calibration data: delta: {Delta} points: {Points}")]
     private static partial void LogWindow(ILogger logger, float delta, int points);

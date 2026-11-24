@@ -1,8 +1,10 @@
+using Microsoft.Extensions.Logging;
+using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
-public sealed class Correctors : TrackingMutation
+public sealed partial class Correctors : TrackingMutation
 {
     public override string Name => "Unified Correctors";
     public override string Description => "Processes data to conform to Unified Expressions.";
@@ -12,12 +14,39 @@ public sealed class Correctors : TrackingMutation
 
     [MutationProperty("MouthClosed/JawOpen Clamp", true, Group = "Mouth")]
     public bool MouthClosedFix { get; set; } = true;
+    [MutationProperty("Jaw Reduces When Mouth Closed", true, Group = "Mouth", Indented = true)]
+    public bool MouthCloseCompensation { get; set; }
     [MutationProperty("LipSuck Limiter", true, Group = "Mouth")]
     public bool LipSuckFix { get; set; } = true;
 
     [MutationProperty("EyeLook Symmetrize", true, Group = "Eyes")]
     public bool EyeLookSymmetrize { get; set; }
 
+    internal const string AssistsSettingName = "Mouth & Brow Assists";
+
+    internal sealed class SavedCompensation
+    {
+        public bool? MouthCloseCompensation { get; set; }
+    }
+
+    internal async Task MoveCompensationFromAssistsAsync(ILocalSettingsService settings, CancellationToken cancellationToken)
+    {
+        SavedCompensation? saved = await settings.ReadSettingAsync<SavedCompensation>(Name, defaultValue: null, forceLocal: true, cancellationToken).ConfigureAwait(false);
+        if (saved?.MouthCloseCompensation != null)
+        {
+            return;
+        }
+
+        SavedCompensation? old = await settings.ReadSettingAsync<SavedCompensation>(AssistsSettingName, defaultValue: null, forceLocal: true, cancellationToken).ConfigureAwait(false);
+        if (old?.MouthCloseCompensation is not { } enabled)
+        {
+            return;
+        }
+
+        MouthCloseCompensation = enabled;
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+        LogCompensationMoved(Logger, enabled, AssistsSettingName, Name);
+    }
 
     public override void MutateData(ref UnifiedTrackingData data)
     {
@@ -28,6 +57,15 @@ public sealed class Correctors : TrackingMutation
                     data.Shapes[(int)UnifiedExpressions.MouthClosed].Weight,
                     data.Shapes[(int)UnifiedExpressions.JawOpen].Weight
                 );
+        }
+
+        if (MouthCloseCompensation)
+        {
+            float jaw = data.Shapes[(int)UnifiedExpressions.JawOpen].Weight;
+            float closed = data.Shapes[(int)UnifiedExpressions.MouthClosed].Weight;
+            float reduced = Math.Max(0f, jaw - (0.6f * closed));
+            data.Shapes[(int)UnifiedExpressions.JawOpen].Weight = reduced;
+            data.Shapes[(int)UnifiedExpressions.MouthClosed].Weight = Math.Min(closed, reduced);
         }
 
         if (LipSuckFix)
@@ -45,4 +83,7 @@ public sealed class Correctors : TrackingMutation
             data.Eye.Left.Gaze.y = combinedY;
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Moved Mouth Close Compensation {Enabled} from {From} to {To}")]
+    private static partial void LogCompensationMoved(ILogger logger, bool enabled, string from, string to);
 }

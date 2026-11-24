@@ -48,6 +48,7 @@ public sealed class OscQueryTests
             {
                 dispatched.Add(id);
                 loaded = id;
+                return Task.FromResult(true);
             },
             FastPoll,
             NullLogger.Instance,
@@ -91,6 +92,7 @@ public sealed class OscQueryTests
             {
                 dispatched.Add(id);
                 loaded = id;
+                return Task.FromResult(true);
             },
             FastPoll,
             NullLogger.Instance,
@@ -105,6 +107,70 @@ public sealed class OscQueryTests
         await poll.WaitAsync(Timeout, CancellationToken.None);
 
         Assert.Equal(["avtr_a"], dispatched, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task PollAvatarIdBacksOffWhenTheIdIsFoundButTheConfigIsNot()
+    {
+        int loads = 0;
+        using var cts = new CancellationTokenSource();
+
+        Task poll = OscQueryService.PollAvatarIdAsync(
+            () => Endpoint,
+            (_, _) => Task.FromResult<string?>("avtr_a"),
+            () => null,
+            _ =>
+            {
+                Interlocked.Increment(ref loads);
+                return Task.FromResult(false);
+            },
+            FastPoll,
+            NullLogger.Instance,
+            cts.Token);
+
+        await Task.Delay(400, cts.Token);
+        await cts.CancelAsync();
+        await poll.WaitAsync(Timeout, CancellationToken.None);
+
+        Assert.InRange(Volatile.Read(ref loads), 2, 12);
+    }
+
+    [Fact]
+    public async Task PollAvatarIdBackoffResetsWhenTheAvatarChanges()
+    {
+        int loads = 0;
+        string current = "avtr_a";
+        var changed = new TaskCompletionSource();
+        using var cts = new CancellationTokenSource();
+
+        Task poll = OscQueryService.PollAvatarIdAsync(
+            () => Endpoint,
+            (_, _) => Task.FromResult<string?>(Volatile.Read(ref current)),
+            () => null,
+            id =>
+            {
+                int n = Interlocked.Increment(ref loads);
+                if (n == 4)
+                {
+                    Volatile.Write(ref current, "avtr_b");
+                }
+
+                if (string.Equals(id, "avtr_b", StringComparison.Ordinal))
+                {
+                    changed.TrySetResult();
+                }
+
+                return Task.FromResult(false);
+            },
+            FastPoll,
+            NullLogger.Instance,
+            cts.Token);
+
+        await changed.Task.WaitAsync(Timeout, cts.Token);
+        await cts.CancelAsync();
+        await poll.WaitAsync(Timeout, CancellationToken.None);
+
+        Assert.True(Volatile.Read(ref loads) >= 5);
     }
 
     [Fact]
@@ -135,6 +201,8 @@ public sealed class OscQueryTests
                 {
                     loaded = id;
                 }
+
+                return Task.FromResult(true);
             },
             FastPoll,
             NullLogger.Instance,

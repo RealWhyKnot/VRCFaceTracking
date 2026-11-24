@@ -13,6 +13,7 @@ public interface ILibManager
     {
         get;
     }
+    TrackingOwnershipSnapshot GetOwnershipSnapshot();
     void Initialize();
     void TeardownAllAndReset();
     void SetImageStreamEnabled(bool enabled);

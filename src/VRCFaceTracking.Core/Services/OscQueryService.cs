@@ -16,6 +16,7 @@ namespace VRCFaceTracking.Core.Services;
 public sealed partial class OscQueryService : ObservableObject, IHostedService, IDisposable
 {
     private static readonly TimeSpan AvatarPollInterval = TimeSpan.FromSeconds(1);
+    internal const int MaxPollBackoffTicks = 8;
     internal const string FullFaceTrackingAddress = "/avatar/avatarfullfacetracking";
     internal const string VoiceAddress = "/avatar/parameters/Voice";
     internal const string MuteSelfAddress = "/avatar/parameters/MuteSelf";
@@ -41,6 +42,7 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
     private string? _loadedAvatarId;
     private bool _loadedFullFaceTracking;
     private string? _requestedAvatarId;
+    private string? _seenAvatarId;
     private bool? _reportedFullFaceTracking;
 
     public OscQueryService(
@@ -137,18 +139,18 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
         await HandleNewAvatarAsync(newId: null, _stopping.Token).ConfigureAwait(false);
     }
 
-    private async Task HandleNewAvatarAsync(string? newId, CancellationToken cancellationToken)
+    private async Task<bool> HandleNewAvatarAsync(string? newId, CancellationToken cancellationToken)
     {
         try
         {
             if (!await TryEnterAvatarParseAsync(newId, cancellationToken).ConfigureAwait(false))
             {
-                return;
+                return true;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return;
+            return true;
         }
 
         try
@@ -157,15 +159,14 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
             if (IsAlreadyLoaded(newId, _loadedAvatarId, reportedFullFaceTracking, _loadedFullFaceTracking))
             {
                 LogDiagAvatarSkippingReloadAlready(_logger, newId);
-                return;
+                return true;
             }
 
-            (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? newAvatar = _multicastDnsService.VrchatClientEndpoint != null
-                ? await _oscQueryConfigParser.ParseAvatarAsync(cancellationToken).ConfigureAwait(false)
-                : await _avatarConfigParser.ParseAvatarAsync(newId, skipParams: false, fullFaceTracking: reportedFullFaceTracking == true, cancellationToken).ConfigureAwait(false);
+            OscQueryLoadResult result = await LoadConfigAsync(newId, reportedFullFaceTracking, cancellationToken).ConfigureAwait(false);
+            (IAvatarInfo avatarInfo, List<Parameter> relevantParameters)? newAvatar = result.Avatar;
             if (!newAvatar.HasValue)
             {
-                return;
+                return !result.NotFound;
             }
 
             _httpHandler.HostInfoQueried -= HandleNewAvatarWrapper;
@@ -177,19 +178,30 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
                 AvatarInfo = newAvatar.Value.avatarInfo;
                 AvatarParameters = newAvatar.Value.relevantParameters;
             });
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             LogFailedLoadAvatarConfiguration(_logger, ex);
+            return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return;
+            return true;
         }
         finally
         {
             _avatarParseLock.Release();
         }
+    }
+
+    private async Task<OscQueryLoadResult> LoadConfigAsync(string? newId, bool? reportedFullFaceTracking, CancellationToken cancellationToken)
+    {
+        return _multicastDnsService.VrchatClientEndpoint != null
+            ? await _oscQueryConfigParser.LoadAvatarAsync(cancellationToken).ConfigureAwait(false)
+            : new OscQueryLoadResult(
+                Avatar: await _avatarConfigParser.ParseAvatarAsync(newId, skipParams: false, fullFaceTracking: reportedFullFaceTracking == true, cancellationToken).ConfigureAwait(false),
+                NotFound: false);
     }
 
     private async Task<bool> TryEnterAvatarParseAsync(string? newId, CancellationToken cancellationToken)
@@ -218,16 +230,30 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
         await _avatarPoll.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    internal static int PollBackoffTicks(int consecutiveNotFound) =>
+        consecutiveNotFound < 1 ? 0 : Math.Min((1 << Math.Min(consecutiveNotFound, 4)) - 1, MaxPollBackoffTicks);
+
+    private void NoteAvatarId(string? id)
+    {
+        if (id != null && !string.Equals(Interlocked.Exchange(ref _seenAvatarId, id), id, StringComparison.Ordinal))
+        {
+            _oscQueryConfigParser.NotifyAvatarChanged();
+        }
+    }
+
     internal static async Task PollAvatarIdAsync(
         Func<IPEndPoint?> endpoint,
         Func<IPEndPoint, CancellationToken, Task<string?>> fetchId,
         Func<string?> loadedId,
-        Action<string> load,
+        Func<string, Task<bool>> load,
         TimeSpan interval,
         ILogger logger,
         CancellationToken cancellationToken)
     {
         bool failing = false;
+        int notFound = 0;
+        int skip = 0;
+        string? lastId = null;
         try
         {
             using var timer = new PeriodicTimer(interval);
@@ -235,6 +261,12 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
             {
                 if (endpoint() is not { } target)
                 {
+                    continue;
+                }
+
+                if (skip > 0)
+                {
+                    skip--;
                     continue;
                 }
 
@@ -247,13 +279,23 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
                         LogDiagAvatarPollRecovered(logger, target);
                     }
 
-                    if (id != null && !string.Equals(id, loadedId(), StringComparison.Ordinal))
+                    bool pending = id != null && !string.Equals(id, loadedId(), StringComparison.Ordinal);
+                    if (!pending || !string.Equals(id, lastId, StringComparison.Ordinal))
                     {
-                        load(id);
+                        notFound = 0;
+                    }
+
+                    lastId = id;
+                    if (pending)
+                    {
+                        notFound = await load(id!).ConfigureAwait(false) ? 0 : notFound + 1;
+                        skip = PollBackoffTicks(notFound);
                     }
                 }
                 catch (Exception e) when (!cancellationToken.IsCancellationRequested && e is HttpRequestException or TaskCanceledException or JsonException)
                 {
+                    notFound = e is HttpRequestException { StatusCode: HttpStatusCode.NotFound } ? notFound + 1 : 0;
+                    skip = PollBackoffTicks(notFound);
                     if (!failing)
                     {
                         failing = true;
@@ -274,6 +316,7 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
         {
             case "/avatar/change":
                 _requestedAvatarId = msg.Value as string;
+                NoteAvatarId(_requestedAvatarId);
                 _reportedFullFaceTracking = null;
                 _ = HandleNewAvatarAsync(_requestedAvatarId, _stopping.Token);
                 break;
@@ -325,7 +368,11 @@ public sealed partial class OscQueryService : ObservableObject, IHostedService, 
                 () => _owner._multicastDnsService.VrchatClientEndpoint,
                 _owner._oscQueryConfigParser.GetAvatarIdAsync,
                 () => _owner._loadedAvatarId,
-                id => _ = _owner.HandleNewAvatarAsync(id, stoppingToken),
+                id =>
+                {
+                    _owner.NoteAvatarId(id);
+                    return _owner.HandleNewAvatarAsync(id, stoppingToken);
+                },
                 AvatarPollInterval,
                 _owner._logger,
                 stoppingToken);

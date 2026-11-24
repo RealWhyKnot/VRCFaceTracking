@@ -121,6 +121,10 @@ public class UdpFullDuplex : IDisposable
         }
     }
 
+    protected bool IsClosing => _disposed || _cts.IsCancellationRequested;
+
+    internal static bool IsExpectedShutdownError(SocketError code, bool closing) => closing && code == SocketError.Interrupted;
+
     public void Close()
     {
         _cts.Cancel();

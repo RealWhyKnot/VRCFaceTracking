@@ -4,8 +4,14 @@ internal sealed class EuroFilter
 {
     private const float Hz = 10f;
 
+    private readonly Filter _owner;
     private float _xPrev;
     private float _dxPrev;
+
+    public EuroFilter(Filter owner)
+    {
+        _owner = owner;
+    }
 
     public float Apply(float x)
     {
@@ -15,8 +21,8 @@ internal sealed class EuroFilter
         }
 
         float dx = (x - _xPrev) * Hz;
-        float edx = LowPass(ref _dxPrev, dx, Alpha(Filter.DerivativeCutoff));
-        float cutoff = Filter.MinCutoff + (Filter.Beta * MathF.Abs(edx));
+        float edx = LowPass(ref _dxPrev, dx, Alpha(_owner.DerivativeCutoff));
+        float cutoff = _owner.MinCutoff + (_owner.Beta * MathF.Abs(edx));
 
         return LowPass(ref _xPrev, x, Alpha(cutoff));
     }

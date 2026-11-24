@@ -9,10 +9,12 @@ internal sealed partial class IpcLatencyDiagnostics
 {
     private const double SlowSampleMs = 50;
     private const double MaxPlausibleLegMs = 10_000;
+    internal const double SlowTransitMs = 250;
 
     private readonly ILogger _logger;
     private readonly DiagStat _module = new();
     private readonly DiagStat _transit = new();
+    private readonly IpcLatencyRing _recent = new();
     private long _lastReport;
     private long _unstamped;
     private long _keyframes;
@@ -47,7 +49,12 @@ internal sealed partial class IpcLatencyDiagnostics
             {
                 _module.Add(moduleMs);
                 _transit.Add(transitMs);
-                if (moduleMs + transitMs > SlowSampleMs)
+                _recent.Add(moduleMs, transitMs);
+                if (transitMs > SlowTransitMs)
+                {
+                    LogDiagIpcSlowTransit(_logger, moduleMs + transitMs, moduleMs, transitMs, _recent);
+                }
+                else if (moduleMs + transitMs > SlowSampleMs)
                 {
                     LogDiagIpcSlowSampleMs(_logger, moduleMs + transitMs, moduleMs, transitMs);
                 }
@@ -76,6 +83,9 @@ internal sealed partial class IpcLatencyDiagnostics
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "diag.ipc SLOW sample {Total:N1}ms: module {A:N1} transit {B:N1}")]
     private static partial void LogDiagIpcSlowSampleMs(ILogger logger, double total, double a, double b);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "diag.ipc SLOW transit {Total:N1}ms: module {A:N1} transit {B:N1} | recent module/transit ms: {Recent}")]
+    private static partial void LogDiagIpcSlowTransit(ILogger logger, double total, double a, double b, IpcLatencyRing recent);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "diag.ipc samples={N} keyframes={K} unstamped={U} nonFinite={F} | module p50={AP50:N2} p99={AP99:N2} max={AMax:N2}ms | transit p50={BP50:N2} p99={BP99:N2} max={BMax:N2}ms")]
     private static partial void LogDiagIpcSamplesKeyframesUnstamped(ILogger logger, int n, long k, long u, long f, double aP50, double aP99, double aMax, double bP50, double bP99, double bMax);

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
     private readonly IDispatcherService _dispatcherService;
     private readonly Lock _mutationsLock = new();
     private UnifiedTrackingData _inputBuffer;
+    private readonly Lock _previewLock = new();
     public ObservableCollection<TrackingMutation> Mutations { get; } = [];
 
     public UnifiedTrackingMutator(ILogger<UnifiedTrackingMutator> logger, ILocalSettingsService localSettingsService, IDispatcherService dispatcherService)
@@ -40,8 +42,10 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
 
         float rawLeft = _inputBuffer.Eye.Left.Openness;
         float rawRight = _inputBuffer.Eye.Right.Openness;
+        var rawPreview = TrackingPreviewValues.From(_inputBuffer);
+        bool applied = Enabled;
 
-        if (Enabled)
+        if (applied)
         {
             lock (_mutationsLock)
             {
@@ -56,8 +60,37 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
         }
 
         LastEyeOpenness = (rawLeft, rawRight, _inputBuffer.Eye.Left.Openness, _inputBuffer.Eye.Right.Openness);
+        var snapshot = new TrackingPreviewSnapshot(rawPreview, TrackingPreviewValues.From(_inputBuffer), applied, Stopwatch.GetTimestamp());
+        PreviewSnapshot = snapshot;
+
         return _inputBuffer;
     }
+
+    public TrackingPreviewSnapshot PreviewSnapshot
+    {
+        get
+        {
+            lock (_previewLock)
+            {
+                return field;
+            }
+        }
+        private set
+        {
+            lock (_previewLock)
+            {
+                field = value;
+            }
+        }
+    }
+
+    internal Func<AvatarParameterSnapshot?> CurrentAvatar { get; set; } = () => AvatarParameters.Current;
+
+    public TrackingActivity Activity => TrackingActivity.Classify(
+        UnifiedTracking.LastDataUpdateTicks,
+        Stopwatch.GetTimestamp(),
+        Stopwatch.Frequency,
+        CurrentAvatar()?.UsesNativeFaceTracking == true);
 
     public UnifiedTrackingData LastOutput => _inputBuffer;
 
@@ -133,6 +166,16 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
             if (mutation is EyeAssists eyeAssists)
             {
                 await eyeAssists.MoveEyelidBlendFromCorrectorsAsync(_localSettingsService, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (mutation is Correctors correctors)
+            {
+                await correctors.MoveCompensationFromAssistsAsync(_localSettingsService, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (mutation is ParameterAdjustment adjustment)
+            {
+                await adjustment.MigrateHeadRangesAsync(cancellationToken).ConfigureAwait(false);
             }
 
             mutation.CreateProperties();

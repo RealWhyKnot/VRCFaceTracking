@@ -26,6 +26,7 @@ public sealed partial class ParameterSenderService : BackgroundService
     private readonly DiagStat _batchSize = new();
     private readonly DiagStat _sampleAgeMs = new();
     private long _diagStalls;
+    private long _diagIdleTicks;
     private int _wakes;
     private long _diagMessages;
     private long _staleSinceTicks;
@@ -104,7 +105,7 @@ public sealed partial class ParameterSenderService : BackgroundService
         (double ageP50, double ageP99) = _sampleAgeMs.Percentiles();
 
         TimeSpan gcPause = GC.GetTotalPauseDuration();
-        LogDiagSendTicksGapP50(_logger, _tickGap.Count, gapP50, gapP99, _tickGap.Max, batchP50, _batchSize.Max, _diagMessages, sendP50, sendP99, _sendMs.Max, ageP50, ageP99, _sampleAgeMs.Max, SendQueue.Count, _diagStalls, (gcPause - _lastReportGcPause).TotalMilliseconds);
+        LogDiagSendTicksGapP50(_logger, _tickGap.Count, gapP50, gapP99, _tickGap.Max, batchP50, _batchSize.Max, _diagMessages, sendP50, sendP99, _sendMs.Max, ageP50, ageP99, _sampleAgeMs.Max, SendQueue.Count, _diagIdleTicks, _diagStalls, (gcPause - _lastReportGcPause).TotalMilliseconds);
         _lastReportGcPause = gcPause;
 
         _tickGap.Reset();
@@ -112,6 +113,7 @@ public sealed partial class ParameterSenderService : BackgroundService
         _batchSize.Reset();
         _sampleAgeMs.Reset();
         _diagMessages = 0;
+        _diagIdleTicks = 0;
     }
 
     public static void Enqueue(OscMessage message) => SendQueue.Enqueue(message);
@@ -202,31 +204,57 @@ public sealed partial class ParameterSenderService : BackgroundService
         _lastTick = tickNow;
 
         bool diag = _logger.IsEnabled(LogLevel.Debug);
-        if (diag)
-        {
-            RecordTickDiagnostics(tickNow, gapMs, waitMs);
-        }
+        bool dataChanged = UnifiedTracking.DataVersion != _lastDataVersion;
+        int queued = diag ? SendQueue.Count : 0;
 
         UpdateOutput(tickNow, diag);
 
+        int sent = 0;
         if (!SendQueue.IsEmpty)
         {
-            SendBatch(diag);
+            sent = SendBatch(diag);
+        }
+
+        if (diag)
+        {
+            RecordTickDiagnostics(tickNow, gapMs, waitMs, ClassifyTick(gapMs, waitMs, sent, dataChanged), queued);
         }
     }
 
-    private void RecordTickDiagnostics(long tickNow, double gapMs, int waitMs)
+    internal enum TickKind
     {
-        _tickGap.Add(gapMs);
+        Active,
+        IdleKeepalive,
+        Stall,
+    }
+
+    internal static TickKind ClassifyTick(double gapMs, int waitMs, int sent, bool dataChanged)
+    {
+        bool idle = sent == 0 && !dataChanged && gapMs - Math.Max(waitMs, IdleRefreshIntervalMs) <= StallLateMs;
+        return idle ? TickKind.IdleKeepalive
+            : gapMs - waitMs > StallLateMs ? TickKind.Stall
+            : TickKind.Active;
+    }
+
+    private void RecordTickDiagnostics(long tickNow, double gapMs, int waitMs, TickKind kind, int queued)
+    {
+        if (kind == TickKind.IdleKeepalive)
+        {
+            _diagIdleTicks++;
+        }
+        else
+        {
+            _tickGap.Add(gapMs);
+        }
 
         TimeSpan gcPause = GC.GetTotalPauseDuration();
         int gen0 = GC.CollectionCount(0);
         int gen1 = GC.CollectionCount(1);
         int gen2 = GC.CollectionCount(2);
-        if (gapMs - waitMs > StallLateMs)
+        if (kind == TickKind.Stall)
         {
             _diagStalls++;
-            LogDiagSendStallTickGap(_logger, gapMs, waitMs, SendQueue.Count, (gcPause - _lastGcPause).TotalMilliseconds, gen0 - _lastGen0, gen1 - _lastGen1, gen2 - _lastGen2, ThreadPool.PendingWorkItemCount, ThreadPool.ThreadCount);
+            LogDiagSendStallTickGap(_logger, gapMs, waitMs, queued, (gcPause - _lastGcPause).TotalMilliseconds, gen0 - _lastGen0, gen1 - _lastGen1, gen2 - _lastGen2, ThreadPool.PendingWorkItemCount, ThreadPool.ThreadCount);
         }
         _lastGcPause = gcPause;
         _lastGen0 = gen0;
@@ -324,12 +352,11 @@ public sealed partial class ParameterSenderService : BackgroundService
         return null;
     }
 
-    private void SendBatch(bool diag)
+    private int SendBatch(bool diag)
     {
         if (!diag)
         {
-            SendQueued();
-            return;
+            return SendQueued();
         }
 
         long sendStart = Stopwatch.GetTimestamp();
@@ -344,10 +371,12 @@ public sealed partial class ParameterSenderService : BackgroundService
         {
             LogDiagSendSlowSendMs(_logger, sendMs, sent);
         }
+
+        return sent;
     }
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "diag.send ticks={Ticks} gap p50={GapP50:N1} p99={GapP99:N1} max={GapMax:N1}ms | batch p50={BatchP50:N0} max={BatchMax:N0} msgs={Msgs} | send p50={SendP50:N2} p99={SendP99:N2} max={SendMax:N2}ms | sampleAge p50={AgeP50:N1} p99={AgeP99:N1} max={AgeMax:N1}ms | queue={Queue} stalls={Stalls} gcPause={GcPause:N1}ms")]
-    private static partial void LogDiagSendTicksGapP50(ILogger logger, int ticks, double gapP50, double gapP99, double gapMax, double batchP50, double batchMax, long msgs, double sendP50, double sendP99, double sendMax, double ageP50, double ageP99, double ageMax, int queue, long stalls, double gcPause);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "diag.send ticks={Ticks} gap p50={GapP50:N1} p99={GapP99:N1} max={GapMax:N1}ms | batch p50={BatchP50:N0} max={BatchMax:N0} msgs={Msgs} | send p50={SendP50:N2} p99={SendP99:N2} max={SendMax:N2}ms | sampleAge p50={AgeP50:N1} p99={AgeP99:N1} max={AgeMax:N1}ms | queue={Queue} idle={Idle} stalls={Stalls} gcPause={GcPause:N1}ms")]
+    private static partial void LogDiagSendTicksGapP50(ILogger logger, int ticks, double gapP50, double gapP99, double gapMax, double batchP50, double batchMax, long msgs, double sendP50, double sendP99, double sendMax, double ageP50, double ageP99, double ageMax, int queue, long idle, long stalls, double gcPause);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "diag.send STALL tick gap {Gap:N1}ms (expected {Expected}ms), queue {Queue} | gcPause {GcPause:N1}ms gcs {Gen0}/{Gen1}/{Gen2} | threadPool pending {Pending} threads {Threads}")]
     private static partial void LogDiagSendStallTickGap(ILogger logger, double gap, int expected, int queue, double gcPause, int gen0, int gen1, int gen2, long pending, int threads);

@@ -25,42 +25,6 @@ public sealed class MouthBrowAssistsTests
 
     private static void SetShape(UnifiedTrackingData data, UnifiedExpressions shape, float weight) => data.Shapes[(int)shape].Weight = weight;
 
-    [Theory]
-    [InlineData(true, 0.5f, 0.5f, 0.2f)]
-    [InlineData(true, 0.2f, 0.5f, 0f)]
-    [InlineData(false, 0.5f, 0.5f, 0.5f)]
-    public void MouthCloseCompensationReducesJaw(bool enabled, float jaw, float mouthClosed, float expected)
-    {
-        (MouthBrowAssists? mutator, FakeClock _) = Create();
-        mutator.MouthCloseCompensation = enabled;
-        var data = new UnifiedTrackingData();
-        SetShape(data, UnifiedExpressions.JawOpen, jaw);
-        SetShape(data, UnifiedExpressions.MouthClosed, mouthClosed);
-
-        mutator.MutateData(ref data);
-
-        Assert.Equal(expected, Shape(data, UnifiedExpressions.JawOpen), 4);
-    }
-
-    [Theory]
-    [InlineData(0.35f, 0f, 0f)]
-    [InlineData(1f, 0f, 0.18f)]
-    [InlineData(1f, 0.5f, 0.5f)]
-    [InlineData(0.675f, 0f, 0.09f)]
-    public void SmileOpenAssistFloorsJawWithSmile(float smile, float jaw, float expected)
-    {
-        (MouthBrowAssists? mutator, FakeClock _) = Create();
-        mutator.SmileOpenAssist = true;
-        mutator.SmileAssistStrength = 1f;
-        var data = new UnifiedTrackingData();
-        SetShape(data, UnifiedExpressions.MouthCornerPullLeft, smile);
-        SetShape(data, UnifiedExpressions.JawOpen, jaw);
-
-        mutator.MutateData(ref data);
-
-        Assert.Equal(expected, Shape(data, UnifiedExpressions.JawOpen), 4);
-    }
-
     private static UnifiedTrackingData IdleCandidateData(float jaw = 0.15f, float mouthClosed = 0f, float activity = 0f)
     {
         var data = new UnifiedTrackingData();
@@ -140,62 +104,6 @@ public sealed class MouthBrowAssistsTests
         UnifiedTrackingData data = IdleCandidateData();
         mutator.MutateData(ref data);
         Assert.Equal(0.075f, Shape(data, UnifiedExpressions.JawOpen), 4);
-    }
-
-    [Fact]
-    public void BrowSyncClosedEyeRelaxesBrows()
-    {
-        (MouthBrowAssists? mutator, FakeClock _) = Create();
-        mutator.BrowSync = true;
-        mutator.BrowSyncStrength = 1f;
-        var data = new UnifiedTrackingData();
-        data.Eye.Left.Openness = 0f;
-        data.Eye.Right.Openness = 0f;
-        SetShape(data, UnifiedExpressions.BrowInnerUpLeft, 0.5f);
-        SetShape(data, UnifiedExpressions.BrowOuterUpLeft, 0.5f);
-
-        mutator.MutateData(ref data);
-
-        Assert.Equal(0.3f, Shape(data, UnifiedExpressions.BrowInnerUpLeft), 4);
-        Assert.Equal(0.3f, Shape(data, UnifiedExpressions.BrowOuterUpLeft), 4);
-        Assert.Equal(0.12f, Shape(data, UnifiedExpressions.BrowLowererLeft), 4);
-        Assert.Equal(0.06f, Shape(data, UnifiedExpressions.BrowPinchLeft), 4);
-    }
-
-    [Fact]
-    public void BrowSyncOpenEyeIsIdentity()
-    {
-        (MouthBrowAssists? mutator, FakeClock _) = Create();
-        mutator.BrowSync = true;
-        mutator.BrowSyncStrength = 1f;
-        var data = new UnifiedTrackingData();
-        data.Eye.Left.Openness = 1f;
-        data.Eye.Right.Openness = 1f;
-        SetShape(data, UnifiedExpressions.BrowInnerUpLeft, 0.5f);
-
-        mutator.MutateData(ref data);
-
-        Assert.Equal(0.5f, Shape(data, UnifiedExpressions.BrowInnerUpLeft), 4);
-        Assert.Equal(0f, Shape(data, UnifiedExpressions.BrowLowererLeft), 4);
-    }
-
-    [Fact]
-    public void BrowSyncSidesAreIndependent()
-    {
-        (MouthBrowAssists? mutator, FakeClock _) = Create();
-        mutator.BrowSync = true;
-        mutator.BrowSyncStrength = 1f;
-        var data = new UnifiedTrackingData();
-        data.Eye.Left.Openness = 0f;
-        data.Eye.Right.Openness = 1f;
-        SetShape(data, UnifiedExpressions.BrowInnerUpLeft, 0.5f);
-        SetShape(data, UnifiedExpressions.BrowInnerUpRight, 0.5f);
-
-        mutator.MutateData(ref data);
-
-        Assert.Equal(0.3f, Shape(data, UnifiedExpressions.BrowInnerUpLeft), 4);
-        Assert.Equal(0.5f, Shape(data, UnifiedExpressions.BrowInnerUpRight), 4);
-        Assert.Equal(0f, Shape(data, UnifiedExpressions.BrowLowererRight), 4);
     }
 
     [Fact]

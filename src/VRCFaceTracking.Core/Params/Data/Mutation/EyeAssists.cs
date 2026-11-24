@@ -68,6 +68,7 @@ public sealed partial class EyeAssists : TrackingMutation
         }
 
         EyeLidBlend = blend;
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
         LogEyelidBlendMoved(Logger, blend, CorrectorsSettingName, Name);
     }
 

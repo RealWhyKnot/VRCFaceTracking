@@ -64,12 +64,36 @@ public sealed class ParameterAdjustment : TrackingMutation
     [MutationProperty("Tongue Miscellaneous", true, Group = "Tongue")] public (float, float) TongueOther { get; set; } = new(0, 1);
 
     [MutationProperty("Neck", true, Group = "Head and neck")] public (float, float) Neck { get; set; } = new(0, 1);
-    [MutationProperty("Head Rotation (Side-to-Side)", true, Group = "Head and neck")] public (float, float) HeadRotationYaw { get; set; } = new(-1, 1);
-    [MutationProperty("Head Rotation (Up-Down Tilt)", true, Group = "Head and neck")] public (float, float) HeadRotationPitch { get; set; } = new(-1, 1);
-    [MutationProperty("Head Rotation (Side Tilt)", true, Group = "Head and neck")] public (float, float) HeadRotationRoll { get; set; } = new(-1, 1);
-    [MutationProperty("Head Position (Side-to-Side)", true, Group = "Head and neck")] public (float, float) HeadPositionX { get; set; } = new(-1, 1);
-    [MutationProperty("Head Position (Up-Down)", true, Group = "Head and neck")] public (float, float) HeadPositionY { get; set; } = new(-1, 1);
-    [MutationProperty("Head Position (Forward-Back)", true, Group = "Head and neck")] public (float, float) HeadPositionZ { get; set; } = new(-1, 1);
+    [MutationProperty("Head Rotation (Side-to-Side)", true, -1f, 1f, Group = "Head and neck")] public (float, float) HeadRotationYaw { get; set; } = new(-1, 1);
+    [MutationProperty("Head Rotation (Up-Down Tilt)", true, -1f, 1f, Group = "Head and neck")] public (float, float) HeadRotationPitch { get; set; } = new(-1, 1);
+    [MutationProperty("Head Rotation (Side Tilt)", true, -1f, 1f, Group = "Head and neck")] public (float, float) HeadRotationRoll { get; set; } = new(-1, 1);
+    [MutationProperty("Head Position (Side-to-Side)", true, -1f, 1f, Group = "Head and neck")] public (float, float) HeadPositionX { get; set; } = new(-1, 1);
+    [MutationProperty("Head Position (Up-Down)", true, -1f, 1f, Group = "Head and neck")] public (float, float) HeadPositionY { get; set; } = new(-1, 1);
+    [MutationProperty("Head Position (Forward-Back)", true, -1f, 1f, Group = "Head and neck")] public (float, float) HeadPositionZ { get; set; } = new(-1, 1);
+
+    internal const int CurrentHeadRangeVersion = 1;
+
+    public int HeadRangeVersion { get; set; }
+
+    internal async Task MigrateHeadRangesAsync(CancellationToken cancellationToken)
+    {
+        if (HeadRangeVersion >= CurrentHeadRangeVersion)
+        {
+            return;
+        }
+
+        HeadRotationYaw = WidenHeadRange(HeadRotationYaw);
+        HeadRotationPitch = WidenHeadRange(HeadRotationPitch);
+        HeadRotationRoll = WidenHeadRange(HeadRotationRoll);
+        HeadPositionX = WidenHeadRange(HeadPositionX);
+        HeadPositionY = WidenHeadRange(HeadPositionY);
+        HeadPositionZ = WidenHeadRange(HeadPositionZ);
+        HeadRangeVersion = CurrentHeadRangeVersion;
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static (float, float) WidenHeadRange((float, float) range) =>
+        range is (0f, 1f) ? (-1f, 1f) : range;
 
     public override string Name => "Parameter Adjustment";
     public override string Description => "Adjust VRCFaceTracking Parameters.";
@@ -103,13 +127,40 @@ public sealed class ParameterAdjustment : TrackingMutation
             }
         }
 
-        data.Head.HeadYaw = Rescale(data.Head.HeadYaw, HeadRotationYaw.Item1, HeadRotationYaw.Item2);
-        data.Head.HeadPitch = Rescale(data.Head.HeadPitch, HeadRotationPitch.Item1, HeadRotationPitch.Item2);
-        data.Head.HeadRoll = Rescale(data.Head.HeadRoll, HeadRotationRoll.Item1, HeadRotationRoll.Item2);
-        data.Head.HeadPosX = Rescale(data.Head.HeadPosX, HeadPositionX.Item1, HeadPositionX.Item2);
-        data.Head.HeadPosY = Rescale(data.Head.HeadPosY, HeadPositionY.Item1, HeadPositionY.Item2);
-        data.Head.HeadPosZ = Rescale(data.Head.HeadPosZ, HeadPositionZ.Item1, HeadPositionZ.Item2);
+        data.Head.HeadYaw = Rescale(data.Head.HeadYaw, HeadRotationYaw.Item1, HeadRotationYaw.Item2, -1f, 1f);
+        data.Head.HeadPitch = Rescale(data.Head.HeadPitch, HeadRotationPitch.Item1, HeadRotationPitch.Item2, -1f, 1f);
+        data.Head.HeadRoll = Rescale(data.Head.HeadRoll, HeadRotationRoll.Item1, HeadRotationRoll.Item2, -1f, 1f);
+        data.Head.HeadPosX = Rescale(data.Head.HeadPosX, HeadPositionX.Item1, HeadPositionX.Item2, -1f, 1f);
+        data.Head.HeadPosY = Rescale(data.Head.HeadPosY, HeadPositionY.Item1, HeadPositionY.Item2, -1f, 1f);
+        data.Head.HeadPosZ = Rescale(data.Head.HeadPosZ, HeadPositionZ.Item1, HeadPositionZ.Item2, -1f, 1f);
     }
 
-    private static float Rescale(float value, float floor, float ceiling) => (value - floor) / (ceiling - floor);
+    internal const float MinimumGap = 0.01f;
+
+    internal static float Rescale(float value, float floor, float ceiling, float outMin = 0f, float outMax = 1f)
+    {
+        if (!float.IsFinite(value))
+        {
+            return Math.Clamp(0f, outMin, outMax);
+        }
+
+        if (!float.IsFinite(floor))
+        {
+            floor = 0f;
+        }
+
+        if (!float.IsFinite(ceiling))
+        {
+            ceiling = 1f;
+        }
+
+        if (ceiling - floor < MinimumGap)
+        {
+            ceiling = floor + MinimumGap;
+        }
+
+        float t = (value - floor) / (ceiling - floor);
+        float rescaled = outMin + (t * (outMax - outMin));
+        return float.IsFinite(rescaled) ? Math.Clamp(rescaled, outMin, outMax) : Math.Clamp(0f, outMin, outMax);
+    }
 }

@@ -17,7 +17,16 @@ public sealed partial class VrcftSandboxServer : UdpFullDuplex
         IsConnected = true;
     }
 
-    protected override void OnReceiveError(SocketException ex) => LogSandboxReceiveFailed(_logger, ex.SocketErrorCode);
+    protected override void OnReceiveError(SocketException ex)
+    {
+        if (IsExpectedShutdownError(ex.SocketErrorCode, IsClosing))
+        {
+            LogSandboxReceiveInterrupted(_logger);
+            return;
+        }
+
+        LogSandboxReceiveFailed(_logger, ex.SocketErrorCode);
+    }
 
     public override void OnBytesReceived(in byte[] data, in IPEndPoint endpoint)
     {
@@ -52,6 +61,9 @@ public sealed partial class VrcftSandboxServer : UdpFullDuplex
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Starting sandbox host on port {Port}...")]
     private static partial void LogStartingSandboxHostPort(ILogger logger, int port);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Sandbox socket receive interrupted during shutdown")]
+    private static partial void LogSandboxReceiveInterrupted(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Sandbox socket receive failed ({Error})")]
     private static partial void LogSandboxReceiveFailed(ILogger logger, SocketError error);

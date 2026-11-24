@@ -53,11 +53,8 @@ public sealed class MutationSaveCompatibilityTests
 
         MouthBrowAssists loaded = (await JsonText.ToObjectAsync<MouthBrowAssists>(Saved, CancellationToken.None))!;
 
-        Assert.True(loaded.MouthCloseCompensation);
-        Assert.True(loaded.SmileOpenAssist);
-        Assert.Equal(0.8f, loaded.SmileAssistStrength);
-        Assert.True(loaded.BrowSync);
-        Assert.Equal(0.3f, loaded.BrowSyncStrength);
+        Assert.True(loaded.IsActive);
+        Assert.Equal(0.5f, loaded.IdleCloseStrength);
     }
 
     [Fact]
@@ -68,21 +65,21 @@ public sealed class MutationSaveCompatibilityTests
         mutation.CreateProperties();
 
         Assert.Equal(
-            ["MouthClosed/JawOpen Clamp", "LipSuck Limiter", "EyeLook Symmetrize"],
+            ["MouthClosed/JawOpen Clamp", "Jaw Reduces When Mouth Closed", "LipSuck Limiter", "EyeLook Symmetrize"],
             mutation.Components.Select(c => c.Name), StringComparer.Ordinal);
-        Assert.Equal(["Mouth", "Mouth", "Eyes"], mutation.Components.Select(c => c.Group), StringComparer.Ordinal);
-        Assert.Equal([true, false, true], mutation.Components.Select(c => c.StartsGroup));
+        Assert.Equal(["Mouth", "Mouth", "Mouth", "Eyes"], mutation.Components.Select(c => c.Group), StringComparer.Ordinal);
+        Assert.Equal([true, false, false, true], mutation.Components.Select(c => c.StartsGroup));
     }
 
     [Fact]
-    public void StaticSettingsShowAsComponents()
+    public void FilterSettingsShowAsComponents()
     {
         var mutation = new Filter();
 
         mutation.CreateProperties();
 
         Assert.Equal(
-            ["Minimum Cutoff", "Beta", "Derivative Cutoff"],
+            ["Smoothing", "Minimum Cutoff", "Beta", "Derivative Cutoff"],
             mutation.Components.Select(c => c.Name), StringComparer.Ordinal);
     }
 }

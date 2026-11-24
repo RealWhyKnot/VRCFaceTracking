@@ -72,6 +72,29 @@ public sealed partial class UnifiedLibManager
         }
     }
 
+    public TrackingOwnershipSnapshot GetOwnershipSnapshot()
+    {
+        ModuleRuntimeInfo[] modules;
+        lock (_modulesLock)
+        {
+            modules = [.. _availableSandboxModules.OrderBy(m => m.SpawnOrder)];
+        }
+
+        var claims = new List<ModuleClaim>(modules.Length);
+        foreach (ModuleRuntimeInfo module in modules)
+        {
+            ModuleMetadataInternal info = module.ModuleInformation;
+            if (module.TeardownRequested || !info.Active || info.Crashed)
+            {
+                continue;
+            }
+
+            claims.Add(new ModuleClaim(info.Name, module.EyeInitialized, module.ExpressionInitialized, info.AllowedCapabilities, info.EffectiveCapabilities));
+        }
+
+        return TrackingOwnershipSnapshot.Build(claims);
+    }
+
     private void RecomputeCapabilityAssignments() => _dispatcherService.Run(() =>
     {
         ModuleRuntimeInfo[] modules;

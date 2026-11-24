@@ -14,6 +14,7 @@ public sealed partial class OscQueryConfigParser : IDisposable
     private readonly AvatarConfigParser _configParser;
     private readonly MulticastDnsService _multicastDnsService;
     private readonly HttpClient _httpClient = new();
+    private int _notReadyLogged;
 
     public OscQueryConfigParser(
         ILogger<OscQueryConfigParser> parserLogger,
@@ -27,13 +28,18 @@ public sealed partial class OscQueryConfigParser : IDisposable
 
     public void Dispose() => _httpClient.Dispose();
 
-    public async Task<(IAvatarInfo avatarInfo, List<Parameter> relevantParameters)?> ParseAvatarAsync(CancellationToken cancellationToken)
+    public void NotifyAvatarChanged() => Volatile.Write(ref _notReadyLogged, 0);
+
+    public async Task<(IAvatarInfo avatarInfo, List<Parameter> relevantParameters)?> ParseAvatarAsync(CancellationToken cancellationToken) =>
+        (await LoadAvatarAsync(cancellationToken).ConfigureAwait(false)).Avatar;
+
+    internal async Task<OscQueryLoadResult> LoadAvatarAsync(CancellationToken cancellationToken)
     {
         try
         {
             if (_multicastDnsService.VrchatClientEndpoint == null)
             {
-                return null;
+                return new OscQueryLoadResult(Avatar: null, NotFound: false);
             }
 
             var httpEndpoint = new Uri("http://" + _multicastDnsService.VrchatClientEndpoint + "/avatar");
@@ -54,13 +60,24 @@ public sealed partial class OscQueryConfigParser : IDisposable
                 await ResolveNameFromConfigFileAsync(avatarInfo, cancellationToken).ConfigureAwait(false);
             }
 
-            return (avatarInfo, paramList);
+            Volatile.Write(ref _notReadyLogged, 0);
+            return new OscQueryLoadResult(Avatar: (avatarInfo, paramList), NotFound: false);
+        }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            if (Interlocked.Exchange(ref _notReadyLogged, 1) == 0)
+            {
+                LogAvatarConfigNotReady(_parserLogger);
+            }
+
+            LogAvatarConfigNotReadyDetail(_parserLogger, e, _multicastDnsService.VrchatClientEndpoint);
+            return new OscQueryLoadResult(Avatar: null, NotFound: true);
         }
         catch (Exception e) when (e is HttpRequestException or JsonException or IOException or UnauthorizedAccessException
                                   || (e is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
             LogFailedParseOSCQueryAvatarConfig(_parserLogger, e, _multicastDnsService.VrchatClientEndpoint);
-            return null;
+            return new OscQueryLoadResult(Avatar: null, NotFound: false);
         }
     }
 
@@ -96,6 +113,12 @@ public sealed partial class OscQueryConfigParser : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Odd. Our attempt to find the legacy osc config json for this avatar failed.")]
     private static partial void LogOddAttemptFindLegacyOsc(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Avatar OSCQuery config not ready yet")]
+    private static partial void LogAvatarConfigNotReady(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Avatar OSCQuery config at {Endpoint} returned 404")]
+    private static partial void LogAvatarConfigNotReadyDetail(ILogger logger, Exception exception, IPEndPoint? endpoint);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Failed to parse OSCQuery avatar config from {Endpoint}")]
     private static partial void LogFailedParseOSCQueryAvatarConfig(ILogger logger, Exception exception, IPEndPoint? endpoint);
