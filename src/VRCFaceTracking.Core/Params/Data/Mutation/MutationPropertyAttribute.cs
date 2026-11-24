@@ -24,4 +24,14 @@ public sealed class MutationPropertyAttribute : Attribute
     public string? Group { get; set; }
 
     public bool Indented { get; set; }
+
+    public TrackingCard Card { get; set; }
+
+    public int Order { get; set; }
+
+    public bool Advanced { get; set; }
+
+    public string? DependsOn { get; set; }
+
+    public float Step { get; set; }
 }

@@ -48,6 +48,46 @@ public abstract class TrackingMutation
 
     protected void MarkTriggered() => Interlocked.Exchange(ref _lastTriggeredTicks, Clock.GetUtcNow().UtcTicks);
 
+    private readonly long[] _featureTicks = new long[MaxFeatures];
+
+    private const int MaxFeatures = 8;
+
+    protected void MarkTriggered(int feature)
+    {
+        long now = Clock.GetUtcNow().UtcTicks;
+        Interlocked.Exchange(ref _lastTriggeredTicks, now);
+        if (feature is >= 0 and < MaxFeatures)
+        {
+            Interlocked.Exchange(ref _featureTicks[feature], now);
+        }
+    }
+
+    protected virtual int FeatureOf(string propertyName) => -1;
+
+    public bool ReportsTriggers(string propertyName) => FeatureOf(propertyName) is >= 0 and < MaxFeatures;
+
+    public DateTimeOffset? LastTriggeredFor(string propertyName)
+    {
+        int feature = FeatureOf(propertyName);
+        if (feature is < 0 or >= MaxFeatures)
+        {
+            return null;
+        }
+
+        long ticks = Interlocked.Read(ref _featureTicks[feature]);
+        return ticks == 0 ? null : new DateTimeOffset(ticks, TimeSpan.Zero);
+    }
+
+    [JsonIgnore]
+    public TrackingCard HomeCard => MutationComponentFactory.ResolveCard(GetType(), TrackingCard.None);
+
+    [JsonIgnore]
+    public int CardOrder => GetType().GetCustomAttribute<MutationCardAttribute>()?.Order ?? PageOrder;
+
+    public virtual bool IsCardOn(TrackingCard card) => IsActive;
+
+    public virtual void SetCardOn(TrackingCard card, bool enabled) => ActiveSwitch = enabled;
+
     [JsonIgnore]
     public bool ActiveSwitch
     {

@@ -130,7 +130,7 @@
     <value>Dark</value>
   </data>
   <data name="Settings_Theme_Default_Content" xml:space="preserve">
-    <value>Default</value>
+    <value>Match Windows</value>
   </data>
   <data name="Shell_Output_Content" xml:space="preserve">
     <value>Output</value>
@@ -154,7 +154,7 @@
     <value>Local Test Avatars are not supported and will cause issues</value>
   </data>
   <data name="Credits_Description" xml:space="preserve">
-    <value>The nerds who made this all possible &lt;3</value>
+    <value>Thanks to everyone who helped build this.</value>
   </data>
   <data name="Description_Text" xml:space="preserve">
     <value>Description</value>
@@ -193,10 +193,7 @@
     <value>Parameters</value>
   </data>
   <data name="ThemeSettings_Header" xml:space="preserve">
-    <value>App theme</value>
-  </data>
-  <data name="ThemeSettings_Description" xml:space="preserve">
-    <value>Select which app theme to display</value>
+    <value>Theme</value>
   </data>
   <data name="UsageInstructions_Text" xml:space="preserve">
     <value>Usage Instructions</value>
@@ -204,56 +201,32 @@
   <data name="Version_Text" xml:space="preserve">
     <value>Version</value>
   </data>
-  <data name="OscSettings_Header" xml:space="preserve">
-    <value>OSC Address</value>
-  </data>
-  <data name="OscSettings_Description" xml:space="preserve">
-    <value>Where should OSC Data be sent?</value>
-  </data>
   <data name="no_modules_installed_warning_Description" xml:space="preserve">
     <value>You appear to have no modules installed.</value>
   </data>
-  <data name="RiskySettings_Header" xml:space="preserve">
-    <value>Risky Settings</value>
-  </data>
-  <data name="RiskySettings_Description" xml:space="preserve">
-    <value>Danger, danger. High voltage..</value>
-  </data>
   <data name="AutoStartSettings_Header" xml:space="preserve">
-    <value>Auto Start</value>
+    <value>Start with SteamVR</value>
   </data>
   <data name="AutoStartSettings_Description" xml:space="preserve">
-    <value>Auto Start when SteamVR is launched</value>
-  </data>
-  <data name="ForceReInitButton_Description" xml:space="preserve">
-    <value>Force VRCFT to unload and reinitialize all modules</value>
+    <value>Opens when SteamVR starts.</value>
   </data>
   <data name="ForceReInitButton_Header" xml:space="preserve">
-    <value>Force Re-Initialize</value>
-  </data>
-  <data name="ForceRelevancyToggle_Description" xml:space="preserve">
-    <value>Forces sending of all parameters every frame by forcing relevancy</value>
+    <value>Restart tracking modules</value>
   </data>
   <data name="ForceRelevancyToggle_Header" xml:space="preserve">
-    <value>Force Relevancy</value>
+    <value>Send every parameter</value>
   </data>
   <data name="ReInitButton_Content" xml:space="preserve">
-    <value>Re-Initialize</value>
-  </data>
-  <data name="ResetAvatarConfButton_Description" xml:space="preserve">
-    <value>Reset all VRChat OSC config data (will be regenerated when avatar is reloaded)</value>
+    <value>Restart</value>
   </data>
   <data name="ResetAvatarConfButton_Header" xml:space="preserve">
-    <value>Reset VRChat Configs</value>
+    <value>Reset VRChat avatar configs</value>
   </data>
   <data name="ResetButton_Content" xml:space="preserve">
     <value>Reset</value>
   </data>
-  <data name="ResetVRCFTButton_Description" xml:space="preserve">
-    <value>Reset all data stored by VRCFT in your AppData folder</value>
-  </data>
   <data name="ResetVRCFTButton_Header" xml:space="preserve">
-    <value>Reset VRCFT</value>
+    <value>Reset app data</value>
   </data>
   <data name="Shell_TrackingSettings_Content" xml:space="preserve">
     <value>Tracking Settings</value>
@@ -295,22 +268,16 @@
     <value>Verbose logging</value>
   </data>
   <data name="VerboseLoggingDescription" xml:space="preserve">
-    <value>Write Debug and Information lines to the log file. Warnings and errors are always written.</value>
+    <value>Writes more detail to the log.</value>
   </data>
   <data name="VerboseLoggingForcedDescription" xml:space="preserve">
-    <value>Always on for dev and beta builds. Warnings and errors are always written.</value>
+    <value>Always on for dev and beta builds.</value>
   </data>
   <data name="ShapeLoggingHeader" xml:space="preserve">
     <value>Face shape stats</value>
   </data>
-  <data name="ShapeLoggingDescription" xml:space="preserve">
-    <value>Every 30 seconds, write each face shape's range and how often it moved to the log file. On by default in dev and beta builds.</value>
-  </data>
   <data name="LogFilesToKeepHeader" xml:space="preserve">
     <value>Log files to keep</value>
-  </data>
-  <data name="LogFilesToKeepDescription" xml:space="preserve">
-    <value>Older log files are deleted when the app starts.</value>
   </data>
   <data name="LogFolderHeader" xml:space="preserve">
     <value>Log folder</value>
@@ -319,25 +286,19 @@
     <value>Open folder</value>
   </data>
   <data name="UpdatesHeader" xml:space="preserve">
-    <value>Updates</value>
-  </data>
-  <data name="UpdatesDescription" xml:space="preserve">
-    <value>Check for a new version when the app starts</value>
+    <value>Check for updates on startup</value>
   </data>
   <data name="CheckUpdatesHeader" xml:space="preserve">
-    <value>Check now</value>
-  </data>
-  <data name="CheckUpdatesDescription" xml:space="preserve">
-    <value>Looks for a newer release on GitHub</value>
+    <value>Look for a new version</value>
   </data>
   <data name="CheckUpdatesButtonContent" xml:space="preserve">
-    <value>Check for updates</value>
+    <value>Check now</value>
   </data>
   <data name="ExitWithSteamVrHeader" xml:space="preserve">
-    <value>Exit with SteamVR</value>
+    <value>Close with SteamVR</value>
   </data>
   <data name="ExitWithSteamVrDescription" xml:space="preserve">
-    <value>Close VRCFaceTracking when SteamVR shuts down. Off by default.</value>
+    <value>Quits when SteamVR shuts down.</value>
   </data>
   <data name="ModuleCrashedText" xml:space="preserve">
     <value>Module process stopped unexpectedly</value>
@@ -347,9 +308,6 @@
   </data>
   <data name="LoggingSectionHeader" xml:space="preserve">
     <value>Logging</value>
-  </data>
-  <data name="UpdatesSectionHeader" xml:space="preserve">
-    <value>Updates</value>
   </data>
   <data name="ModuleTrackingHeader" xml:space="preserve">
     <value>Tracking data</value>
@@ -450,29 +408,17 @@
   <data name="ModulesInitializingHeader" xml:space="preserve">
     <value>Starting modules</value>
   </data>
-  <data name="OscSectionHeader" xml:space="preserve">
-    <value>OSC</value>
-  </data>
-  <data name="OpenVrSectionHeader" xml:space="preserve">
-    <value>SteamVR</value>
-  </data>
-  <data name="AdvancedSectionHeader" xml:space="preserve">
-    <value>Advanced</value>
-  </data>
   <data name="DeveloperSectionHeader" xml:space="preserve">
     <value>Developer</value>
   </data>
   <data name="DeveloperModeHeader" xml:space="preserve">
     <value>Developer mode</value>
   </data>
-  <data name="DeveloperModeDescription" xml:space="preserve">
-    <value>Show logging and advanced settings. On by default for dev and beta builds.</value>
-  </data>
   <data name="AutoStartSettingsUnavailableDescription" xml:space="preserve">
-    <value>SteamVR is not running. Start SteamVR to change this.</value>
+    <value>Start SteamVR to change this.</value>
   </data>
   <data name="LogFolderPendingDescription" xml:space="preserve">
-    <value>{0} - applies on next launch</value>
+    <value>{0} (applies on next launch)</value>
   </data>
   <data name="LogFolderPickerTitle" xml:space="preserve">
     <value>Choose log folder</value>
@@ -482,9 +428,6 @@
   </data>
   <data name="LogFolderResetContent" xml:space="preserve">
     <value>Use default</value>
-  </data>
-  <data name="GremlinModeToggleContent" xml:space="preserve">
-    <value>Gremlin Mode</value>
   </data>
   <data name="CameraStreamsHeader" xml:space="preserve">
     <value>Camera streams</value>
@@ -496,19 +439,16 @@
     <value>Lip</value>
   </data>
   <data name="CameraStreamsWaiting" xml:space="preserve">
-    <value>Waiting for frames...</value>
-  </data>
-  <data name="CameraStreamsNone" xml:space="preserve">
-    <value>No camera image from this module.</value>
+    <value>Waiting for frames</value>
   </data>
   <data name="OscInPortTooltip" xml:space="preserve">
-    <value>Port VRChat sends to. Only used when OSCQuery is unavailable.</value>
+    <value>Port VRChat sends to. Only needed if automatic setup fails.</value>
   </data>
   <data name="OscAddressTooltip" xml:space="preserve">
-    <value>Where parameters are sent. Change only for a second PC.</value>
+    <value>Where tracking data goes. Change only for a second PC.</value>
   </data>
   <data name="OscOutPortTooltip" xml:space="preserve">
-    <value>Port VRChat listens on. 9000 unless you changed it.</value>
+    <value>Port VRChat listens on. Usually 9000.</value>
   </data>
   <data name="AutoStartSettingsTooltip" xml:space="preserve">
     <value>Launch VRCFaceTracking automatically with SteamVR.</value>
@@ -525,32 +465,17 @@
   <data name="CheckUpdatesTooltip" xml:space="preserve">
     <value>Ask GitHub for a newer release right now.</value>
   </data>
-  <data name="GremlinModeTooltip" xml:space="preserve">
-    <value>Unlocks actions that can break your setup.</value>
-  </data>
   <data name="ForceRelevancyTooltip" xml:space="preserve">
     <value>Sends every parameter regardless of whether the avatar uses it. Increases network traffic.</value>
   </data>
-  <data name="ShowDeveloperSettingsContent" xml:space="preserve">
-    <value>Show developer settings</value>
-  </data>
-  <data name="MutationActiveToggleTooltip" xml:space="preserve">
-    <value>Enable this mutation.</value>
-  </data>
-  <data name="MutationToggleOn" xml:space="preserve">
-    <value>On</value>
-  </data>
-  <data name="MutationToggleOff" xml:space="preserve">
-    <value>Off</value>
-  </data>
   <data name="OscInPortLabel" xml:space="preserve">
-    <value>Receive Port (Legacy)</value>
+    <value>Receive port</value>
   </data>
   <data name="OscAddressLabel" xml:space="preserve">
-    <value>Destination IP</value>
+    <value>Send address</value>
   </data>
   <data name="OscOutPortLabel" xml:space="preserve">
-    <value>Send Port</value>
+    <value>Send port</value>
   </data>
   <data name="ContributorsHeader" xml:space="preserve">
     <value>Contributors</value>
@@ -584,5 +509,608 @@
   </data>
   <data name="OutputActionFailed" xml:space="preserve">
     <value>Action failed.</value>
+  </data>
+  <data name="TrackingMaster_Title" xml:space="preserve">
+    <value>Adjust tracking</value>
+  </data>
+  <data name="TrackingMaster_OnDescription" xml:space="preserve">
+    <value>Changes apply before tracking reaches your avatar.</value>
+  </data>
+  <data name="TrackingMaster_OffDescription" xml:space="preserve">
+    <value>Your avatar gets raw tracking.</value>
+  </data>
+  <data name="TrackingPreview_Raw" xml:space="preserve">
+    <value>Raw</value>
+  </data>
+  <data name="TrackingPreview_Adjusted" xml:space="preserve">
+    <value>Adjusted</value>
+  </data>
+  <data name="TrackingPreview_Waiting" xml:space="preserve">
+    <value>Waiting for tracking data.</value>
+  </data>
+  <data name="TrackingPreview_LeftEye" xml:space="preserve">
+    <value>Left eye open</value>
+  </data>
+  <data name="TrackingPreview_RightEye" xml:space="preserve">
+    <value>Right eye open</value>
+  </data>
+  <data name="TrackingPreview_LookSideways" xml:space="preserve">
+    <value>Look left and right</value>
+  </data>
+  <data name="TrackingPreview_LookUpDown" xml:space="preserve">
+    <value>Look up and down</value>
+  </data>
+  <data name="TrackingPreview_JawOpen" xml:space="preserve">
+    <value>Jaw open</value>
+  </data>
+  <data name="TrackingPreview_Smile" xml:space="preserve">
+    <value>Smile</value>
+  </data>
+  <data name="TrackingPreview_EyeSquint" xml:space="preserve">
+    <value>Eye squint</value>
+  </data>
+  <data name="TrackingPreview_CheekSquint" xml:space="preserve">
+    <value>Cheek squint</value>
+  </data>
+  <data name="TrackingActivity_Waiting" xml:space="preserve">
+    <value>No tracking data</value>
+  </data>
+  <data name="TrackingActivity_Active" xml:space="preserve">
+    <value>Tracking</value>
+  </data>
+  <data name="TrackingActivity_Idle" xml:space="preserve">
+    <value>No new data</value>
+  </data>
+  <data name="TrackingCard_SwitchName" xml:space="preserve">
+    <value>Turn {0} on or off</value>
+  </data>
+  <data name="TrackingCard_More" xml:space="preserve">
+    <value>More settings</value>
+  </data>
+  <data name="TrackingCard_Fewer" xml:space="preserve">
+    <value>Fewer settings</value>
+  </data>
+  <data name="TrackingCard_ShowRanges" xml:space="preserve">
+    <value>Show ranges</value>
+  </data>
+  <data name="TrackingCard_HideRanges" xml:space="preserve">
+    <value>Hide ranges</value>
+  </data>
+  <data name="TrackingCard_Calibration_Title" xml:space="preserve">
+    <value>Calibration</value>
+  </data>
+  <data name="TrackingCard_Calibration_Description" xml:space="preserve">
+    <value>Learns your expression range.</value>
+  </data>
+  <data name="TrackingCard_Smoothing_Title" xml:space="preserve">
+    <value>Smoothing</value>
+  </data>
+  <data name="TrackingCard_Smoothing_Description" xml:space="preserve">
+    <value>Smooths jitter with a slight delay.</value>
+  </data>
+  <data name="TrackingCard_Eyes_Title" xml:space="preserve">
+    <value>Eyes</value>
+  </data>
+  <data name="TrackingCard_Eyes_Description" xml:space="preserve">
+    <value>Steadier eyelids and gaze.</value>
+  </data>
+  <data name="TrackingCard_Mouth_Title" xml:space="preserve">
+    <value>Mouth</value>
+  </data>
+  <data name="TrackingCard_Mouth_Description" xml:space="preserve">
+    <value>Calms idle mouth and lip overlap.</value>
+  </data>
+  <data name="TrackingCard_FillIns_Title" xml:space="preserve">
+    <value>Fill-ins</value>
+  </data>
+  <data name="TrackingCard_FillIns_Description" xml:space="preserve">
+    <value>Fills missing shapes from real sensors.</value>
+  </data>
+  <data name="TrackingCard_AutoFixes_Title" xml:space="preserve">
+    <value>Auto-fixes</value>
+  </data>
+  <data name="TrackingCard_AutoFixes_Description" xml:space="preserve">
+    <value>Handles glitches and frozen tracking.</value>
+  </data>
+  <data name="TrackingCard_Advanced_Title" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="TrackingCard_Advanced_Description" xml:space="preserve">
+    <value>Floor and ceiling limits per shape.</value>
+  </data>
+  <data name="TrackingCard_Other_Title" xml:space="preserve">
+    <value>Other settings</value>
+  </data>
+  <data name="TrackingCard_Other_Description" xml:space="preserve">
+    <value>Extra tracking settings.</value>
+  </data>
+  <data name="TrackingChip_Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="TrackingChip_On" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="TrackingChip_Paused" xml:space="preserve">
+    <value>Paused</value>
+  </data>
+  <data name="TrackingChip_Learning" xml:space="preserve">
+    <value>Learning {0}%</value>
+  </data>
+  <data name="TrackingChip_Ready" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="TrackingChip_WaitingForAvatar" xml:space="preserve">
+    <value>Waiting for avatar</value>
+  </data>
+  <data name="TrackingChip_PausedForVrChat" xml:space="preserve">
+    <value>Paused for VRChat face tracking</value>
+  </data>
+  <data name="TrackingChip_NotNeeded" xml:space="preserve">
+    <value>Not needed for this avatar</value>
+  </data>
+  <data name="TrackingChip_Filling" xml:space="preserve">
+    <value>Filling in</value>
+  </data>
+  <data name="TrackingChip_DefaultRanges" xml:space="preserve">
+    <value>Default ranges</value>
+  </data>
+  <data name="TrackingChip_Changed" xml:space="preserve">
+    <value>{0} changed</value>
+  </data>
+  <data name="TrackingChip_Count" xml:space="preserve">
+    <value>{0} of {1} on</value>
+  </data>
+  <data name="TrackingRow_Watching" xml:space="preserve">
+    <value>Standing by</value>
+  </data>
+  <data name="TrackingRow_ActiveNow" xml:space="preserve">
+    <value>Working now</value>
+  </data>
+  <data name="TrackingRow_LastActive" xml:space="preserve">
+    <value>Last active {0}</value>
+  </data>
+  <data name="TrackingRow_AlwaysOn" xml:space="preserve">
+    <value>Always on</value>
+  </data>
+  <data name="TrackingTime_JustNow" xml:space="preserve">
+    <value>just now</value>
+  </data>
+  <data name="TrackingTime_Seconds" xml:space="preserve">
+    <value>{0} s ago</value>
+  </data>
+  <data name="TrackingTime_Minutes" xml:space="preserve">
+    <value>{0} min ago</value>
+  </data>
+  <data name="TrackingTime_Hours" xml:space="preserve">
+    <value>{0} h ago</value>
+  </data>
+  <data name="TrackingRange_LowerName" xml:space="preserve">
+    <value>{0} lowest value</value>
+  </data>
+  <data name="TrackingRange_UpperName" xml:space="preserve">
+    <value>{0} highest value</value>
+  </data>
+  <data name="TrackingRange_ResetName" xml:space="preserve">
+    <value>Reset {0}</value>
+  </data>
+  <data name="TrackingRange_Reset" xml:space="preserve">
+    <value>Reset to default</value>
+  </data>
+  <data name="TrackingAction_Run" xml:space="preserve">
+    <value>Run</value>
+  </data>
+  <data name="TrackingAction_Confirm" xml:space="preserve">
+    <value>Are you sure?</value>
+  </data>
+  <data name="TrackingAction_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="TrackingSection_Eyelids" xml:space="preserve">
+    <value>Eyelids</value>
+  </data>
+  <data name="TrackingSection_Gaze" xml:space="preserve">
+    <value>Gaze</value>
+  </data>
+  <data name="TrackingSection_Brows_and_eyes" xml:space="preserve">
+    <value>Brows and eyes</value>
+  </data>
+  <data name="TrackingSection_Cheeks" xml:space="preserve">
+    <value>Cheeks</value>
+  </data>
+  <data name="TrackingSection_Jaw" xml:space="preserve">
+    <value>Jaw</value>
+  </data>
+  <data name="TrackingSection_Lips" xml:space="preserve">
+    <value>Lips</value>
+  </data>
+  <data name="TrackingSection_Mouth" xml:space="preserve">
+    <value>Mouth</value>
+  </data>
+  <data name="TrackingSection_Nose" xml:space="preserve">
+    <value>Nose</value>
+  </data>
+  <data name="TrackingSection_Tongue" xml:space="preserve">
+    <value>Tongue</value>
+  </data>
+  <data name="TrackingSection_Head_and_neck" xml:space="preserve">
+    <value>Head and neck</value>
+  </data>
+  <data name="Tracking_Calibration_CalibrationBlend" xml:space="preserve">
+    <value>Strength</value>
+  </data>
+  <data name="Tracking_Calibration_CalibrationBlend_Tip" xml:space="preserve">
+    <value>How much the learned range changes your tracking.</value>
+  </data>
+  <data name="Tracking_Calibration_ContinuousCalibration" xml:space="preserve">
+    <value>Keep learning</value>
+  </data>
+  <data name="Tracking_Calibration_ContinuousCalibration_Tip" xml:space="preserve">
+    <value>Keeps adjusting while you play, not only at the start.</value>
+  </data>
+  <data name="Tracking_Calibration_ClearData" xml:space="preserve">
+    <value>Learned range</value>
+  </data>
+  <data name="Tracking_Calibration_ClearData_Button" xml:space="preserve">
+    <value>Start over</value>
+  </data>
+  <data name="Tracking_Calibration_ClearData_Confirm" xml:space="preserve">
+    <value>Forget the learned range and start learning again?</value>
+  </data>
+  <data name="Tracking_Calibration_WindowSize" xml:space="preserve">
+    <value>Calibration samples</value>
+  </data>
+  <data name="Tracking_Calibration_StepDelta" xml:space="preserve">
+    <value>Learning rate</value>
+  </data>
+  <data name="Tracking_Calibration_LogData" xml:space="preserve">
+    <value>Learned values</value>
+  </data>
+  <data name="Tracking_Calibration_LogData_Button" xml:space="preserve">
+    <value>Write to log</value>
+  </data>
+  <data name="Tracking_Filter_Smoothing" xml:space="preserve">
+    <value>Amount</value>
+  </data>
+  <data name="Tracking_Filter_MinCutoff" xml:space="preserve">
+    <value>Minimum cutoff (Hz)</value>
+  </data>
+  <data name="Tracking_Filter_Beta" xml:space="preserve">
+    <value>Speed slope (beta)</value>
+  </data>
+  <data name="Tracking_Filter_DerivativeCutoff" xml:space="preserve">
+    <value>Derivative cutoff (Hz)</value>
+  </data>
+  <data name="Tracking_EyeAssists_EyelidSync" xml:space="preserve">
+    <value>Match eyelids</value>
+  </data>
+  <data name="Tracking_EyeAssists_EyelidSync_Tip" xml:space="preserve">
+    <value>Pulls both eyelids toward the same openness.</value>
+  </data>
+  <data name="Tracking_EyeAssists_SyncStrength" xml:space="preserve">
+    <value>Match strength</value>
+  </data>
+  <data name="Tracking_EyeAssists_SyncToMostOpen" xml:space="preserve">
+    <value>Follow more open eye</value>
+  </data>
+  <data name="Tracking_EyeAssists_PreserveWinks" xml:space="preserve">
+    <value>Keep winks</value>
+  </data>
+  <data name="Tracking_EyeAssists_PreserveWinks_Tip" xml:space="preserve">
+    <value>A clear wink stays a wink instead of being matched.</value>
+  </data>
+  <data name="Tracking_EyeAssists_CloseAssist" xml:space="preserve">
+    <value>Help eyes close fully</value>
+  </data>
+  <data name="Tracking_EyeAssists_CloseAssistStrength" xml:space="preserve">
+    <value>Close assist strength</value>
+  </data>
+  <data name="Tracking_EyeAssists_EyeLidBlend" xml:space="preserve">
+    <value>Blend eyelids</value>
+  </data>
+  <data name="Tracking_EyeAssists_EyeLidBlend_Tip" xml:space="preserve">
+    <value>Mixes some of each eyelid into the other.</value>
+  </data>
+  <data name="Tracking_EyeAssists_ForceEyesClosed" xml:space="preserve">
+    <value>Force eyes closed</value>
+  </data>
+  <data name="Tracking_EyeAssists_LimitEyeRange" xml:space="preserve">
+    <value>Limit eye turning</value>
+  </data>
+  <data name="Tracking_EyeAssists_MaxHorizontal" xml:space="preserve">
+    <value>Side-to-side limit</value>
+  </data>
+  <data name="Tracking_EyeAssists_MaxVertical" xml:space="preserve">
+    <value>Up-and-down limit</value>
+  </data>
+  <data name="Tracking_EyeAssists_ConvergenceFix" xml:space="preserve">
+    <value>Reduce cross-eyed look</value>
+  </data>
+  <data name="Tracking_EyeAssists_ConvergenceStrength" xml:space="preserve">
+    <value>Cross-eye fix strength</value>
+  </data>
+  <data name="Tracking_MouthBrowAssists_IdleMouthAutoClose" xml:space="preserve">
+    <value>Close idle mouth</value>
+  </data>
+  <data name="Tracking_MouthBrowAssists_IdleMouthAutoClose_Tip" xml:space="preserve">
+    <value>Closes a slightly open mouth after you stop moving it.</value>
+  </data>
+  <data name="Tracking_MouthBrowAssists_IdleCloseStrength" xml:space="preserve">
+    <value>Close strength</value>
+  </data>
+  <data name="Tracking_Correctors_MouthClosedFix" xml:space="preserve">
+    <value>Stop closed-lip clipping</value>
+  </data>
+  <data name="Tracking_Correctors_MouthClosedFix_Tip" xml:space="preserve">
+    <value>Lips-together never goes past how open your jaw is.</value>
+  </data>
+  <data name="Tracking_Correctors_MouthCloseCompensation" xml:space="preserve">
+    <value>Close jaw with lips</value>
+  </data>
+  <data name="Tracking_Correctors_MouthCloseCompensation_Tip" xml:space="preserve">
+    <value>Closes the jaw a little while your lips are pressed shut.</value>
+  </data>
+  <data name="Tracking_Correctors_LipSuckFix" xml:space="preserve">
+    <value>Stop lip roll-in</value>
+  </data>
+  <data name="Tracking_Correctors_LipSuckFix_Tip" xml:space="preserve">
+    <value>Lowers lip roll while your lips pull apart.</value>
+  </data>
+  <data name="Tracking_Correctors_EyeLookSymmetrize" xml:space="preserve">
+    <value>Keep eyes level</value>
+  </data>
+  <data name="Tracking_Correctors_EyeLookSymmetrize_Tip" xml:space="preserve">
+    <value>Both eyes share the same up and down gaze.</value>
+  </data>
+  <data name="Tracking_CheekDimpleFill_CheekToEyeSquint" xml:space="preserve">
+    <value>Eye squint from cheeks</value>
+  </data>
+  <data name="Tracking_CheekDimpleFill_CheekStrength" xml:space="preserve">
+    <value>Cheek strength</value>
+  </data>
+  <data name="Tracking_CheekDimpleFill_DimpleToSmile" xml:space="preserve">
+    <value>Smile from dimples</value>
+  </data>
+  <data name="Tracking_CheekDimpleFill_DimpleStrength" xml:space="preserve">
+    <value>Dimple strength</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_QuietMouth" xml:space="preserve">
+    <value>Quiet mouth while silent</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_QuietMouth_Tip" xml:space="preserve">
+    <value>Hides small mouth twitches while you're not talking.</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_TwitchTrim" xml:space="preserve">
+    <value>Max twitch size</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_StuckEyelidFallback" xml:space="preserve">
+    <value>Fix stuck eyelid</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_StuckEyelidFallback_Tip" xml:space="preserve">
+    <value>If one eyelid stops tracking, it follows the other.</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_RelaxOnFreeze" xml:space="preserve">
+    <value>Relax when tracking freezes</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_RelaxOnFreeze_Tip" xml:space="preserve">
+    <value>Eases your face to neutral when data stops changing.</value>
+  </data>
+  <data name="Tracking_TrackingGlitchFixes_FreezeSeconds" xml:space="preserve">
+    <value>Seconds before relaxing</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_EyeBrowRaiser" xml:space="preserve">
+    <value>Brow raise</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_EyeBrowLower" xml:space="preserve">
+    <value>Brow lower</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_EyeSquint" xml:space="preserve">
+    <value>Eye squint</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_EyeWide" xml:space="preserve">
+    <value>Eye wide</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_CheekPuffSuck" xml:space="preserve">
+    <value>Cheek puff and suck</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_CheekSquint" xml:space="preserve">
+    <value>Cheek squint</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_JawOpen" xml:space="preserve">
+    <value>Jaw open</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthClosed" xml:space="preserve">
+    <value>Lips together</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_JawX" xml:space="preserve">
+    <value>Jaw sideways</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_JawZ" xml:space="preserve">
+    <value>Jaw forward and back</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_LipFunnel" xml:space="preserve">
+    <value>Lip funnel</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_LipSuck" xml:space="preserve">
+    <value>Lip roll in</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_LipPucker" xml:space="preserve">
+    <value>Lip pucker</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthOpener" xml:space="preserve">
+    <value>Mouth open</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthSmile" xml:space="preserve">
+    <value>Smile</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthFrown" xml:space="preserve">
+    <value>Frown</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthStretch" xml:space="preserve">
+    <value>Mouth stretch</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthTightener" xml:space="preserve">
+    <value>Mouth tighten</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthPress" xml:space="preserve">
+    <value>Lip press</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthX" xml:space="preserve">
+    <value>Mouth sideways</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_MouthRaiser" xml:space="preserve">
+    <value>Mouth raise</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_Nose" xml:space="preserve">
+    <value>Nose</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_NoseSneer" xml:space="preserve">
+    <value>Nose sneer</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_TongueOut" xml:space="preserve">
+    <value>Tongue out</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_TongueMove" xml:space="preserve">
+    <value>Tongue direction</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_TongueOther" xml:space="preserve">
+    <value>Other tongue shapes</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_Neck" xml:space="preserve">
+    <value>Neck</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_HeadRotationYaw" xml:space="preserve">
+    <value>Head turn</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_HeadRotationPitch" xml:space="preserve">
+    <value>Head nod</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_HeadRotationRoll" xml:space="preserve">
+    <value>Head tilt</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_HeadPositionX" xml:space="preserve">
+    <value>Head left and right</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_HeadPositionY" xml:space="preserve">
+    <value>Head up and down</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_HeadPositionZ" xml:space="preserve">
+    <value>Head forward and back</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_Reset" xml:space="preserve">
+    <value>All ranges</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_Reset_Button" xml:space="preserve">
+    <value>Reset all</value>
+  </data>
+  <data name="Tracking_ParameterAdjustment_Reset_Confirm" xml:space="preserve">
+    <value>Reset all ranges to their defaults?</value>
+  </data>
+  <data name="HomeTracking_Title" xml:space="preserve">
+    <value>Tracking</value>
+  </data>
+  <data name="HomeTracking_Description" xml:space="preserve">
+    <value>Which module supplies each signal.</value>
+  </data>
+  <data name="HomeOwner_Eyes" xml:space="preserve">
+    <value>Eyes</value>
+  </data>
+  <data name="HomeOwner_Mouth" xml:space="preserve">
+    <value>Mouth and expression</value>
+  </data>
+  <data name="HomeOwner_None" xml:space="preserve">
+    <value>No module</value>
+  </data>
+  <data name="HomeOwner_AlsoFrom" xml:space="preserve">
+    <value>Also provided by {0}</value>
+  </data>
+  <data name="HomeActivity_Tracking" xml:space="preserve">
+    <value>Tracking</value>
+  </data>
+  <data name="HomeActivity_NoNewData" xml:space="preserve">
+    <value>No new data</value>
+  </data>
+  <data name="HomeActivity_NoData" xml:space="preserve">
+    <value>No tracking data</value>
+  </data>
+  <data name="HomeActivity_PausedForVrChat" xml:space="preserve">
+    <value>Paused for VRChat face tracking</value>
+  </data>
+  <data name="HomeOsc_Connected" xml:space="preserve">
+    <value>Receiving on port {0}, sending to {1}:{2}</value>
+  </data>
+  <data name="HomeOsc_NotConnected" xml:space="preserve">
+    <value>Not connected</value>
+  </data>
+  <data name="Camera_Description" xml:space="preserve">
+    <value>Eye and lip camera previews.</value>
+  </data>
+  <data name="Camera_Show" xml:space="preserve">
+    <value>Show cameras</value>
+  </data>
+  <data name="Camera_Blur" xml:space="preserve">
+    <value>Blur cameras</value>
+  </data>
+  <data name="Camera_HiddenCue" xml:space="preserve">
+    <value>Camera hidden</value>
+  </data>
+  <data name="Camera_Guides" xml:space="preserve">
+    <value>Center guides</value>
+  </data>
+  <data name="Camera_Freeze" xml:space="preserve">
+    <value>Freeze frame</value>
+  </data>
+  <data name="CameraDetail_Rate" xml:space="preserve">
+    <value>{0}x{1} · {2} fps</value>
+  </data>
+  <data name="CameraDetail_Size" xml:space="preserve">
+    <value>{0}x{1}</value>
+  </data>
+  <data name="CameraDetail_Frozen" xml:space="preserve">
+    <value>{0}x{1} · frozen</value>
+  </data>
+  <data name="Settings_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_Connection_Title" xml:space="preserve">
+    <value>Connection</value>
+  </data>
+  <data name="Settings_Connection_Description" xml:space="preserve">
+    <value>Where tracking data goes in VRChat.</value>
+  </data>
+  <data name="Settings_Port_Error" xml:space="preserve">
+    <value>Enter a number from 1 to 65535.</value>
+  </data>
+  <data name="Settings_Address_Error" xml:space="preserve">
+    <value>Enter a valid IP address.</value>
+  </data>
+  <data name="Settings_Startup_Title" xml:space="preserve">
+    <value>Startup and updates</value>
+  </data>
+  <data name="Settings_Developer_Description" xml:space="preserve">
+    <value>Turn on for logs and repair tools.</value>
+  </data>
+  <data name="Settings_Troubleshooting_Title" xml:space="preserve">
+    <value>Troubleshooting</value>
+  </data>
+  <data name="Settings_Troubleshooting_Enable" xml:space="preserve">
+    <value>Enable repair tools</value>
+  </data>
+  <data name="Settings_Troubleshooting_EnableDescription" xml:space="preserve">
+    <value>Unlocks actions that can reset your setup.</value>
+  </data>
+  <data name="Settings_Troubleshooting_Tooltip" xml:space="preserve">
+    <value>Turn on to use the actions below.</value>
+  </data>
+  <data name="Settings_Link_Source" xml:space="preserve">
+    <value>Source code</value>
+  </data>
+  <data name="Settings_Link_License" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="Settings_Link_Privacy" xml:space="preserve">
+    <value>Privacy policy</value>
+  </data>
+  <data name="Settings_Link_Open" xml:space="preserve">
+    <value>Open</value>
   </data>
 </root>

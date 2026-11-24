@@ -1,0 +1,119 @@
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:FluentAvalonia.UI.Controls">
+
+    <Styles.Resources>
+        <x:Double x:Key="CameraFrameHeight">180</x:Double>
+        <x:Double x:Key="CameraBlurRadius">24</x:Double>
+        <x:Double x:Key="OwnerMaxWidth">360</x:Double>
+        <x:Double x:Key="FieldWidth">120</x:Double>
+        <x:Double x:Key="AddressWidth">160</x:Double>
+        <x:Double x:Key="ErrorMaxWidth">220</x:Double>
+        <SolidColorBrush x:Key="CameraGuideBrush" Color="#FF4DD0E1" Opacity="0.9" />
+        <SolidColorBrush x:Key="CameraCoverBrush" Color="#8C000000" />
+        <SolidColorBrush x:Key="CameraCoverTextBrush" Color="#FFFFFFFF" />
+    </Styles.Resources>
+
+    <Style Selector="TextBlock.home-owner">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="MaxWidth" Value="{StaticResource OwnerMaxWidth}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextAlignment" Value="Right" />
+    </Style>
+
+    <Style Selector="TextBlock.home-owner.none">
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="StackPanel.camera-stream">
+        <Setter Property="Spacing" Value="8" />
+    </Style>
+
+    <Style Selector="TextBlock.camera-title">
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <Style Selector="Border.camera-frame">
+        <Setter Property="Height" Value="{StaticResource CameraFrameHeight}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="Background" Value="{DynamicResource ControlAltFillColorSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="TextBlock.camera-waiting">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Image.camera-image.blurred">
+        <Setter Property="Effect" Value="blur(24)" />
+    </Style>
+
+    <Style Selector="Border.camera-guide">
+        <Setter Property="Background" Value="{StaticResource CameraGuideBrush}" />
+    </Style>
+
+    <Style Selector="Border.camera-guide.horizontal">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.camera-guide.vertical">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.camera-cover">
+        <Setter Property="Background" Value="{StaticResource CameraCoverBrush}" />
+    </Style>
+
+    <Style Selector="StackPanel.camera-cue TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource CameraCoverTextBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+    </Style>
+
+    <Style Selector="StackPanel.camera-cue ui|SymbolIcon">
+        <Setter Property="Foreground" Value="{StaticResource CameraCoverTextBrush}" />
+    </Style>
+
+    <Style Selector="TextBox.settings-field, ComboBox.settings-field, NumericUpDown.settings-field">
+        <Setter Property="Width" Value="{StaticResource FieldWidth}" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBox.settings-field.wide">
+        <Setter Property="Width" Value="{StaticResource AddressWidth}" />
+    </Style>
+
+    <Style Selector="TextBox.settings-field.invalid">
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.field-error">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        <Setter Property="MaxWidth" Value="{StaticResource ErrorMaxWidth}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-section-title.settings-group">
+        <Setter Property="Margin" Value="0,16,0,4" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-row-state.path">
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="TextAlignment" Value="Left" />
+    </Style>
+</Styles>

@@ -3,6 +3,7 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
+[MutationCard(TrackingCard.Advanced)]
 public sealed class ParameterAdjustment : TrackingMutation
 {
     private static readonly (Func<ParameterAdjustment, (float Floor, float Ceiling)> Range, UnifiedExpressions[] Shapes)[] ShapeRanges =
@@ -100,7 +101,7 @@ public sealed class ParameterAdjustment : TrackingMutation
     public override MutationPriority Priority => MutationPriority.None;
     public override int PageOrder => 4;
 
-    [MutationButton("Reset Values")]
+    [MutationButton("Reset Values", Confirm = true)]
     public void Reset()
     {
         var defaults = new ParameterAdjustment();

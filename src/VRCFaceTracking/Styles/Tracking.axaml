@@ -1,0 +1,318 @@
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="using:FluentAvalonia.UI.Controls"
+    xmlns:c="using:VRCFaceTracking.Controls">
+
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="FontSize" Value="{StaticResource FontSizePageTitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <Style Selector="ItemsControl.tracking-cards">
+        <Setter Property="ItemsPanel">
+            <ItemsPanelTemplate>
+                <StackPanel Spacing="12" />
+            </ItemsPanelTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.tracking-card:disabled">
+        <Setter Property="Opacity" Value="{StaticResource DisabledOpacity}" />
+    </Style>
+
+    <Style Selector="Border.tracking-card:disabled Grid.tracking-row">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <Style Selector="Grid.tracking-card-header">
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+    </Style>
+
+    <Style Selector="StackPanel.tracking-label">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Spacing" Value="4" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-card-title">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-card-description">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="Border.chip">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+        <Setter Property="Padding" Value="{StaticResource ChipPadding}" />
+        <Setter Property="Margin" Value="{StaticResource ChipMargin}" />
+        <Setter Property="MinHeight" Value="{StaticResource ChipHeight}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralBackgroundBrush}" />
+    </Style>
+
+    <Style Selector="Grid.tracking-live-header > Border.chip">
+        <Setter Property="Margin" Value="{StaticResource ChipMarginLead}" />
+    </Style>
+
+    <Style Selector="TextBlock.chip-text">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="Border.chip.success">
+        <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Border.chip.success > TextBlock.chip-text">
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+    </Style>
+
+    <Style Selector="Border.chip.progress">
+        <Setter Property="Background" Value="{DynamicResource SystemFillColorAttentionBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+    </Style>
+
+    <Style Selector="Border.chip.progress > TextBlock.chip-text">
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="ToggleSwitch.tracking-switch">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+
+    <Style Selector="ToggleSwitch.tracking-switch /template/ Grid > Grid">
+        <Setter Property="Margin" Value="0,0,-12,0" />
+    </Style>
+
+    <Style Selector="ProgressBar.tracking-progress">
+        <Setter Property="Margin" Value="0,12,0,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+    </Style>
+
+    <Style Selector="ItemsControl.tracking-sections">
+        <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-section-title">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+
+    <Style Selector="ToggleButton.tracking-section-toggle">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Padding" Value="0,4" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style Selector="ToggleButton.tracking-section-toggle:checked /template/ ContentPresenter, ToggleButton.tracking-section-toggle:checked:pointerover /template/ ContentPresenter, ToggleButton.tracking-section-toggle:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.tracking-section-toggle:pointerover /template/ ContentPresenter, ToggleButton.tracking-section-toggle:checked:pointerover /template/ ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-section-label">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="ui|SymbolIcon.chevron">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Grid.tracking-row">
+        <Setter Property="MinHeight" Value="{StaticResource RowMinHeight}" />
+        <Setter Property="ColumnSpacing" Value="16" />
+    </Style>
+
+    <Style Selector="Grid.tracking-row.indented">
+        <Setter Property="Margin" Value="{StaticResource IndentMargin}" />
+    </Style>
+
+    <Style Selector="Grid.tracking-row:disabled">
+        <Setter Property="Opacity" Value="{StaticResource DisabledOpacity}" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-row-label">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-row-state">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-row-state.live">
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="StackPanel.tracking-controls">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="8" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Slider.tracking-slider">
+        <Setter Property="Width" Value="{StaticResource SliderWidth}" />
+        <Setter Property="Height" Value="{StaticResource ControlHeight}" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="c|NumberField.tracking-number">
+        <Setter Property="Width" Value="{StaticResource NumberWidth}" />
+        <Setter Property="MinWidth" Value="{StaticResource NumberWidth}" />
+        <Setter Property="Height" Value="{StaticResource ControlHeight}" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="c|RangeSlider.tracking-range">
+        <Setter Property="Width" Value="{StaticResource SliderWidth}" />
+        <Setter Property="Height" Value="{StaticResource ControlHeight}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.tracking-icon-button">
+        <Setter Property="Width" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Height" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.tracking-icon-button > ui|SymbolIcon">
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+
+    <Style Selector="Button.tracking-action">
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="MinWidth" Value="{StaticResource ActionMinWidth}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBox.tracking-text">
+        <Setter Property="Width" Value="{StaticResource ActionMinWidth}" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="ToggleButton.tracking-more">
+        <Setter Property="Margin" Value="0,8,0,0" />
+        <Setter Property="Padding" Value="0,4" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style Selector="ToggleButton.tracking-more /template/ ContentPresenter, ToggleButton.tracking-more:checked /template/ ContentPresenter, ToggleButton.tracking-more:pointerover /template/ ContentPresenter, ToggleButton.tracking-more:checked:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.tracking-more:pointerover /template/ ContentPresenter, ToggleButton.tracking-more:checked:pointerover /template/ ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="StackPanel.tracking-confirm">
+        <Setter Property="Spacing" Value="12" />
+        <Setter Property="MaxWidth" Value="{StaticResource ConfirmMaxWidth}" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-confirm-text">
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="StackPanel.tracking-confirm-buttons">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="8" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+
+    <Style Selector="Border.tracking-divider">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Margin" Value="0,12" />
+        <Setter Property="Background" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+    </Style>
+
+    <Style Selector="Grid.tracking-live-header">
+        <Setter Property="MinHeight" Value="{StaticResource ChipHeight}" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <Style Selector="StackPanel.tracking-legend">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="16" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="StackPanel.tracking-legend-item">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="8" />
+    </Style>
+
+    <Style Selector="Border.swatch">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="4" />
+        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.swatch.raw">
+        <Setter Property="Background" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+
+    <Style Selector="Border.swatch.adjusted">
+        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-legend-text, TextBlock.tracking-waiting, TextBlock.tracking-channel-label">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.tracking-channel-label">
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style Selector="ItemsControl.tracking-channels.idle">
+        <Setter Property="Opacity" Value="{StaticResource DisabledOpacity}" />
+    </Style>
+
+    <Style Selector="ItemsControl.tracking-channels.paused c|LevelBar">
+        <Setter Property="IsPaused" Value="True" />
+    </Style>
+
+    <Style Selector="StackPanel.tracking-channel">
+        <Setter Property="Spacing" Value="4" />
+    </Style>
+</Styles>

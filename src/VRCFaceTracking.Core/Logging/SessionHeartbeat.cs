@@ -21,7 +21,7 @@ public sealed partial class SessionHeartbeat : IDisposable
     {
         _logger = logger;
         _interval = interval ?? DefaultInterval;
-        _clock = clock ?? (() => DateTimeOffset.UtcNow);
+        _clock = clock ?? TimeProvider.System.GetUtcNow;
         _processId = processId ?? Environment.ProcessId;
         FilePath = Path.Combine(directory, FileName);
     }

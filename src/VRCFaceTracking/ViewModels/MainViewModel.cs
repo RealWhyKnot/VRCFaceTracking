@@ -1,9 +1,12 @@
+using System.Globalization;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Models;
+using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Services;
+using VRCFaceTracking.Strings;
 
 namespace VRCFaceTracking.ViewModels;
 
@@ -29,7 +32,15 @@ internal sealed partial class MainViewModel : ObservableRecipient
     {
         get;
     }
+    private const int LiveIntervalMs = 50;
+    private const int StatusEvery = 10;
+
     private readonly IModuleDataService _moduleDataService;
+    private readonly UnifiedTrackingMutator _mutator;
+    private readonly DispatcherTimer _liveTimer;
+    private int _liveTick;
+
+    private static readonly System.Text.CompositeFormat ConnectedFormat = System.Text.CompositeFormat.Parse(Resources.HomeOsc_Connected);
 
     private int _messagesRecvd;
     [ObservableProperty] private int _messagesInPerSec;
@@ -41,6 +52,8 @@ internal sealed partial class MainViewModel : ObservableRecipient
 
     [ObservableProperty] private bool _oscWasDisabled;
 
+    [ObservableProperty] private string _connectionText = Resources.HomeOsc_NotConnected;
+
     private readonly DispatcherTimer _msgCounterTimer;
 
     public MainViewModel(
@@ -49,7 +62,8 @@ internal sealed partial class MainViewModel : ObservableRecipient
         IModuleDataService moduleDataService,
         IOscTarget oscTarget,
         OscRecvService oscRecvService,
-        OscSendService oscSendService
+        OscSendService oscSendService,
+        UnifiedTrackingMutator mutator
         )
     {
         LibManager = libManager;
@@ -58,6 +72,13 @@ internal sealed partial class MainViewModel : ObservableRecipient
         OscRecvService = oscRecvService;
         OscSendService = oscSendService;
         _moduleDataService = moduleDataService;
+        _mutator = mutator;
+        Tracking = new HomeTrackingViewModel();
+        Cameras = new CameraStreamsViewModel();
+        _liveTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(LiveIntervalMs) };
+        _liveTimer.Tick += (_, _) => OnLiveTick();
+        OscTarget.PropertyChanged += (_, _) => RefreshConnection();
+        RefreshConnection();
 
         OscRecvService.OnMessagesReceived += MessageReceived;
         OscSendService.OnMessagesDispatched += MessageDispatched;
@@ -73,6 +94,72 @@ internal sealed partial class MainViewModel : ObservableRecipient
         _msgCounterTimer.Start();
 
         OnNavigatedTo();
+    }
+
+    public HomeTrackingViewModel Tracking
+    {
+        get;
+    }
+
+    public CameraStreamsViewModel Cameras
+    {
+        get;
+    }
+
+    public bool IsLive => _liveTimer.IsEnabled;
+
+    public void Start()
+    {
+        if (_liveTimer.IsEnabled)
+        {
+            return;
+        }
+
+        LibManager.SetImageStreamEnabled(enabled: true);
+        _liveTick = 0;
+        RefreshStatus();
+        RefreshCameras();
+        _liveTimer.Start();
+    }
+
+    public void Stop()
+    {
+        if (!_liveTimer.IsEnabled)
+        {
+            return;
+        }
+
+        _liveTimer.Stop();
+        LibManager.SetImageStreamEnabled(enabled: false);
+        Cameras.Reset();
+    }
+
+    public void RefreshStatus() => Tracking.Refresh(LibManager.GetOwnershipSnapshot(), _mutator.Activity);
+
+    public void RefreshCameras() => Cameras.Refresh(UnifiedTracking.EyeImageData, UnifiedTracking.LipImageData);
+
+    private void OnLiveTick()
+    {
+        if (++_liveTick >= StatusEvery)
+        {
+            _liveTick = 0;
+            RefreshStatus();
+        }
+
+        RefreshCameras();
+    }
+
+    private void RefreshConnection()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(RefreshConnection);
+            return;
+        }
+
+        ConnectionText = OscTarget.IsConnected
+            ? string.Format(CultureInfo.CurrentCulture, ConnectedFormat, OscTarget.InPort, OscTarget.DestinationAddress, OscTarget.OutPort)
+            : Resources.HomeOsc_NotConnected;
     }
 
     public void OnNavigatedTo()

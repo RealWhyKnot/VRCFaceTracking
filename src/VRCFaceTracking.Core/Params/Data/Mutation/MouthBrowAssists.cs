@@ -3,6 +3,7 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
+[MutationCard(TrackingCard.Mouth, Order = 0)]
 public sealed class MouthBrowAssists : TrackingMutation
 {
     public override string Name => "Mouth & Brow Assists";
@@ -12,9 +13,14 @@ public sealed class MouthBrowAssists : TrackingMutation
     public override int PageOrder => 1;
     public override bool IsActive { get; set; }
 
-    [MutationProperty("Idle Mouth Auto-Close", true, Group = "Mouth")]
+    private const int IdleCloseFeature = 0;
+
+    protected override int FeatureOf(string propertyName) =>
+        string.Equals(propertyName, nameof(IdleMouthAutoClose), StringComparison.Ordinal) ? IdleCloseFeature : -1;
+
+    [MutationProperty("Idle Mouth Auto-Close", true, Group = "Mouth", Order = 10)]
     public bool IdleMouthAutoClose { get; set; }
-    [MutationProperty("Idle Close Strength", true, Group = "Mouth", Indented = true)]
+    [MutationProperty("Idle Close Strength", true, Group = "Mouth", Indented = true, Order = 11, Advanced = true, DependsOn = nameof(IdleMouthAutoClose), Step = 0.05f)]
     public float IdleCloseStrength { get; set; } = 0.5f;
 
     internal Func<double> NowSeconds { get; set; } = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
@@ -68,7 +74,7 @@ public sealed class MouthBrowAssists : TrackingMutation
         if (now - _idleSince >= 1.2)
         {
             data.Shapes[(int)UnifiedExpressions.JawOpen].Weight = jaw * (1f - Math.Clamp(IdleCloseStrength, 0f, 1f));
-            MarkTriggered();
+            MarkTriggered(IdleCloseFeature);
         }
     }
 }

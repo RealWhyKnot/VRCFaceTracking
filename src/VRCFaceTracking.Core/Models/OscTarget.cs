@@ -8,15 +8,18 @@ namespace VRCFaceTracking.Core.Models;
 
 public sealed partial class OscTarget : ObservableValidator, IOscTarget
 {
+    public const int MinPort = 1;
+    public const int MaxPort = 65535;
+
     [ObservableProperty] private bool _isConnected;
 
     [ObservableProperty]
-    [Range(1, 65535)]
+    [Range(MinPort, MaxPort)]
     [property: SavedSetting("OSCInPort", 9001)]
     private int _inPort;
 
     [ObservableProperty]
-    [Range(1, 65535)]
+    [Range(MinPort, MaxPort)]
     [property: SavedSetting("OSCOutPort", 9000)]
     private int _outPort;
 

@@ -31,9 +31,11 @@ public sealed class MutationAction : IMutationComponent, ICommand
 
     public bool StartsGroup { get; set; }
 
+    public MutationMetadata? Metadata { get; set; }
+
     public bool CanExecute(object? parameter) => true;
 
     public void Execute(object? parameter) => _ = RunAsync(CancellationToken.None);
 
-    internal Task RunAsync(CancellationToken cancellationToken) => Task.Run(_execute, cancellationToken);
+    public Task RunAsync(CancellationToken cancellationToken) => Task.Run(_execute, cancellationToken);
 }

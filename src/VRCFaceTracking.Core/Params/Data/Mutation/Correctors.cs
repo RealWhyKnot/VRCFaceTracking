@@ -4,6 +4,7 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
+[MutationCard(TrackingCard.Mouth, Order = 1)]
 public sealed partial class Correctors : TrackingMutation
 {
     public override string Name => "Unified Correctors";
@@ -12,15 +13,44 @@ public sealed partial class Correctors : TrackingMutation
     public override int PageOrder => 6;
     public override bool IsActive { get; set; } = true;
 
-    [MutationProperty("MouthClosed/JawOpen Clamp", true, Group = "Mouth")]
+    [MutationProperty("MouthClosed/JawOpen Clamp", true, Group = "Mouth", Order = 20)]
     public bool MouthClosedFix { get; set; } = true;
-    [MutationProperty("Jaw Reduces When Mouth Closed", true, Group = "Mouth", Indented = true)]
+    [MutationProperty("Jaw Reduces When Mouth Closed", true, Group = "Mouth", Indented = true, Order = 21)]
     public bool MouthCloseCompensation { get; set; }
-    [MutationProperty("LipSuck Limiter", true, Group = "Mouth")]
+    [MutationProperty("LipSuck Limiter", true, Group = "Mouth", Card = TrackingCard.AutoFixes, Order = 15)]
     public bool LipSuckFix { get; set; } = true;
 
-    [MutationProperty("EyeLook Symmetrize", true, Group = "Eyes")]
+    [MutationProperty("EyeLook Symmetrize", true, Group = "Eyes", Card = TrackingCard.AutoFixes, Order = 25)]
     public bool EyeLookSymmetrize { get; set; }
+
+    public bool MouthFixesOn { get; set; } = true;
+
+    public bool AutoFixesOn { get; set; } = true;
+
+    public override bool IsCardOn(TrackingCard card) =>
+        IsActive && (card == TrackingCard.Mouth ? MouthFixesOn : card != TrackingCard.AutoFixes || AutoFixesOn);
+
+    public override void SetCardOn(TrackingCard card, bool enabled)
+    {
+        if (enabled && !IsActive)
+        {
+            MouthFixesOn = false;
+            AutoFixesOn = false;
+            IsActive = true;
+        }
+
+        if (card == TrackingCard.Mouth)
+        {
+            MouthFixesOn = enabled;
+        }
+        else if (card == TrackingCard.AutoFixes)
+        {
+            AutoFixesOn = enabled;
+        }
+
+        IsActive = MouthFixesOn || AutoFixesOn;
+        _ = SaveAsync(CancellationToken.None);
+    }
 
     internal const string AssistsSettingName = "Mouth & Brow Assists";
 
@@ -50,7 +80,7 @@ public sealed partial class Correctors : TrackingMutation
 
     public override void MutateData(ref UnifiedTrackingData data)
     {
-        if (MouthClosedFix)
+        if (MouthFixesOn && MouthClosedFix)
         {
             data.Shapes[(int)UnifiedExpressions.MouthClosed].Weight =
                 Math.Min(
@@ -59,7 +89,7 @@ public sealed partial class Correctors : TrackingMutation
                 );
         }
 
-        if (MouthCloseCompensation)
+        if (MouthFixesOn && MouthCloseCompensation)
         {
             float jaw = data.Shapes[(int)UnifiedExpressions.JawOpen].Weight;
             float closed = data.Shapes[(int)UnifiedExpressions.MouthClosed].Weight;
@@ -68,7 +98,7 @@ public sealed partial class Correctors : TrackingMutation
             data.Shapes[(int)UnifiedExpressions.MouthClosed].Weight = Math.Min(closed, reduced);
         }
 
-        if (LipSuckFix)
+        if (AutoFixesOn && LipSuckFix)
         {
             data.Shapes[(int)UnifiedExpressions.LipSuckLowerLeft].Weight *= 1f - data.Shapes[(int)UnifiedExpressions.MouthLowerDownLeft].Weight;
             data.Shapes[(int)UnifiedExpressions.LipSuckLowerRight].Weight *= 1f - data.Shapes[(int)UnifiedExpressions.MouthLowerDownRight].Weight;
@@ -76,7 +106,7 @@ public sealed partial class Correctors : TrackingMutation
             data.Shapes[(int)UnifiedExpressions.LipSuckUpperRight].Weight *= 1f - data.Shapes[(int)UnifiedExpressions.MouthUpperUpRight].Weight;
         }
 
-        if (EyeLookSymmetrize)
+        if (AutoFixesOn && EyeLookSymmetrize)
         {
             float combinedY = (data.Eye.Right.Gaze.y + data.Eye.Left.Gaze.y) / 2;
             data.Eye.Right.Gaze.y = combinedY;

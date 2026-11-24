@@ -4,12 +4,58 @@
     xmlns:ui="using:FluentAvalonia.UI.Controls"
     xmlns:s="using:VRCFaceTracking.Strings"
     xmlns:vm="using:VRCFaceTracking.ViewModels"
+    xmlns:h="using:VRCFaceTracking.Helpers"
     xmlns:model="clr-namespace:VRCFaceTracking.Core.Library;assembly=VRCFaceTracking.Core"
     x:DataType="vm:MainViewModel"
     x:Class="VRCFaceTracking.Views.MainPage">
 
+    <UserControl.DataTemplates>
+        <DataTemplate x:DataType="vm:OwnerRowViewModel">
+            <Grid Classes="tracking-row" ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Classes="tracking-label">
+                    <TextBlock Classes="tracking-row-label" Text="{Binding Label}" />
+                    <TextBlock Classes="tracking-row-state" Text="{Binding Note}" IsVisible="{Binding HasNote}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Classes="home-owner"
+                           Classes.none="{Binding !HasOwner}"
+                           Text="{Binding Owner}"
+                           ToolTip.Tip="{Binding Owner}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:DataType="vm:CameraStreamViewModel">
+            <StackPanel Classes="camera-stream">
+                <TextBlock Classes="tracking-section-title camera-title" Text="{Binding Title}" />
+                <Border Classes="camera-frame">
+                    <Grid>
+                        <TextBlock Classes="tracking-waiting camera-waiting" Text="{Binding Detail}" IsVisible="{Binding !HasFrame}" />
+                        <Viewbox Stretch="Uniform" IsVisible="{Binding HasFrame}">
+                            <Grid>
+                                <Image Classes="camera-image" Classes.blurred="{Binding IsBlurred}" Source="{Binding Source}" />
+                                <Grid IsVisible="{Binding ShowGuides}" IsHitTestVisible="False">
+                                    <Border Classes="camera-guide horizontal" />
+                                    <Border Classes="camera-guide vertical" />
+                                </Grid>
+                            </Grid>
+                        </Viewbox>
+                        <Border Classes="camera-cover" IsVisible="{Binding ShowCover}">
+                            <StackPanel Classes="icon-label camera-cue" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="View" />
+                                <TextBlock Text="{x:Static s:Resources.Camera_HiddenCue}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+                <TextBlock Classes="tracking-row-state" Text="{Binding Detail}" IsVisible="{Binding HasFrame}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
     <ScrollViewer>
         <StackPanel Classes="page-stack">
+            <TextBlock Classes="page-title" Text="{x:Static s:Resources.Shell_Main_Content}" />
+
             <ui:InfoBar
                 IsVisible="{Binding NoModulesInstalled, Mode=OneWay}"
                 IsOpen="True"
@@ -18,7 +64,59 @@
                 Title="{x:Static s:Resources.no_modules_installed_warning_Title}"
                 Message="{x:Static s:Resources.no_modules_installed_warning_Description}" />
 
-            <TextBlock Classes="section-header" Text="{x:Static s:Resources.ModulesSectionHeader}" />
+            <Border Classes="card tracking-card">
+                <StackPanel DataContext="{Binding Tracking}" x:DataType="vm:HomeTrackingViewModel">
+                    <Grid Classes="tracking-card-header" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Classes="tracking-label">
+                            <TextBlock Classes="tracking-card-title" Text="{x:Static s:Resources.HomeTracking_Title}" />
+                            <TextBlock Classes="tracking-card-description" Text="{x:Static s:Resources.HomeTracking_Description}" />
+                        </StackPanel>
+                        <Border Grid.Column="1"
+                                Classes="chip"
+                                Classes.success="{Binding ActivityKind, Converter={x:Static h:ChipKindConverters.IsSuccess}}">
+                            <TextBlock Classes="chip-text" Text="{Binding ActivityText}" />
+                        </Border>
+                    </Grid>
+                    <Border Classes="tracking-divider" />
+                    <ContentControl Content="{Binding Eyes}" />
+                    <ContentControl Content="{Binding Mouth}" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card tracking-card" IsVisible="{Binding Cameras.HasCameras}">
+                <StackPanel DataContext="{Binding Cameras}" x:DataType="vm:CameraStreamsViewModel">
+                    <Grid Classes="tracking-card-header" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Classes="tracking-label">
+                            <TextBlock Classes="tracking-card-title" Text="{x:Static s:Resources.CameraStreamsHeader}" />
+                            <TextBlock Classes="tracking-card-description" Text="{x:Static s:Resources.Camera_Description}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="tracking-action"
+                                Content="{Binding BlurButtonText}"
+                                Command="{Binding ToggleBlurCommand}" />
+                    </Grid>
+                    <Border Classes="tracking-divider" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                        <ContentControl Grid.Column="0" Content="{Binding Eye}" />
+                        <ContentControl Grid.Column="1" Content="{Binding Lip}" />
+                    </Grid>
+                    <Border Classes="tracking-divider" />
+                    <Grid Classes="tracking-row" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{x:Static s:Resources.Camera_Guides}" />
+                        <ToggleSwitch Grid.Column="1" Classes="tracking-switch"
+                                      IsChecked="{Binding ShowGuides, Mode=TwoWay}"
+                                      AutomationProperties.Name="{x:Static s:Resources.Camera_Guides}" />
+                    </Grid>
+                    <Grid Classes="tracking-row" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{x:Static s:Resources.Camera_Freeze}" />
+                        <ToggleSwitch Grid.Column="1" Classes="tracking-switch"
+                                      IsChecked="{Binding IsFrozen, Mode=TwoWay}"
+                                      AutomationProperties.Name="{x:Static s:Resources.Camera_Freeze}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Classes="section-header" Text="{x:Static s:Resources.ModulesSectionHeader}" IsVisible="{Binding !NoModulesInstalled}" />
 
             <Border Classes="card" IsVisible="{Binding LibManager.InitProgress.IsInitializing}">
                 <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
@@ -42,7 +140,7 @@
                 </StackPanel>
             </Border>
 
-            <ItemsControl ItemsSource="{Binding LibManager.LoadedModulesMetadata}">
+            <ItemsControl ItemsSource="{Binding LibManager.LoadedModulesMetadata}" IsVisible="{Binding !NoModulesInstalled}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="model:ModuleMetadataInternal">
                         <Border Classes="card" Padding="0" Margin="0,0,0,4">
@@ -131,7 +229,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <TextBlock Classes="section-header" Text="{x:Static s:Resources.StatusSectionHeader}" />
+            <TextBlock Classes="section-header" Margin="0" Text="{x:Static s:Resources.StatusSectionHeader}" />
             <Border Classes="card">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -144,17 +242,7 @@
                         <ui:SymbolIcon Symbol="Wifi4" FontSize="24" VerticalAlignment="Center" />
                         <StackPanel Spacing="3" VerticalAlignment="Center">
                             <TextBlock Classes="title" Text="{x:Static s:Resources.OSCStatus_Text}" />
-                            <StackPanel Orientation="Horizontal" Spacing="4"
-                                        IsVisible="{Binding OscTarget.IsConnected}">
-                                <TextBlock Classes="caption" Text="Recv:" />
-                                <TextBlock Classes="value" Text="{Binding OscTarget.InPort, Mode=OneWay}" />
-                                <TextBlock Classes="caption" Text="  Send:" />
-                                <TextBlock Classes="value" Text="{Binding OscTarget.OutPort, Mode=OneWay}" />
-                                <TextBlock Classes="caption" Text=" @" />
-                                <TextBlock Classes="value" Text="{Binding OscTarget.DestinationAddress, Mode=OneWay}" />
-                            </StackPanel>
-                            <TextBlock Classes="caption" Text="Not connected"
-                                       IsVisible="{Binding !OscTarget.IsConnected}" />
+                            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding ConnectionText}" />
                         </StackPanel>
                     </StackPanel>
 

@@ -4,6 +4,7 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
+[MutationCard(TrackingCard.Calibration, Order = 0)]
 public sealed partial class Calibration : TrackingMutation
 {
     internal const int DefaultWindowSize = 64;
@@ -14,24 +15,24 @@ public sealed partial class Calibration : TrackingMutation
     private const float FrameSeconds = 0.1f;
     private const float LearnedProgress = 0.999f;
 
-    [MutationProperty("Window Size", true, Developer = true)]
+    [MutationProperty("Window Size", true, Developer = true, Advanced = true, Order = 30)]
     public int WindowSize
     {
         get;
         set => field = Math.Clamp(value, MinWindowSize, MaxWindowSize);
     } = DefaultWindowSize;
 
-    [MutationProperty("Step Delta", true, Developer = true)]
+    [MutationProperty("Step Delta", true, Developer = true, Advanced = true, Order = 31, Step = 0.01f)]
     public float StepDelta
     {
         get;
         set => field = float.IsFinite(value) && value > 0f ? value : DefaultStepDelta;
     } = DefaultStepDelta;
 
-    [MutationProperty("Calibration Blend", true)]
+    [MutationProperty("Calibration Blend", true, Order = 10, Step = 0.05f)]
     public float CalibrationBlend { get; set; } = 1f;
 
-    [MutationProperty("Continuous Calibration", true)]
+    [MutationProperty("Continuous Calibration", true, Order = 20)]
     public bool ContinuousCalibration { get; set; }
 
     public CalibrationData CalData
@@ -108,7 +109,7 @@ public sealed partial class Calibration : TrackingMutation
         }
     }
 
-    [MutationButton("Log Data", Developer = true)]
+    [MutationButton("Log Data", Developer = true, Advanced = true, Order = 40)]
     public void LogData()
     {
         if (!Logger.IsEnabled(LogLevel.Information))
@@ -129,7 +130,7 @@ public sealed partial class Calibration : TrackingMutation
         }
     }
 
-    [MutationButton("Reset Calibration")]
+    [MutationButton("Reset Calibration", Confirm = true, Order = 25)]
     public void ClearData() => CalData.Clear();
 
     private void ApplyWindowSize()

@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FluentAvalonia.UI.Controls;
 using Microsoft.Extensions.Logging.Abstractions;
+using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Params.Data.Mutation;
 using VRCFaceTracking.ViewModels;
 using VRCFaceTracking.Views;
@@ -71,26 +72,27 @@ public sealed class PageSmokeTests
     [AvaloniaFact]
     public void MutatorPageRendersMutationComponentsWithDeveloperGating()
     {
-        var page = new MutatorPage();
-        var viewModel = (MutatorViewModel)page.DataContext!;
-
+        UnifiedTrackingMutator mutator = App.GetService<UnifiedTrackingMutator>();
         foreach (TrackingMutation mutation in TrackingMutation.GetImplementingMutations())
         {
             mutation.Logger = NullLogger.Instance;
             mutation.CreateProperties();
-            viewModel.Mutations.Add(mutation);
+            mutator.Mutations.Add(mutation);
         }
 
+        Dispatcher.UIThread.RunJobs();
+        var page = new MutatorPage();
+        var viewModel = (MutatorViewModel)page.DataContext!;
         Window window = ShowInWindow(page);
 
-        foreach (Expander? expander in page.GetVisualDescendants().OfType<Expander>().ToList())
+        foreach (TrackingCardViewModel card in viewModel.Cards)
         {
-            expander.IsExpanded = true;
-            Dispatcher.UIThread.RunJobs();
+            card.IsMoreOpen = true;
         }
 
+        Dispatcher.UIThread.RunJobs();
         Assert.NotEmpty(page.GetVisualDescendants().OfType<Slider>());
-        Assert.NotEmpty(page.GetVisualDescendants().OfType<CheckBox>());
+        Assert.NotEmpty(page.GetVisualDescendants().OfType<ToggleSwitch>());
 
         viewModel.Developer.Enabled = true;
         Dispatcher.UIThread.RunJobs();

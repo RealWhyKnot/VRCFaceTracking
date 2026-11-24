@@ -4,128 +4,265 @@
     xmlns:ui="using:FluentAvalonia.UI.Controls"
     xmlns:s="using:VRCFaceTracking.Strings"
     xmlns:vm="using:VRCFaceTracking.ViewModels"
-    xmlns:mutation="clr-namespace:VRCFaceTracking.Core.Params.Data.Mutation;assembly=VRCFaceTracking.Core"
+    xmlns:c="using:VRCFaceTracking.Controls"
+    xmlns:h="using:VRCFaceTracking.Helpers"
     x:DataType="vm:MutatorViewModel"
     x:Class="VRCFaceTracking.Views.MutatorPage">
-    <Grid RowDefinitions="*,Auto">
-        <ScrollViewer Grid.Row="0">
-        <ItemsControl ItemsSource="{Binding Mutations}" Margin="0,4">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="{x:Type mutation:TrackingMutation}">
-                    <Expander Margin="0,0,0,6" HorizontalAlignment="Stretch">
-                        <Expander.Header>
-                            <Grid ColumnDefinitions="Auto,*" Margin="0,4">
-                                <ToggleSwitch
-                                    Grid.Column="0"
-                                    IsChecked="{Binding ActiveSwitch, Mode=TwoWay}"
-                                    OffContent="{x:Static s:Resources.MutationToggleOff}"
-                                    OnContent="{x:Static s:Resources.MutationToggleOn}"
-                                    ToolTip.Tip="{x:Static s:Resources.MutationActiveToggleTooltip}"
-                                    Margin="0,0,12,0"
-                                    MinWidth="86"
-                                    VerticalAlignment="Center" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock Classes="title" Text="{Binding Name}" />
-                                    <TextBlock Classes="caption" Text="{Binding Description}" TextWrapping="Wrap" />
+
+    <UserControl.DataTemplates>
+        <DataTemplate x:DataType="vm:SettingSectionViewModel">
+            <StackPanel Classes="tracking-section" IsVisible="{Binding IsVisible}">
+                <TextBlock Classes="tracking-section-title" Text="{Binding Title}" IsVisible="{Binding ShowTitle}" />
+                <ToggleButton Classes="tracking-section-toggle"
+                              IsVisible="{Binding IsCollapsible}"
+                              IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                              AutomationProperties.Name="{Binding Title}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Classes="tracking-section-label" Text="{Binding Title}" />
+                        <ui:SymbolIcon Grid.Column="1" Classes="chevron" Symbol="ChevronDown" IsVisible="{Binding !IsExpanded}" />
+                        <ui:SymbolIcon Grid.Column="1" Classes="chevron" Symbol="ChevronUp" IsVisible="{Binding IsExpanded}" />
+                    </Grid>
+                </ToggleButton>
+                <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding ShowRows}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:DataType="vm:ToggleRowViewModel">
+            <Grid Classes="tracking-row" Classes.indented="{Binding IsIndented}"
+                  ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding IsVisible}"
+                  IsEnabled="{Binding IsEnabled}"
+                  ToolTip.Tip="{Binding Tip}">
+                <StackPanel Grid.Column="0" Classes="tracking-label">
+                    <TextBlock Classes="tracking-row-label" Text="{Binding Label}" />
+                    <TextBlock Classes="tracking-row-state"
+                               Classes.live="{Binding IsStateActive}"
+                               Text="{Binding StateText}"
+                               IsVisible="{Binding HasState}"
+                               ToolTip.Tip="{Binding StateTip}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1"
+                              Classes="tracking-switch"
+                              IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                              AutomationProperties.Name="{Binding Label}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:DataType="vm:SliderRowViewModel">
+            <Grid Classes="tracking-row" Classes.indented="{Binding IsIndented}"
+                  ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding IsVisible}"
+                  IsEnabled="{Binding IsEnabled}"
+                  ToolTip.Tip="{Binding Tip}">
+                <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{Binding Label}" />
+                <StackPanel Grid.Column="1" Classes="tracking-controls">
+                    <Slider Classes="tracking-slider"
+                            Minimum="{Binding Minimum}"
+                            Maximum="{Binding Maximum}"
+                            TickFrequency="{Binding Step}"
+                            SmallChange="{Binding Step}"
+                            LargeChange="{Binding Step}"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding Value, Mode=TwoWay}"
+                            AutomationProperties.Name="{Binding Label}" />
+                    <c:NumberField Classes="tracking-number"
+                                   Minimum="{Binding Minimum}"
+                                   Maximum="{Binding Maximum}"
+                                   Step="{Binding Step}"
+                                   Value="{Binding Value, Mode=TwoWay}"
+                                   AutomationProperties.Name="{Binding Label}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:DataType="vm:RangeRowViewModel">
+            <Grid Classes="tracking-row"
+                  ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding IsVisible}"
+                  IsEnabled="{Binding IsEnabled}"
+                  ToolTip.Tip="{Binding Tip}">
+                <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{Binding Label}" />
+                <StackPanel Grid.Column="1" Classes="tracking-controls">
+                    <c:NumberField Classes="tracking-number"
+                                   Minimum="{Binding Minimum}"
+                                   Maximum="{Binding Maximum}"
+                                   Step="{Binding Step}"
+                                   Value="{Binding Lower, Mode=TwoWay}"
+                                   AutomationProperties.Name="{Binding LowerName}" />
+                    <c:RangeSlider Classes="tracking-range"
+                                   Minimum="{Binding Minimum}"
+                                   Maximum="{Binding Maximum}"
+                                   Step="{Binding Step}"
+                                   Lower="{Binding Lower, Mode=TwoWay}"
+                                   Upper="{Binding Upper, Mode=TwoWay}"
+                                   LowerName="{Binding LowerName}"
+                                   UpperName="{Binding UpperName}" />
+                    <c:NumberField Classes="tracking-number"
+                                   Minimum="{Binding Minimum}"
+                                   Maximum="{Binding Maximum}"
+                                   Step="{Binding Step}"
+                                   Value="{Binding Upper, Mode=TwoWay}"
+                                   AutomationProperties.Name="{Binding UpperName}" />
+                    <Button Classes="tracking-icon-button"
+                            Command="{Binding ResetCommand}"
+                            IsEnabled="{Binding !IsDefault}"
+                            ToolTip.Tip="{x:Static s:Resources.TrackingRange_Reset}"
+                            AutomationProperties.Name="{Binding ResetName}">
+                        <ui:SymbolIcon Symbol="Undo" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:DataType="vm:ActionRowViewModel">
+            <Grid Classes="tracking-row"
+                  ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding IsVisible}"
+                  IsEnabled="{Binding IsEnabled}"
+                  ToolTip.Tip="{Binding Tip}">
+                <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{Binding Label}" />
+                <Button Grid.Column="1"
+                        Classes="tracking-action"
+                        Content="{Binding ButtonText}"
+                        Command="{Binding Command}"
+                        IsVisible="{Binding !NeedsConfirm}"
+                        AutomationProperties.Name="{Binding Label}" />
+                <Button Grid.Column="1"
+                        Classes="tracking-action"
+                        Content="{Binding ButtonText}"
+                        IsVisible="{Binding NeedsConfirm}"
+                        AutomationProperties.Name="{Binding Label}">
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <StackPanel Classes="tracking-confirm">
+                                <TextBlock Classes="tracking-confirm-text" Text="{Binding ConfirmText}" />
+                                <StackPanel Classes="tracking-confirm-buttons">
+                                    <Button Classes="tracking-confirm-cancel"
+                                            Content="{x:Static s:Resources.TrackingAction_Cancel}"
+                                            Click="OnConfirmCancel" />
+                                    <Button Classes="accent tracking-confirm-run"
+                                            Content="{Binding ButtonText}"
+                                            Click="OnConfirmRun" />
                                 </StackPanel>
-                            </Grid>
-                        </Expander.Header>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </Grid>
+        </DataTemplate>
 
-                        <Border Padding="4,0">
-                            <ItemsControl ItemsSource="{Binding Components}">
-                                <ItemsControl.DataTemplates>
-                                    <DataTemplate x:DataType="{x:Type mutation:MutationProperty}">
-                                        <StackPanel>
-                                        <TextBlock Classes="section-header mutation-group" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
-                                        <Border Classes="mutation-row">
-                                            <Border.IsVisible>
-                                                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                                                    <Binding Path="!IsDeveloper" />
-                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).Developer.Enabled" />
-                                                </MultiBinding>
-                                            </Border.IsVisible>
-                                            <Grid ColumnDefinitions="5*,6*">
-                                                <TextBlock Grid.Column="0" Classes.mutation-indented="{Binding Indented}" Text="{Binding Name}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <CheckBox
-                                                    Grid.Column="1"
-                                                    IsChecked="{Binding BoolValue, Mode=TwoWay}"
-                                                    IsVisible="{Binding Type, Converter={StaticResource MutationTypeCheckboxConverter}}"
-                                                    HorizontalAlignment="Right" />
-                                                <Grid
-                                                    Grid.Column="1"
-                                                    ColumnDefinitions="Auto,*"
-                                                    IsVisible="{Binding Type, Converter={StaticResource MutationTypeSliderConverter}}"
-                                                    ColumnSpacing="8">
-                                                    <TextBlock Grid.Column="0"
-                                                        Text="{Binding FloatValue, StringFormat='{}{0:F2}'}"
-                                                        VerticalAlignment="Center"
-                                                        MinWidth="45"
-                                                        TextAlignment="Right" />
-                                                    <Slider
-                                                        Minimum="{Binding Min}"
-                                                        Maximum="{Binding Max}"
-                                                        Value="{Binding FloatValue, Mode=TwoWay}"
-                                                        TickFrequency="0.01"
-                                                        Grid.Column="1"
-                                                        HorizontalAlignment="Stretch"
-                                                        MinWidth="120" />
-                                                </Grid>
-                                                <TextBox
-                                                    Grid.Column="1"
-                                                    Text="{Binding StringValue, Mode=TwoWay}"
-                                                    IsVisible="{Binding Type, Converter={StaticResource MutationTypeTextConverter}}"
-                                                    HorizontalAlignment="Stretch" />
-                                            </Grid>
-                                        </Border>
-                                        </StackPanel>
-                                    </DataTemplate>
+        <DataTemplate x:DataType="vm:TextRowViewModel">
+            <Grid Classes="tracking-row"
+                  ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding IsVisible}"
+                  IsEnabled="{Binding IsEnabled}"
+                  ToolTip.Tip="{Binding Tip}">
+                <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{Binding Label}" />
+                <TextBox Grid.Column="1"
+                         Classes="tracking-text"
+                         MaxLength="6"
+                         Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         AutomationProperties.Name="{Binding Label}" />
+            </Grid>
+        </DataTemplate>
 
-                                    <DataTemplate x:DataType="{x:Type mutation:MutationRangeProperty}">
-                                        <StackPanel>
-                                        <TextBlock Classes="section-header mutation-group" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
-                                        <Border Classes="mutation-row">
-                                            <Grid ColumnDefinitions="5*,6*">
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <Grid Grid.Column="1" ColumnDefinitions="Auto,*,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
-                                                    <TextBlock Grid.Column="0" Text="{Binding Item1, StringFormat='{}{0:F2}'}" VerticalAlignment="Center" MinWidth="40" TextAlignment="Right" />
-                                                    <Slider Grid.Column="1" Minimum="{Binding Min}" Maximum="{Binding Max}" Value="{Binding Item1, Mode=TwoWay}" TickFrequency="0.01" MinWidth="70" />
-                                                    <Slider Grid.Column="2" Minimum="{Binding Min}" Maximum="{Binding Max}" Value="{Binding Item2, Mode=TwoWay}" TickFrequency="0.01" MinWidth="70" />
-                                                    <TextBlock Grid.Column="3" Text="{Binding Item2, StringFormat='{}{0:F2}'}" VerticalAlignment="Center" MinWidth="40" />
-                                                </Grid>
-                                            </Grid>
-                                        </Border>
-                                        </StackPanel>
-                                    </DataTemplate>
-
-                                    <DataTemplate x:DataType="{x:Type mutation:MutationAction}">
-                                        <StackPanel>
-                                        <TextBlock Classes="section-header mutation-group" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
-                                        <Border Classes="mutation-row">
-                                            <Border.IsVisible>
-                                                <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                                                    <Binding Path="!IsDeveloper" />
-                                                    <Binding Path="$parent[UserControl].((vm:MutatorViewModel)DataContext).Developer.Enabled" />
-                                                </MultiBinding>
-                                            </Border.IsVisible>
-                                            <Grid ColumnDefinitions="5*,6*">
-                                                <Button Grid.Column="1" Content="{Binding Name}" Command="{Binding}" HorizontalAlignment="Right" />
-                                            </Grid>
-                                        </Border>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.DataTemplates>
-                            </ItemsControl>
+        <DataTemplate x:DataType="vm:TrackingCardViewModel">
+            <Border Classes="card tracking-card">
+                <StackPanel>
+                    <Grid Classes="tracking-card-header" ColumnDefinitions="*,Auto,Auto">
+                        <StackPanel Grid.Column="0" Classes="tracking-label">
+                            <TextBlock Classes="tracking-card-title" Text="{Binding Title}" />
+                            <TextBlock Classes="tracking-card-description" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
+                        </StackPanel>
+                        <Border Grid.Column="1"
+                                Classes="chip"
+                                Classes.success="{Binding ChipKind, Converter={x:Static h:ChipKindConverters.IsSuccess}}"
+                                Classes.progress="{Binding ChipKind, Converter={x:Static h:ChipKindConverters.IsProgress}}">
+                            <TextBlock Classes="chip-text" Text="{Binding ChipText}" />
                         </Border>
-                    </Expander>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        </ScrollViewer>
+                        <ToggleSwitch Grid.Column="2"
+                                      Classes="tracking-switch"
+                                      IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                      AutomationProperties.Name="{Binding SwitchName}" />
+                    </Grid>
+                    <ProgressBar Classes="tracking-progress"
+                                 Minimum="0"
+                                 Maximum="1"
+                                 Value="{Binding Progress}"
+                                 IsVisible="{Binding ShowProgress}" />
+                    <ItemsControl Classes="tracking-sections" ItemsSource="{Binding MainSections}" />
+                    <ToggleButton Classes="tracking-more"
+                                  IsVisible="{Binding HasMore}"
+                                  IsChecked="{Binding IsMoreOpen, Mode=TwoWay}"
+                                  AutomationProperties.Name="{Binding MoreLabel}">
+                        <StackPanel Classes="icon-label">
+                            <TextBlock Text="{Binding MoreLabel}" />
+                            <ui:SymbolIcon Classes="chevron" Symbol="ChevronDown" IsVisible="{Binding !IsMoreOpen}" />
+                            <ui:SymbolIcon Classes="chevron" Symbol="ChevronUp" IsVisible="{Binding IsMoreOpen}" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ItemsControl Classes="tracking-sections tracking-more-sections" ItemsSource="{Binding MoreSections}" IsVisible="{Binding ShowMore}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
 
-        <CheckBox
-            Grid.Row="1"
-            Content="{x:Static s:Resources.ShowDeveloperSettingsContent}"
-            IsChecked="{Binding Developer.Enabled, Mode=TwoWay}"
-            Margin="0,8,0,0" />
-    </Grid>
+        <DataTemplate x:DataType="vm:PreviewChannelViewModel">
+            <StackPanel Classes="tracking-channel">
+                <TextBlock Classes="tracking-channel-label" Text="{Binding Label}" ToolTip.Tip="{Binding Label}" />
+                <c:LevelBar Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding Raw}" />
+                <c:LevelBar Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding Adjusted}" IsAdjusted="True" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <ScrollViewer>
+        <StackPanel Classes="page-stack">
+            <TextBlock Classes="page-title" Text="{x:Static s:Resources.Shell_TrackingSettings_Content}" />
+
+            <Border Classes="card tracking-hero">
+                <StackPanel>
+                    <Grid Classes="tracking-card-header" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Classes="tracking-label">
+                            <TextBlock Classes="tracking-card-title" Text="{x:Static s:Resources.TrackingMaster_Title}" />
+                            <TextBlock Classes="tracking-card-description" Text="{x:Static s:Resources.TrackingMaster_OnDescription}" IsVisible="{Binding MasterOn}" />
+                            <TextBlock Classes="tracking-card-description" Text="{x:Static s:Resources.TrackingMaster_OffDescription}" IsVisible="{Binding !MasterOn}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1"
+                                      x:Name="MasterSwitch"
+                                      Classes="tracking-switch"
+                                      IsChecked="{Binding MasterOn, Mode=TwoWay}"
+                                      AutomationProperties.Name="{x:Static s:Resources.TrackingMaster_Title}" />
+                    </Grid>
+                    <Border Classes="tracking-divider" />
+                    <Grid Classes="tracking-live-header" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Classes="tracking-legend" IsVisible="{Binding HasData}">
+                            <StackPanel Classes="tracking-legend-item">
+                                <Border Classes="swatch raw" />
+                                <TextBlock Classes="tracking-legend-text" Text="{x:Static s:Resources.TrackingPreview_Raw}" />
+                            </StackPanel>
+                            <StackPanel Classes="tracking-legend-item">
+                                <Border Classes="swatch adjusted" />
+                                <TextBlock Classes="tracking-legend-text" Text="{x:Static s:Resources.TrackingPreview_Adjusted}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Grid.Column="0" Classes="tracking-waiting" Text="{x:Static s:Resources.TrackingPreview_Waiting}" IsVisible="{Binding !HasData}" />
+                        <Border Grid.Column="1"
+                                Classes="chip"
+                                Classes.success="{Binding ActivityKind, Converter={x:Static h:ChipKindConverters.IsSuccess}}">
+                            <TextBlock Classes="chip-text" Text="{Binding ActivityText}" />
+                        </Border>
+                    </Grid>
+                    <ItemsControl Classes="tracking-channels" Classes.idle="{Binding !HasData}" Classes.paused="{Binding !MasterOn}" ItemsSource="{Binding Channels}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="4" RowSpacing="12" ColumnSpacing="24" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <ItemsControl x:Name="CardList" Classes="tracking-cards" ItemsSource="{Binding Cards}" IsEnabled="{Binding MasterOn}" />
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

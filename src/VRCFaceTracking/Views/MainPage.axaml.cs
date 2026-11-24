@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using CommunityToolkit.Mvvm.DependencyInjection;
@@ -18,7 +19,19 @@ internal sealed partial class MainPage : UserControl, INotifyNavigated
         DataContext = Ioc.Default.GetRequiredService<MainViewModel>();
     }
 
-    public void OnNavigatedTo() => ViewModel.OnNavigatedTo();
+    public void OnNavigatedTo()
+    {
+        ViewModel.OnNavigatedTo();
+        ViewModel.Start();
+    }
+
+    public void OnNavigatedFrom() => ViewModel.Stop();
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        ViewModel.Stop();
+    }
 
     private void RestartModules_OnClick(object? sender, RoutedEventArgs e) =>
         Ioc.Default.GetRequiredService<ILibManager>().Initialize();

@@ -2,6 +2,7 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
+[MutationCard(TrackingCard.Smoothing)]
 public sealed class Filter : TrackingMutation
 {
     internal const float DefaultSmoothing = 0.5f;
@@ -53,7 +54,7 @@ public sealed class Filter : TrackingMutation
         _headPosZ = new EuroFilter(this);
     }
 
-    [MutationProperty("Smoothing", true)]
+    [MutationProperty("Smoothing", true, Step = 0.05f)]
     public float Smoothing
     {
         get;
@@ -65,21 +66,21 @@ public sealed class Filter : TrackingMutation
         }
     } = DefaultSmoothing;
 
-    [MutationProperty("Minimum Cutoff", true, 0f, 2f, Developer = true)]
+    [MutationProperty("Minimum Cutoff", true, 0f, 2f, Developer = true, Advanced = true, Step = 0.01f)]
     public float MinCutoff
     {
         get => _minCutoff;
         set => _minCutoff = float.IsFinite(value) ? Math.Max(value, MinimumCutoff) : DefaultMinCutoff;
     }
 
-    [MutationProperty("Beta", true, Developer = true)]
+    [MutationProperty("Beta", true, Developer = true, Advanced = true, Step = 0.01f)]
     public float Beta
     {
         get => _beta;
         set => _beta = float.IsFinite(value) ? Math.Max(value, 0f) : DefaultBeta;
     }
 
-    [MutationProperty("Derivative Cutoff", true, Developer = true)]
+    [MutationProperty("Derivative Cutoff", true, Developer = true, Advanced = true, Step = 0.01f)]
     public float DerivativeCutoff
     {
         get;

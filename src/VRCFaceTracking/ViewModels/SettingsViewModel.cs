@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -9,6 +10,7 @@ using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Logging;
 using VRCFaceTracking.Core.Updates;
+using VRCFaceTracking.Core.Validation;
 using VRCFaceTracking.Models;
 using VRCFaceTracking.Services;
 
@@ -33,6 +35,23 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
     {
         get;
     }
+
+    public OscFieldViewModel InPortField
+    {
+        get;
+    }
+
+    public OscFieldViewModel OutPortField
+    {
+        get;
+    }
+
+    public OscFieldViewModel AddressField
+    {
+        get;
+    }
+
+    public static bool IsStartupVisible => IsOpenVRSupported || IsUpdateCheckAvailable;
     public DeveloperSettings Developer
     {
         get;
@@ -193,6 +212,11 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         _updateSettings = updateSettings;
         _updateService = updateService;
 
+        InPortField = new OscFieldViewModel(() => OscTarget.InPort.ToString(CultureInfo.CurrentCulture), text => ApplyPort(text, value => OscTarget.InPort = value));
+        OutPortField = new OscFieldViewModel(() => OscTarget.OutPort.ToString(CultureInfo.CurrentCulture), text => ApplyPort(text, value => OscTarget.OutPort = value));
+        AddressField = new OscFieldViewModel(() => OscTarget.DestinationAddress ?? string.Empty, ApplyAddress);
+        OscTarget.PropertyChanged += OnOscTargetChanged;
+
         OpenLogsCommand = new RelayCommand(() =>
         {
             Directory.CreateDirectory(LogDirectories.Current);
@@ -203,6 +227,43 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         ResetLogDirectoryCommand = new AsyncRelayCommand(cancellationToken => SetLogDirectoryAsync(LogDirectories.Default, cancellationToken));
 
         _ = LoadContributorsAsync(CancellationToken.None);
+    }
+
+    public void ReloadOscFields()
+    {
+        InPortField.Reload();
+        OutPortField.Reload();
+        AddressField.Reload();
+    }
+
+    private static string? ApplyPort(string text, Action<int> commit)
+    {
+        if (int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int port) && port is >= Core.Models.OscTarget.MinPort and <= Core.Models.OscTarget.MaxPort)
+        {
+            commit(port);
+            return null;
+        }
+
+        return Strings.Resources.Settings_Port_Error;
+    }
+
+    private string? ApplyAddress(string text)
+    {
+        string address = text.Trim();
+        if (!new ValidIpAddressAttribute().IsValid(address))
+        {
+            return Strings.Resources.Settings_Address_Error;
+        }
+
+        OscTarget.DestinationAddress = address;
+        return null;
+    }
+
+    private void OnOscTargetChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        InPortField.Sync();
+        OutPortField.Sync();
+        AddressField.Sync();
     }
 
     public Task<string?> ReadThemeAsync(CancellationToken cancellationToken) =>

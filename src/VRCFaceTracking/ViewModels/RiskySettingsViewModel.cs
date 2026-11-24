@@ -50,22 +50,28 @@ internal sealed partial class RiskySettingsViewModel : ObservableObject
         LogResettingVRChatAvatarConfiguration(_logger);
         try
         {
-            if (string.IsNullOrEmpty(VRChat.VRCOSCDirectory) || !Directory.Exists(VRChat.VRCOSCDirectory))
-            {
-                return;
-            }
-
-            foreach (string userFolder in Directory.GetDirectories(VRChat.VRCOSCDirectory))
-            {
-                if (Directory.Exists(userFolder + "\\Avatars"))
-                {
-                    Directory.Delete(userFolder + "\\Avatars", recursive: true);
-                }
-            }
+            DeleteAvatarFolders(VRChat.VRCOSCDirectory);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             LogFailedResetVRChatAvatarConfiguration(_logger, e, e.Message);
+        }
+    }
+
+    internal static void DeleteAvatarFolders(string oscDirectory)
+    {
+        if (string.IsNullOrEmpty(oscDirectory) || !Directory.Exists(oscDirectory))
+        {
+            return;
+        }
+
+        foreach (string userFolder in Directory.GetDirectories(oscDirectory))
+        {
+            string avatars = Path.Combine(userFolder, "Avatars");
+            if (Directory.Exists(avatars))
+            {
+                Directory.Delete(avatars, recursive: true);
+            }
         }
     }
 

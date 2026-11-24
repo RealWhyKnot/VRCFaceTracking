@@ -10,6 +10,21 @@
         <CornerRadius x:Key="RadiusSm">4</CornerRadius>
         <Thickness x:Key="CardPadding">16,14</Thickness>
         <Thickness x:Key="RowPadding">16,10</Thickness>
+        <x:Double x:Key="ControlHeight">32</x:Double>
+        <x:Double x:Key="RowMinHeight">40</x:Double>
+        <x:Double x:Key="FontSizeCaption">12</x:Double>
+        <x:Double x:Key="FontSizeBody">14</x:Double>
+        <x:Double x:Key="FontSizePageTitle">20</x:Double>
+        <x:Double x:Key="DisabledOpacity">0.5</x:Double>
+        <x:Double x:Key="ChipHeight">24</x:Double>
+        <x:Double x:Key="SliderWidth">200</x:Double>
+        <x:Double x:Key="NumberWidth">64</x:Double>
+        <x:Double x:Key="ActionMinWidth">96</x:Double>
+        <x:Double x:Key="ConfirmMaxWidth">280</x:Double>
+        <Thickness x:Key="ChipPadding">8,2</Thickness>
+        <Thickness x:Key="ChipMargin">12,0</Thickness>
+        <Thickness x:Key="ChipMarginLead">12,0,0,0</Thickness>
+        <Thickness x:Key="IndentMargin">24,0,0,0</Thickness>
     </Styles.Resources>
 
     <Style Selector="TextBlock.section-header">
@@ -44,19 +59,6 @@
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
         <Setter Property="Padding" Value="{StaticResource CardPadding}" />
-    </Style>
-
-    <Style Selector="Border.mutation-row">
-        <Setter Property="Padding" Value="{StaticResource RowPadding}" />
-        <Setter Property="Margin" Value="0,1" />
-    </Style>
-
-    <Style Selector="TextBlock.mutation-group">
-        <Setter Property="Margin" Value="16,16,0,4" />
-    </Style>
-
-    <Style Selector="TextBlock.mutation-indented">
-        <Setter Property="Margin" Value="20,0,0,0" />
     </Style>
 
     <Style Selector="Border.state-badge">

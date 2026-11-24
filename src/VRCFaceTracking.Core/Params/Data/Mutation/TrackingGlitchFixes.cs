@@ -5,6 +5,7 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
+[MutationCard(TrackingCard.AutoFixes, Order = 0)]
 public sealed partial class TrackingGlitchFixes : TrackingMutation
 {
     private const float SilentLevel = 0.02f;
@@ -20,6 +21,9 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
     private const double RelaxSeconds = 1;
     private const double ReturnSeconds = 0.15;
     private const int EyeValues = 6;
+    private const int QuietFeature = 0;
+    private const int EyelidFeature = 1;
+    private const int RelaxFeature = 2;
 
     private static readonly UnifiedExpressions[] TwitchShapes =
     [
@@ -57,17 +61,17 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
     public override int PageOrder => 3;
     public override bool IsActive { get; set; }
 
-    [MutationProperty("Quiet Mouth While Silent", true, Group = "Mouth")]
+    [MutationProperty("Quiet Mouth While Silent", true, Group = "Mouth", Order = 10)]
     public bool QuietMouth { get; set; } = true;
-    [MutationProperty("Twitch Trim", true, 0f, MaxTwitchTrim, Group = "Mouth", Indented = true)]
+    [MutationProperty("Twitch Trim", true, 0f, MaxTwitchTrim, Group = "Mouth", Indented = true, Order = 11, Advanced = true, DependsOn = nameof(QuietMouth), Step = 0.01f)]
     public float TwitchTrim { get; set; } = 0.12f;
 
-    [MutationProperty("Stuck Eyelid Fallback", true, Group = "Eyelids")]
+    [MutationProperty("Stuck Eyelid Fallback", true, Group = "Eyelids", Order = 20)]
     public bool StuckEyelidFallback { get; set; } = true;
 
-    [MutationProperty("Relax When Tracking Freezes", true, Group = "Dropouts")]
+    [MutationProperty("Relax When Tracking Freezes", true, Group = "Dropouts", Order = 30)]
     public bool RelaxOnFreeze { get; set; } = true;
-    [MutationProperty("Seconds Before Relaxing", true, MinFreezeSeconds, MaxFreezeSeconds, Group = "Dropouts", Indented = true)]
+    [MutationProperty("Seconds Before Relaxing", true, MinFreezeSeconds, MaxFreezeSeconds, Group = "Dropouts", Indented = true, Order = 31, Advanced = true, DependsOn = nameof(RelaxOnFreeze), Step = 0.5f)]
     public float FreezeSeconds { get; set; } = 2f;
 
     [JsonIgnore]
@@ -82,6 +86,14 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
                 : "Active";
         }
     }
+
+    protected override int FeatureOf(string propertyName) => propertyName switch
+    {
+        nameof(QuietMouth) => QuietFeature,
+        nameof(StuckEyelidFallback) => EyelidFeature,
+        nameof(RelaxOnFreeze) => RelaxFeature,
+        _ => -1,
+    };
 
     internal Func<double> NowSeconds { get; set; } = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
     internal Func<UnifiedTrackingData> RawInput { get; set; } = () => UnifiedTracking.Data;
@@ -182,7 +194,7 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
             return;
         }
 
-        MarkTriggered();
+        MarkTriggered(QuietFeature);
         float trim = Math.Clamp(TwitchTrim, 0f, MaxTwitchTrim) * _quiet;
         foreach (UnifiedExpressions shape in TwitchShapes)
         {
@@ -220,7 +232,7 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
 
         if (coverLeft || coverRight)
         {
-            MarkTriggered();
+            MarkTriggered(EyelidFeature);
         }
 
         if (coverLeft)
@@ -264,7 +276,7 @@ public sealed partial class TrackingGlitchFixes : TrackingMutation
             return;
         }
 
-        MarkTriggered();
+        MarkTriggered(RelaxFeature);
         float keep = 1f - _relax;
         for (int i = 0; i < data.Shapes.Length; i++)
         {

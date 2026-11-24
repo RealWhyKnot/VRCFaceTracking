@@ -5,6 +5,7 @@ using VRCFaceTracking.Core.Params.Expressions;
 
 namespace VRCFaceTracking.Core.Params.Data.Mutation;
 
+[MutationCard(TrackingCard.Eyes)]
 public sealed partial class EyeAssists : TrackingMutation
 {
     public override string Name => "Eye Assists";
@@ -14,36 +15,36 @@ public sealed partial class EyeAssists : TrackingMutation
     public override int PageOrder => 0;
     public override bool IsActive { get; set; }
 
-    [MutationProperty("Gaze Convergence Fix", true, Group = "Gaze")]
+    [MutationProperty("Gaze Convergence Fix", true, Group = "Gaze", Order = 60)]
     public bool ConvergenceFix { get; set; }
-    [MutationProperty("Convergence Strength", true, Group = "Gaze", Indented = true)]
+    [MutationProperty("Convergence Strength", true, Group = "Gaze", Indented = true, Order = 61, Advanced = true, DependsOn = nameof(ConvergenceFix), Step = 0.05f)]
     public float ConvergenceStrength { get; set; } = 0.6f;
 
-    [MutationProperty("Limit Eye Range", true, Group = "Gaze")]
+    [MutationProperty("Limit Eye Range", true, Group = "Gaze", Order = 50)]
     public bool LimitEyeRange { get; set; }
-    [MutationProperty("Max Horizontal", true, Group = "Gaze", Indented = true)]
+    [MutationProperty("Max Horizontal", true, Group = "Gaze", Indented = true, Order = 51, Advanced = true, DependsOn = nameof(LimitEyeRange), Step = 0.05f)]
     public float MaxHorizontal { get; set; } = 0.35f;
-    [MutationProperty("Max Vertical", true, Group = "Gaze", Indented = true)]
+    [MutationProperty("Max Vertical", true, Group = "Gaze", Indented = true, Order = 52, Advanced = true, DependsOn = nameof(LimitEyeRange), Step = 0.05f)]
     public float MaxVertical { get; set; } = 0.35f;
 
-    [MutationProperty("Eye Close Assist", true, Group = "Eyelids")]
+    [MutationProperty("Eye Close Assist", true, Group = "Eyelids", Order = 20)]
     public bool CloseAssist { get; set; }
-    [MutationProperty("Close Assist Strength", true, Group = "Eyelids", Indented = true)]
+    [MutationProperty("Close Assist Strength", true, Group = "Eyelids", Indented = true, Order = 21, Advanced = true, DependsOn = nameof(CloseAssist), Step = 0.05f)]
     public float CloseAssistStrength { get; set; } = 0.6f;
 
-    [MutationProperty("Eyelid Blend", true, Group = "Eyelids")]
+    [MutationProperty("Eyelid Blend", true, Group = "Eyelids", Order = 30, Advanced = true, Step = 0.05f)]
     public float EyeLidBlend { get; set; }
 
-    [MutationProperty("Eyelid Sync", true, Group = "Eyelids")]
+    [MutationProperty("Eyelid Sync", true, Group = "Eyelids", Order = 10)]
     public bool EyelidSync { get; set; }
-    [MutationProperty("Eyelid Sync Strength", true, Group = "Eyelids", Indented = true)]
+    [MutationProperty("Eyelid Sync Strength", true, Group = "Eyelids", Indented = true, Order = 11, Advanced = true, DependsOn = nameof(EyelidSync), Step = 0.05f)]
     public float SyncStrength { get; set; } = 0.7f;
-    [MutationProperty("Sync to Most Open Eye", true, Group = "Eyelids", Indented = true)]
+    [MutationProperty("Sync to Most Open Eye", true, Group = "Eyelids", Indented = true, Order = 12, Advanced = true, DependsOn = nameof(EyelidSync))]
     public bool SyncToMostOpen { get; set; }
-    [MutationProperty("Preserve Winks", true, Group = "Eyelids", Indented = true)]
+    [MutationProperty("Preserve Winks", true, Group = "Eyelids", Indented = true, Order = 13, Advanced = true, DependsOn = nameof(EyelidSync))]
     public bool PreserveWinks { get; set; } = true;
 
-    [MutationProperty("Force Eyes Closed", true, Group = "Eyelids")]
+    [MutationProperty("Force Eyes Closed", true, Group = "Eyelids", Order = 40, Advanced = true, Developer = true)]
     public bool ForceEyesClosed { get; set; }
 
     internal const string CorrectorsSettingName = "Unified Correctors";

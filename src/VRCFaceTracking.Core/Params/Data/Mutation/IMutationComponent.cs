@@ -7,4 +7,6 @@ public interface IMutationComponent
     string? Group { get; set; }
 
     bool StartsGroup { get; set; }
+
+    MutationMetadata? Metadata { get; set; }
 }

@@ -74,6 +74,8 @@ public sealed class MutationProperty : IMutationComponent, INotifyPropertyChange
 
     public bool Indented { get; set; }
 
+    public MutationMetadata? Metadata { get; set; }
+
     public MutationPropertyType Type { get; set; }
 
     internal void Refresh(object value)

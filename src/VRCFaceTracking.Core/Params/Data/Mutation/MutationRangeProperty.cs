@@ -77,5 +77,18 @@ public sealed class MutationRangeProperty : IMutationComponent, INotifyPropertyC
 
     public bool StartsGroup { get; set; }
 
+    public MutationMetadata? Metadata { get; set; }
+
+    public void SetRange(float item1, float item2)
+    {
+        if (_item1 == item1 && _item2 == item2)
+        {
+            return;
+        }
+
+        Refresh((item1, item2));
+        _updateField.Invoke((_item1, _item2));
+    }
+
     private void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
