@@ -78,17 +78,31 @@ Rows show a small state line only when it is true and useful ("Working now", "Al
 - The Tracking card has an activity chip (Tracking, No new data, No tracking data, Paused for VRChat face tracking) and one row each for Eyes and Mouth and expression showing the module that supplies the signal.
 - Two modules offering the same signal is normal. The second name appears as a neutral line ("Also provided by X"). It never uses error or warning colour.
 - Ownership and activity refresh on one UI timer at about 2 Hz, only while Home is visible.
+- Under the Tracking card description sits one neutral line, "Detected: Baballonia, Steam Frame". It is hidden when none are running. Detection reads running process names only and never starts anything.
 - The Camera streams card appears only when a module is sending camera images. Home turns the image stream on while it is open and off when you leave.
-- Cameras start blurred with a "Camera hidden" cue. "Show cameras" reveals them. Leaving Home blurs them again and clears freeze.
-- Each stream shows its size and frame rate under the frame. Center guides draw a cross over the frame. Freeze frame holds the last image.
+- The card shows one frame per live stream in a wrapping grid, gap 16 on both axes, at most 6 streams. Frame height is 180. Width follows the stream's aspect ratio, clamped to 120..320, default 240.
+- Each frame has a title above it (camera-title) and its resolution and rate below it (tracking-row-state).
+- Cameras start blurred with a "Camera hidden" cue. The Blur/Show cameras button in the card header toggles it. Leaving Home blurs them again and clears freeze.
+- Center guides and Freeze frame are switches below the grid, in the same rows as other cards. Center guides draw a cross over the frame. Freeze frame holds the last image.
+- Recenter and Recalibrate sit under a frame, left aligned, wrapping inside the frame width. They only appear when that stream reports the matching control.
+- A stream that stops sending for 5 seconds disappears. With no streams the card is hidden.
+- Supported pixel formats are Rgba8888, Bgra8888, Gray8 and Jpeg. Bad data shows the cover, never an error.
 - The Modules heading and list are hidden when no modules are installed.
 
 ## Settings
 
 - Cards in fixed order: Appearance, Connection, Startup and updates, Developer, About.
 - Connection holds send address, receive port and send port. Values commit when the field loses focus or on Enter. A bad value keeps the old setting and shows a red message beside the field. Ports accept 1 to 65535.
+- After the send port row comes a divider, then "External tracker input" with a switch. Its status line reads "Listening on port N" or "Receiving N packets per second" and is hidden when the switch is off.
+- When the switch is on, an "External input port" row appears with the same text field and inline error as the other ports. Out of range uses the standard port message. A port VRChat uses shows "Use a port VRChat does not use."
+- External input is off by default. Nothing binds until the switch is on, and it binds loopback only.
+- Received values only fill shapes and eye fields that no loaded module drives. A value not refreshed for 1 second is released back to neutral. Fill-ins and the avatar gap report treat an externally driven shape as provided.
 - Startup and updates is hidden when neither SteamVR nor update checks are available.
 - Developer has one Developer Mode switch in its header. When on, it reveals Logging and Troubleshooting groups. Troubleshooting actions stay disabled until "Enable repair tools" is on.
 - About shows the version, links to source, license and privacy policy, and a collapsible contributors list.
 - Camera streams no longer live in Settings.
 - Row descriptions are one short line. Fields share one width token; the address field is wider.
+
+## Copy
+
+- Sentence case, American English, no em dashes, no exclamation marks, descriptions 10 words or fewer.

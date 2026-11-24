@@ -15,13 +15,6 @@ namespace VRCFaceTracking.Tests;
 
 public sealed class HomePageTests
 {
-    private static Core.Types.Image Frame(int width = 128, int height = 128) => new()
-    {
-        ImageSize = (width, height),
-        ImageData = new byte[width * height * 4],
-        SupportsImage = true,
-    };
-
     private static CapabilityOwnership Owned(string? owner, params string[] claimants) => new(owner, claimants);
 
     private static (MainPage Page, Window Window, MainViewModel Vm) Open(int width, int height)
@@ -39,118 +32,6 @@ public sealed class HomePageTests
     {
         window.Close();
         Dispatcher.UIThread.RunJobs();
-    }
-
-    [Fact]
-    public void CameraCardIsHiddenWithoutFrames()
-    {
-        var cameras = new CameraStreamsViewModel();
-        cameras.Refresh(eye: null, lip: null);
-        Assert.False(cameras.HasCameras);
-        Assert.False(cameras.Eye.HasFrame);
-        Assert.Equal(Resources.CameraStreamsWaiting, cameras.Eye.Detail);
-    }
-
-    [AvaloniaFact]
-    public void CameraCardAppearsWithFramesAndStartsBlurred()
-    {
-        var cameras = new CameraStreamsViewModel();
-        cameras.Refresh(Frame(), lip: null);
-
-        Assert.True(cameras.HasCameras);
-        Assert.True(cameras.IsBlurred);
-        Assert.True(cameras.Eye.ShowCover);
-        Assert.False(cameras.Lip.HasFrame);
-        Assert.False(cameras.Lip.ShowCover);
-        Assert.Equal(Resources.Camera_Show, cameras.BlurButtonText);
-    }
-
-    [AvaloniaFact]
-    public void BlurToggleRevealsAndHidesStreams()
-    {
-        var cameras = new CameraStreamsViewModel();
-        cameras.Refresh(Frame(), Frame());
-
-        cameras.ToggleBlurCommand.Execute(parameter: null);
-        Assert.False(cameras.Eye.IsBlurred);
-        Assert.False(cameras.Lip.ShowCover);
-        Assert.Equal(Resources.Camera_Blur, cameras.BlurButtonText);
-
-        cameras.ToggleBlurCommand.Execute(parameter: null);
-        Assert.True(cameras.Eye.ShowCover);
-        Assert.True(cameras.Lip.ShowCover);
-    }
-
-    [AvaloniaFact]
-    public void GuidesReachBothStreams()
-    {
-        var cameras = new CameraStreamsViewModel();
-        Assert.False(cameras.Eye.ShowGuides);
-        cameras.ShowGuides = true;
-        Assert.True(cameras.Eye.ShowGuides);
-        Assert.True(cameras.Lip.ShowGuides);
-    }
-
-    [AvaloniaFact]
-    public void FreezeKeepsLastFrameAndShowsFrozenDetail()
-    {
-        var cameras = new CameraStreamsViewModel();
-        cameras.Refresh(Frame(), lip: null);
-        Avalonia.Media.Imaging.Bitmap? before = cameras.Eye.Source;
-
-        cameras.IsFrozen = true;
-        cameras.Refresh(Frame(), lip: null);
-
-        Assert.Same(before, cameras.Eye.Source);
-        Assert.Equal(TrackingText.Format(Resources.CameraDetail_Frozen, 128, 128), cameras.Eye.Detail);
-    }
-
-    [AvaloniaFact]
-    public void ResetRestoresPrivacyDefaults()
-    {
-        var cameras = new CameraStreamsViewModel();
-        cameras.Refresh(Frame(), Frame());
-        cameras.IsBlurred = false;
-        cameras.IsFrozen = true;
-
-        cameras.Reset();
-
-        Assert.True(cameras.IsBlurred);
-        Assert.False(cameras.IsFrozen);
-        Assert.False(cameras.HasCameras);
-        Assert.False(cameras.Eye.HasFrame);
-    }
-
-    [AvaloniaFact]
-    public void StreamsGoStaleAfterFramesStop()
-    {
-        var clock = new ManualClock();
-        var cameras = new CameraStreamsViewModel(clock);
-        cameras.Refresh(Frame(), lip: null);
-        Assert.True(cameras.HasCameras);
-
-        clock.Advance(TimeSpan.FromSeconds(6));
-        cameras.Refresh(eye: null, lip: null);
-
-        Assert.False(cameras.HasCameras);
-        Assert.False(cameras.Eye.HasFrame);
-    }
-
-    [AvaloniaFact]
-    public void DetailShowsSizeAndRate()
-    {
-        var clock = new ManualClock();
-        var cameras = new CameraStreamsViewModel(clock);
-        for (int i = 0; i < 11; i++)
-        {
-            cameras.Refresh(Frame(), lip: null);
-            clock.Advance(TimeSpan.FromMilliseconds(100));
-        }
-
-        cameras.Refresh(Frame(), lip: null);
-
-        Assert.Contains("128x128", cameras.Eye.Detail, StringComparison.Ordinal);
-        Assert.Contains("fps", cameras.Eye.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -242,7 +123,7 @@ public sealed class HomePageTests
         {
             Assert.DoesNotContain(page.GetVisualDescendants().OfType<TextBlock>(), t => t.IsEffectivelyVisible && string.Equals(t.Text, Resources.CameraStreamsHeader, StringComparison.Ordinal));
 
-            vm.Cameras.Refresh(Frame(), Frame());
+            vm.Cameras.Refresh([CameraTestData.Snap("eye"), CameraTestData.Snap("lip")]);
             Dispatcher.UIThread.RunJobs();
 
             Assert.Contains(page.GetVisualDescendants().OfType<TextBlock>(), t => t.IsEffectivelyVisible && string.Equals(t.Text, Resources.CameraStreamsHeader, StringComparison.Ordinal));
@@ -276,16 +157,5 @@ public sealed class HomePageTests
         {
             Close(window);
         }
-    }
-
-    private sealed class ManualClock : TimeProvider
-    {
-        private long _ticks = 1;
-
-        public override long TimestampFrequency => 1000;
-
-        public override long GetTimestamp() => _ticks;
-
-        public void Advance(TimeSpan span) => _ticks += (long)span.TotalMilliseconds;
     }
 }

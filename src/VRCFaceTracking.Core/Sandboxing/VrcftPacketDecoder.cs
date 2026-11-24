@@ -53,11 +53,13 @@ public sealed class VrcftPacketDecoder
         IpcPacket.PacketType.EventLog => new EventLogPacket(),
         IpcPacket.PacketType.EventSetVerbose => new EventSetVerbosePacket(),
         IpcPacket.PacketType.EventSetImageStream => new EventSetImageStreamPacket(),
+        IpcPacket.PacketType.EventCameraControl => new CameraControlPacket(),
         IpcPacket.PacketType.ReplyGetSupported => new ReplySupportedPacket(),
         IpcPacket.PacketType.ReplyInit => new ReplyInitPacket(),
         IpcPacket.PacketType.ReplyUpdate => new ReplyUpdatePacket(),
         IpcPacket.PacketType.ReplyTeardown => new ReplyTeardownPacket(),
         IpcPacket.PacketType.DebugStreamFrame => new ImageFrameUpdatePacket(),
+        IpcPacket.PacketType.DebugStreamFrameV2 => new ImageFrameV2Packet(),
         IpcPacket.PacketType.Unknown => null,
         _ => null,
     };

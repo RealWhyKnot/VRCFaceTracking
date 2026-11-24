@@ -30,6 +30,7 @@ internal sealed partial class ModuleProcessMain
     private static readonly LogLevelGate Gate = new();
     private static FileLoggerProvider? LogFile;
     private static readonly ConcurrentQueue<IpcPacket> PacketsToSend = new();
+    private static readonly CameraControlInbox CameraControls = new();
     private static Timer? ConnectionTimer;
     private static volatile bool Connected;
     private static Thread? UpdateThread;

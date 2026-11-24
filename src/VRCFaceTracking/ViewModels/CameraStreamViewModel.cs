@@ -5,6 +5,9 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Types;
 using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Strings;
 
@@ -12,6 +15,11 @@ namespace VRCFaceTracking.ViewModels;
 
 internal sealed partial class CameraStreamViewModel : ObservableObject
 {
+    private const double FrameHeight = 180;
+    private const double MinFrameWidth = 120;
+    private const double MaxFrameWidth = 320;
+    private const double DefaultFrameWidth = 240;
+
     private static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RateWindow = TimeSpan.FromSeconds(1);
 
@@ -21,9 +29,11 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
     private static readonly PropertyChangedEventArgs DetailArgs = new(nameof(Detail));
 
     private readonly TimeProvider _time;
-    private byte[]? _lastData;
+    private readonly Func<Guid, CameraControlCommand, bool> _send;
+    private byte[] _scratch = [];
     private WriteableBitmap? _front;
     private WriteableBitmap? _back;
+    private Bitmap? _decoded;
     private long _lastFrameStamp;
     private long _windowStamp;
     private int _windowCount;
@@ -38,14 +48,31 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
 
     [ObservableProperty] private bool _showGuides;
 
-    public CameraStreamViewModel(string title, TimeProvider time)
+    [ObservableProperty] private string _title;
+
+    [ObservableProperty] private double _frameWidth = DefaultFrameWidth;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRecenter))]
+    [NotifyPropertyChangedFor(nameof(CanRecalibrate))]
+    [NotifyPropertyChangedFor(nameof(HasControls))]
+    private CameraControlCapabilities _capabilities;
+
+    public CameraStreamViewModel(CameraStreamSnapshot first, Func<Guid, CameraControlCommand, bool> send, TimeProvider time)
     {
-        Title = title;
+        ModuleId = first.ModuleId;
+        StreamId = first.StreamId;
+        _send = send;
         _time = time;
+        _title = TitleFor(first);
         Detail = Resources.CameraStreamsWaiting;
     }
 
-    public string Title { get; }
+    public Guid ModuleId { get; }
+
+    public long LastSequence { get; private set; } = -1;
+
+    public string StreamId { get; }
 
     public Bitmap? Source { get; private set; }
 
@@ -55,31 +82,24 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
 
     public string Detail { get; private set; }
 
-    public bool Update(Core.Types.Image? frame, bool frozen)
+    public bool CanRecenter => Capabilities.HasFlag(CameraControlCapabilities.Recenter);
+
+    public bool HasControls => CanRecenter || CanRecalibrate;
+
+    public bool CanRecalibrate => Capabilities.HasFlag(CameraControlCapabilities.Recalibrate);
+
+    public static string KeyOf(Guid moduleId, string streamId) => string.Concat(moduleId.ToString("N"), "/", streamId);
+
+    public bool Matches(CameraStreamSnapshot snapshot) => snapshot.ModuleId == ModuleId && string.Equals(snapshot.StreamId, StreamId, StringComparison.Ordinal);
+
+    public bool Update(CameraStreamSnapshot snapshot, bool frozen)
     {
         long now = _time.GetTimestamp();
-        byte[]? data = frame?.ImageData;
-        if (frame is { SupportsImage: true } && data != null && !ReferenceEquals(data, _lastData))
+        Title = TitleFor(snapshot);
+        Capabilities = snapshot.Capabilities;
+        if (snapshot.Sequence != LastSequence && CameraPixels.IsDrawable(snapshot.Format, snapshot.Width, snapshot.Height, snapshot.Data.Length))
         {
-            (int x, int y) = frame.ImageSize;
-            if (x > 0 && y > 0 && data.Length >= x * y * 4)
-            {
-                if (_lastFrameStamp == 0 || _windowStamp == 0)
-                {
-                    _windowStamp = now;
-                    _windowCount = 0;
-                }
-
-                _lastData = data;
-                _lastFrameStamp = now;
-                _windowCount++;
-                _width = x;
-                _height = y;
-                if (!frozen || Source == null)
-                {
-                    Draw(data, x, y);
-                }
-            }
+            AcceptFrame(snapshot, frozen, now);
         }
 
         if (_lastFrameStamp == 0 || _time.GetElapsedTime(_lastFrameStamp, now) >= StaleAfter)
@@ -111,7 +131,6 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
     public void Clear()
     {
         Release();
-        _lastData = null;
         _lastFrameStamp = 0;
         _windowStamp = 0;
         _windowCount = 0;
@@ -127,13 +146,42 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
         SetText(Resources.CameraStreamsWaiting);
     }
 
+    private static string TitleFor(CameraStreamSnapshot snapshot)
+    {
+        string legacy = string.Equals(snapshot.StreamId, CameraStreamRegistry.LegacyEyeId, StringComparison.Ordinal)
+            ? Resources.CameraStreamsEye
+            : Resources.CameraStreamsLip;
+        return snapshot.IsLegacy ? legacy : snapshot.Label.Length > 0 ? snapshot.Label : snapshot.StreamId;
+    }
+
+    private void AcceptFrame(CameraStreamSnapshot snapshot, bool frozen, long now)
+    {
+        if (_lastFrameStamp == 0 || _windowStamp == 0)
+        {
+            _windowStamp = now;
+            _windowCount = 0;
+        }
+
+        LastSequence = snapshot.Sequence;
+        _lastFrameStamp = now;
+        _windowCount++;
+        _width = snapshot.Width;
+        _height = snapshot.Height;
+        FrameWidth = Math.Clamp(Math.Round(FrameHeight * snapshot.Width / snapshot.Height), MinFrameWidth, MaxFrameWidth);
+        if (!frozen || Source == null)
+        {
+            Draw(snapshot);
+        }
+    }
+
     private void SetDetail(bool frozen)
     {
+        string size = TrackingText.Format(Resources.CameraDetail_Size, _width, _height);
         string text = frozen
             ? TrackingText.Format(Resources.CameraDetail_Frozen, _width, _height)
             : _rate > 0
                 ? TrackingText.Format(Resources.CameraDetail_Rate, _width, _height, _rate.ToString(CultureInfo.CurrentCulture))
-                : TrackingText.Format(Resources.CameraDetail_Size, _width, _height);
+                : size;
         if (frozen != _wasFrozen || !string.Equals(text, Detail, StringComparison.Ordinal))
         {
             SetText(text);
@@ -151,27 +199,41 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
         OnPropertyChanged(DetailArgs);
     }
 
-    private void Draw(byte[] data, int width, int height)
+    private void Draw(CameraStreamSnapshot snapshot)
     {
+        if (snapshot.Format == CameraPixelFormat.Jpeg)
+        {
+            DrawEncoded(snapshot.Data);
+            return;
+        }
+
+        if (_decoded != null)
+        {
+            Release();
+        }
+
+        int width = snapshot.Width;
+        int height = snapshot.Height;
         var size = new PixelSize(width, height);
         if (_front != null && _front.PixelSize != size)
         {
             Release();
         }
 
+        int bytes = width * height * CameraPixels.BytesPerPixel;
+        if (_scratch.Length < bytes)
+        {
+            _scratch = new byte[bytes];
+        }
+
+        CameraPixels.ToBgra(snapshot.Format, snapshot.Data.Span, width * height, _scratch);
         WriteableBitmap target = _back ?? new WriteableBitmap(size, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Unpremul);
         using (ILockedFramebuffer buffer = target.Lock())
         {
-            if (buffer.RowBytes == width * 4)
+            int rowBytes = width * CameraPixels.BytesPerPixel;
+            for (int row = 0; row < height; row++)
             {
-                Marshal.Copy(data, 0, buffer.Address, width * height * 4);
-            }
-            else
-            {
-                for (int row = 0; row < height; row++)
-                {
-                    Marshal.Copy(data, row * width * 4, buffer.Address + (row * buffer.RowBytes), width * 4);
-                }
+                Marshal.Copy(_scratch, row * rowBytes, buffer.Address + (row * buffer.RowBytes), rowBytes);
             }
         }
 
@@ -181,13 +243,38 @@ internal sealed partial class CameraStreamViewModel : ObservableObject
         OnPropertyChanged(SourceArgs);
     }
 
+    private void DrawEncoded(ReadOnlyMemory<byte> data)
+    {
+        try
+        {
+            using var stream = new MemoryStream(data.ToArray(), writable: false);
+            var decoded = new Bitmap(stream);
+            Release();
+            _decoded = decoded;
+            Source = decoded;
+            OnPropertyChanged(SourceArgs);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or NotSupportedException or InvalidDataException)
+        {
+            Release();
+        }
+    }
+
     private void Release()
     {
         Source = null;
         OnPropertyChanged(SourceArgs);
         _front?.Dispose();
         _back?.Dispose();
+        _decoded?.Dispose();
         _front = null;
         _back = null;
+        _decoded = null;
     }
+
+    [RelayCommand]
+    private void Recenter() => _send(ModuleId, new CameraControlCommand(StreamId, CameraControlKind.Recenter));
+
+    [RelayCommand]
+    private void Recalibrate() => _send(ModuleId, new CameraControlCommand(StreamId, CameraControlKind.Recalibrate));
 }

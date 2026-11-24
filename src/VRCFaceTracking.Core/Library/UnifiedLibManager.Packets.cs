@@ -47,9 +47,10 @@ public sealed partial class UnifiedLibManager
                 }
                 break;
             case IpcPacket.PacketType.DebugStreamFrame:
+            case IpcPacket.PacketType.DebugStreamFrameV2:
                 if (_imageStreamEnabled && FindModuleByPort(port) is { } frameModule)
                 {
-                    HandleDebugStreamFrame((ImageFrameUpdatePacket)packet, frameModule);
+                    HandleStreamFrame(packet, frameModule);
                 }
                 break;
             case IpcPacket.PacketType.Unknown:
@@ -61,6 +62,7 @@ public sealed partial class UnifiedLibManager
             case IpcPacket.PacketType.EventUpdateStatus:
             case IpcPacket.PacketType.EventSetVerbose:
             case IpcPacket.PacketType.EventSetImageStream:
+            case IpcPacket.PacketType.EventCameraControl:
             case IpcPacket.PacketType.ReplyTeardown:
             default:
                 break;
@@ -310,7 +312,19 @@ public sealed partial class UnifiedLibManager
         }
     }
 
-    private static void HandleDebugStreamFrame(ImageFrameUpdatePacket framePacket, ModuleRuntimeInfo module)
+    private void HandleStreamFrame(IpcPacket packet, ModuleRuntimeInfo module)
+    {
+        if (packet is ImageFrameV2Packet v2)
+        {
+            HandleDebugStreamFrameV2(v2, module);
+        }
+        else if (packet is ImageFrameUpdatePacket legacy)
+        {
+            HandleDebugStreamFrame(legacy, module);
+        }
+    }
+
+    private void HandleDebugStreamFrame(ImageFrameUpdatePacket framePacket, ModuleRuntimeInfo module)
     {
         if (module.Status != ModuleState.Active || !module.ModuleInformation.Active)
         {
@@ -327,10 +341,33 @@ public sealed partial class UnifiedLibManager
         if (framePacket.Kind == ImageFrameUpdatePacket.EyeKind && capabilities.Allows(TrackingCapability.Eyes))
         {
             UnifiedTracking.EyeImageData = frame;
+            CameraStreams.UpdateLegacy(module.Id, DisplayName(module), framePacket.Kind, framePacket.Width, framePacket.Height, framePacket.GetData());
         }
         else if (framePacket.Kind == ImageFrameUpdatePacket.LipKind && capabilities.Allows(TrackingCapability.Mouth))
         {
             UnifiedTracking.LipImageData = frame;
+            CameraStreams.UpdateLegacy(module.Id, DisplayName(module), framePacket.Kind, framePacket.Width, framePacket.Height, framePacket.GetData());
+        }
+    }
+
+    private void HandleDebugStreamFrameV2(ImageFrameV2Packet framePacket, ModuleRuntimeInfo module)
+    {
+        if (module.Status != ModuleState.Active || !module.ModuleInformation.Active)
+        {
+            return;
+        }
+
+        TrackingCapability capabilities = module.ModuleInformation.EffectiveCapabilities;
+        bool allowed = framePacket.Role switch
+        {
+            CameraStreamRole.EyeLeft or CameraStreamRole.EyeRight or CameraStreamRole.EyeCombined => capabilities.Allows(TrackingCapability.Eyes),
+            CameraStreamRole.Mouth => capabilities.Allows(TrackingCapability.Mouth),
+            CameraStreamRole.Passthrough or CameraStreamRole.Other => true,
+            _ => false,
+        };
+        if (allowed)
+        {
+            CameraStreams.Update(module.Id, DisplayName(module), framePacket);
         }
     }
 

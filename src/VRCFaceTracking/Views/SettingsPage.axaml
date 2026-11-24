@@ -105,6 +105,35 @@
                                      KeyDown="Field_KeyDown" />
                         </StackPanel>
                     </Grid>
+                    <Border Classes="tracking-divider" />
+                    <Grid Classes="tracking-row" ColumnDefinitions="*,Auto"
+                          ToolTip.Tip="{x:Static s:Resources.ExternalOsc_Tooltip}">
+                        <StackPanel Grid.Column="0" Classes="tracking-label">
+                            <TextBlock Classes="tracking-row-label" Text="{x:Static s:Resources.ExternalOsc_Label}" />
+                            <TextBlock Classes="tracking-row-state"
+                                       Text="{Binding ExternalOscStatusText}"
+                                       IsVisible="{Binding HasExternalOscStatus}" />
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1" Classes="tracking-switch"
+                                      IsChecked="{Binding ExternalOscEnabled, Mode=TwoWay}"
+                                      AutomationProperties.Name="{x:Static s:Resources.ExternalOsc_Label}" />
+                    </Grid>
+                    <Grid Classes="tracking-row" ColumnDefinitions="*,Auto" IsVisible="{Binding ExternalOscEnabled}">
+                        <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{x:Static s:Resources.ExternalOsc_PortLabel}"
+                                   ToolTip.Tip="{x:Static s:Resources.ExternalOsc_PortTooltip}" />
+                        <StackPanel Grid.Column="1" Classes="tracking-controls">
+                            <TextBlock Classes="field-error"
+                                       Text="{Binding ExternalOscPortField.Error}"
+                                       IsVisible="{Binding ExternalOscPortField.HasError}" />
+                            <TextBox Classes="tracking-text settings-field"
+                                     Classes.invalid="{Binding ExternalOscPortField.HasError}"
+                                     MaxLength="5"
+                                     ToolTip.Tip="{x:Static s:Resources.ExternalOsc_PortTooltip}"
+                                     Text="{Binding ExternalOscPortField.Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     AutomationProperties.Name="{x:Static s:Resources.ExternalOsc_PortLabel}"
+                                     KeyDown="Field_KeyDown" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
 

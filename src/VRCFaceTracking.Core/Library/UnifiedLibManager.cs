@@ -29,6 +29,10 @@ public sealed partial class UnifiedLibManager : ILibManager
     {
         get;
     }
+    public CameraStreamRegistry CameraStreams
+    {
+        get;
+    }
     private readonly IDispatcherService _dispatcherService;
     #endregion
 
@@ -85,6 +89,7 @@ public sealed partial class UnifiedLibManager : ILibManager
         _logger = factory.CreateLogger<UnifiedLibManager>();
         _moduleLogger = factory.CreateLogger("\0VRCFT\0");
         _ipcLatency = new IpcLatencyDiagnostics(_logger);
+        CameraStreams = new CameraStreamRegistry(timeProvider);
         _dispatcherService = dispatcherService;
         _moduleDataService = moduleDataService;
         _localSettingsService = localSettingsService;
@@ -199,7 +204,32 @@ public sealed partial class UnifiedLibManager : ILibManager
         {
             UnifiedTracking.EyeImageData = new Image();
             UnifiedTracking.LipImageData = new Image();
+            CameraStreams.ClearAll();
         }
+    }
+
+    public bool SendCameraControl(Guid moduleId, CameraControlCommand command)
+    {
+        ModuleRuntimeInfo? target = null;
+        lock (_modulesLock)
+        {
+            foreach (ModuleRuntimeInfo module in _availableSandboxModules)
+            {
+                if (module.Id == moduleId)
+                {
+                    target = module;
+                    break;
+                }
+            }
+        }
+
+        if (target == null || target.SandboxProcessPort <= 0 || (target.Process?.HasExited ?? true) || SandboxServer == null)
+        {
+            return false;
+        }
+
+        SandboxServer.SendData(new CameraControlPacket(command), target.SandboxProcessPort);
+        return true;
     }
 
     private void BroadcastVerbose(object? sender, EventArgs e) => SendToLiveModules(new EventSetVerbosePacket { Verbose = _logGate.Verbose });

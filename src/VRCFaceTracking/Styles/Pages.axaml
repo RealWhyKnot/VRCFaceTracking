@@ -33,8 +33,24 @@
         <Setter Property="Spacing" Value="8" />
     </Style>
 
+    <Style Selector="WrapPanel.camera-actions">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="ItemSpacing" Value="8" />
+        <Setter Property="LineSpacing" Value="8" />
+    </Style>
+
+    <Style Selector="WrapPanel.camera-actions > Button">
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+
     <Style Selector="TextBlock.camera-title">
         <Setter Property="Margin" Value="0" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style Selector="TextBlock.camera-detail">
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
     <Style Selector="Border.camera-frame">

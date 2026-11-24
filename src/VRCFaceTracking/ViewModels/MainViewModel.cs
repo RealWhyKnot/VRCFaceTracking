@@ -37,6 +37,7 @@ internal sealed partial class MainViewModel : ObservableRecipient
 
     private readonly IModuleDataService _moduleDataService;
     private readonly UnifiedTrackingMutator _mutator;
+    private readonly ExternalTrackerDetector _externalTrackers;
     private readonly DispatcherTimer _liveTimer;
     private int _liveTick;
 
@@ -63,7 +64,8 @@ internal sealed partial class MainViewModel : ObservableRecipient
         IOscTarget oscTarget,
         OscRecvService oscRecvService,
         OscSendService oscSendService,
-        UnifiedTrackingMutator mutator
+        UnifiedTrackingMutator mutator,
+        ExternalTrackerDetector externalTrackers
         )
     {
         LibManager = libManager;
@@ -73,8 +75,9 @@ internal sealed partial class MainViewModel : ObservableRecipient
         OscSendService = oscSendService;
         _moduleDataService = moduleDataService;
         _mutator = mutator;
+        _externalTrackers = externalTrackers;
         Tracking = new HomeTrackingViewModel();
-        Cameras = new CameraStreamsViewModel();
+        Cameras = new CameraStreamsViewModel(libManager.SendCameraControl);
         _liveTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(LiveIntervalMs) };
         _liveTimer.Tick += (_, _) => OnLiveTick();
         OscTarget.PropertyChanged += (_, _) => RefreshConnection();
@@ -134,9 +137,13 @@ internal sealed partial class MainViewModel : ObservableRecipient
         Cameras.Reset();
     }
 
-    public void RefreshStatus() => Tracking.Refresh(LibManager.GetOwnershipSnapshot(), _mutator.Activity, ParameterOutputService.GapReport);
+    public void RefreshStatus()
+    {
+        _externalTrackers.Poll();
+        Tracking.Refresh(LibManager.GetOwnershipSnapshot(), _mutator.Activity, ParameterOutputService.GapReport, _externalTrackers.Current);
+    }
 
-    public void RefreshCameras() => Cameras.Refresh(UnifiedTracking.EyeImageData, UnifiedTracking.LipImageData);
+    public void RefreshCameras() => Cameras.Refresh(LibManager.CameraStreams.Snapshot());
 
     private void OnLiveTick()
     {

@@ -25,8 +25,8 @@
         </DataTemplate>
 
         <DataTemplate x:DataType="vm:CameraStreamViewModel">
-            <StackPanel Classes="camera-stream">
-                <TextBlock Classes="tracking-section-title camera-title" Text="{Binding Title}" />
+            <StackPanel Classes="camera-stream" Width="{Binding FrameWidth}">
+                <TextBlock Classes="tracking-section-title camera-title" Text="{Binding Title}" ToolTip.Tip="{Binding Title}" />
                 <Border Classes="camera-frame">
                     <Grid>
                         <TextBlock Classes="tracking-waiting camera-waiting" Text="{Binding Detail}" IsVisible="{Binding !HasFrame}" />
@@ -47,7 +47,13 @@
                         </Border>
                     </Grid>
                 </Border>
-                <TextBlock Classes="tracking-row-state" Text="{Binding Detail}" IsVisible="{Binding HasFrame}" />
+                <TextBlock Classes="tracking-row-state camera-detail" Text="{Binding Detail}" IsVisible="{Binding HasFrame}" />
+                <WrapPanel Classes="camera-actions" IsVisible="{Binding HasControls}">
+                    <Button Classes="tracking-action" Content="{x:Static s:Resources.Camera_Recenter}"
+                            Command="{Binding RecenterCommand}" IsVisible="{Binding CanRecenter}" />
+                    <Button Classes="tracking-action" Content="{x:Static s:Resources.Camera_Recalibrate}"
+                            Command="{Binding RecalibrateCommand}" IsVisible="{Binding CanRecalibrate}" />
+                </WrapPanel>
             </StackPanel>
         </DataTemplate>
     </UserControl.DataTemplates>
@@ -71,6 +77,7 @@
                             <TextBlock Classes="tracking-card-title" Text="{x:Static s:Resources.HomeTracking_Title}" />
                             <TextBlock Classes="tracking-card-description" Text="{x:Static s:Resources.HomeTracking_Description}" />
                             <TextBlock Classes="tracking-card-description" Text="{Binding GapText}" IsVisible="{Binding HasGap}" />
+                            <TextBlock Classes="tracking-card-description" Text="{Binding ExternalTrackerText}" IsVisible="{Binding HasExternalTracker}" />
                         </StackPanel>
                         <Border Grid.Column="1"
                                 Classes="chip"
@@ -97,10 +104,13 @@
                                 Command="{Binding ToggleBlurCommand}" />
                     </Grid>
                     <Border Classes="tracking-divider" />
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-                        <ContentControl Grid.Column="0" Content="{Binding Eye}" />
-                        <ContentControl Grid.Column="1" Content="{Binding Lip}" />
-                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Streams}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="16" LineSpacing="16" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
                     <Border Classes="tracking-divider" />
                     <Grid Classes="tracking-row" ColumnDefinitions="*,Auto">
                         <TextBlock Grid.Column="0" Classes="tracking-row-label" Text="{x:Static s:Resources.Camera_Guides}" />

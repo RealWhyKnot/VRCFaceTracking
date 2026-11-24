@@ -51,6 +51,7 @@ public sealed partial class UnifiedLibManager
                 module?.Process?.Dispose();
             }
 
+            CameraStreams.ClearAll();
             EyeStatus = ModuleState.Uninitialized;
             ExpressionStatus = ModuleState.Uninitialized;
             SignalCapabilityTracker.Shared.Reset();
@@ -70,6 +71,11 @@ public sealed partial class UnifiedLibManager
 
     private void TeardownOneModule(ModuleRuntimeInfo module)
     {
+        if (module != null)
+        {
+            CameraStreams.ClearModule(module.Id);
+        }
+
         if (module == null || (module.Process?.HasExited ?? true))
         {
             return;

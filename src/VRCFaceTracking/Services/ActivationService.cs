@@ -18,6 +18,7 @@ internal sealed partial class ActivationService : IActivationService
     private readonly ILogger<ActivationService> _logger;
     private readonly OpenVRService _openVrService;
     private readonly UpdateService _updateService;
+    private readonly ExternalOscInputService _externalOsc;
 
     public ActivationService(
         OscQueryService parameterOutputService,
@@ -27,7 +28,8 @@ internal sealed partial class ActivationService : IActivationService
         ILibManager libManager,
         ILogger<ActivationService> logger,
         OpenVRService openVrService,
-        UpdateService updateService)
+        UpdateService updateService,
+        ExternalOscInputService externalOsc)
     {
         _parameterOutputService = parameterOutputService;
         _mainService = mainService;
@@ -37,6 +39,7 @@ internal sealed partial class ActivationService : IActivationService
         _logger = logger;
         _openVrService = openVrService;
         _updateService = updateService;
+        _externalOsc = externalOsc;
     }
 
     public async Task ActivateAsync(CancellationToken cancellationToken)
@@ -52,6 +55,7 @@ internal sealed partial class ActivationService : IActivationService
 
         LogInitializingMainService(_logger);
         await _mainService.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await _externalOsc.StartAsync(cancellationToken).ConfigureAwait(false);
 
         LogInitializingOpenVR(_logger);
         if (!_openVrService.Initialize())

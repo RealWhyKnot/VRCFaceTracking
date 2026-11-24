@@ -8,6 +8,7 @@ public sealed class ModuleRuntimeInfo
     public CancellationTokenSource? UpdateCancellationToken { get; set; }
     public Thread? UpdateThread { get; set; }
 
+    public Guid Id { get; } = Guid.NewGuid();
     public bool IsActive { get; set; }
     public int SandboxProcessPort { get; set; }
     public int SandboxProcessPID { get; set; }

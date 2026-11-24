@@ -295,8 +295,15 @@ public sealed class SignalFillInRouteTests
 
     private sealed record Case(Action<SignalFillIn> Enable, UnifiedExpressions SourceLeft, UnifiedExpressions SourceRight, UnifiedExpressions TargetLeft, UnifiedExpressions TargetRight, string SourceParameter, string TargetParameter);
 
-    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    private sealed class FixedClock : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => now;
+        private readonly DateTimeOffset _now;
+
+        public FixedClock(DateTimeOffset now)
+        {
+            _now = now;
+        }
+
+        public override DateTimeOffset GetUtcNow() => _now;
     }
 }

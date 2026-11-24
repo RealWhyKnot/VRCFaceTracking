@@ -20,10 +20,12 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
     private readonly Lock _mutationsLock = new();
     private UnifiedTrackingData _inputBuffer;
     private readonly Lock _previewLock = new();
+    private readonly IExternalTrackingSource? _externalSource;
     public ObservableCollection<TrackingMutation> Mutations { get; } = [];
 
-    public UnifiedTrackingMutator(ILogger<UnifiedTrackingMutator> logger, ILocalSettingsService localSettingsService, IDispatcherService dispatcherService)
+    public UnifiedTrackingMutator(ILogger<UnifiedTrackingMutator> logger, ILocalSettingsService localSettingsService, IDispatcherService dispatcherService, IExternalTrackingSource? externalSource = null)
     {
+        _externalSource = externalSource;
         TrackingOutput.Mutator = this;
         _logger = logger;
         _localSettingsService = localSettingsService;
@@ -39,6 +41,8 @@ public sealed partial class UnifiedTrackingMutator : ObservableObject
         {
             _inputBuffer.CopyPropertiesOf(input);
         }
+
+        _externalSource?.Merge(_inputBuffer);
 
         float rawLeft = _inputBuffer.Eye.Left.Openness;
         float rawRight = _inputBuffer.Eye.Right.Openness;

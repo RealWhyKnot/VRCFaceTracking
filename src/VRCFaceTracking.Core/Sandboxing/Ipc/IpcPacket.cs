@@ -19,6 +19,7 @@ public class IpcPacket
         EventLog = 205,
         EventSetVerbose = 206,
         EventSetImageStream = 207,
+        EventCameraControl = 208,
 
         ReplyGetSupported = 300,
         ReplyInit = 301,
@@ -26,6 +27,7 @@ public class IpcPacket
         ReplyTeardown = 303,
 
         DebugStreamFrame = 1000,
+        DebugStreamFrameV2 = 1001,
 
     }
 

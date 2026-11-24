@@ -5,6 +5,7 @@ using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Params.Data;
 using VRCFaceTracking.Core.Sandboxing;
 using VRCFaceTracking.Core.Sandboxing.Ipc;
+using VRCFaceTracking.Core.Types;
 
 namespace VRCFaceTracking.ModuleProcess;
 
@@ -32,6 +33,9 @@ internal sealed partial class ModuleProcessMain
             case IpcPacket.PacketType.EventSetImageStream:
                 ImageStreamEnabled = ((EventSetImageStreamPacket)packet).Enabled;
                 break;
+            case IpcPacket.PacketType.EventCameraControl:
+                CameraControls.Enqueue(((CameraControlPacket)packet).Command, trackingModule as IModuleCameraControl);
+                break;
             case IpcPacket.PacketType.EventUpdateStatus:
                 ApplyStatus((EventStatusUpdatePacket)packet, trackingModule);
                 break;
@@ -47,6 +51,7 @@ internal sealed partial class ModuleProcessMain
             case IpcPacket.PacketType.ReplyUpdate:
             case IpcPacket.PacketType.ReplyTeardown:
             case IpcPacket.PacketType.DebugStreamFrame:
+            case IpcPacket.PacketType.DebugStreamFrameV2:
             default:
                 break;
         }
@@ -98,6 +103,10 @@ internal sealed partial class ModuleProcessMain
     private static void RunUpdateLoop(ExtTrackingModule trackingModule, VrcftSandboxClient client, ILogger fileLogger, CancellationToken cancellationToken)
     {
         var snapshot = new UnifiedTrackingData();
+        var controls = trackingModule as IModuleCameraControl;
+        CameraFrameForwarder? forwarder = trackingModule is ICameraStreamProvider provider
+            ? new CameraFrameForwarder(provider, controls?.SupportedCameraControls ?? CameraControlCapabilities.None, PacketsToSend.Enqueue)
+            : null;
         byte[] scratch = new byte[ReplyUpdatePacket.PayloadSize];
         var timerResolution = new TimerResolutionHold(Logger);
         UpdateLoopDiagnostics? diagnostics = Logger.IsEnabled(LogLevel.Debug) ? new UpdateLoopDiagnostics(Logger) : null;
@@ -106,8 +115,18 @@ internal sealed partial class ModuleProcessMain
         while (!cancellationToken.IsCancellationRequested)
         {
             long t0 = Stopwatch.GetTimestamp();
+            if (controls != null)
+            {
+                CameraControls.Drain(controls);
+            }
+
             trackingModule.Update();
             long t1 = Stopwatch.GetTimestamp();
+
+            if (ImageStreamEnabled && forwarder != null && forwarder.Tick() > 0)
+            {
+                Wakeup.Set();
+            }
 
             using (UnifiedTracking.LockData())
             {
@@ -179,7 +198,7 @@ internal sealed partial class ModuleProcessMain
         }
     }
 
-    private static void QueueImageFrame(Core.Types.Image image, byte kind, Stopwatch timer)
+    private static void QueueImageFrame(Image image, byte kind, Stopwatch timer)
     {
         if (timer.ElapsedMilliseconds < ImageFrameIntervalMs)
         {
@@ -197,7 +216,7 @@ internal sealed partial class ModuleProcessMain
         }
 
         timer.Restart();
-        PacketsToSend.Enqueue(new ImageFrameUpdatePacket(kind, x, y, (byte[])data.Clone()));
+        PacketsToSend.Enqueue(new EncodedIpcPacket(IpcPacket.PacketType.DebugStreamFrame, new ImageFrameUpdatePacket(kind, x, y, data).GetBytes()));
         Wakeup.Set();
     }
 

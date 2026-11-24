@@ -20,6 +20,9 @@ public sealed class SignalCapabilityTracker
     private long _lastPublish;
     private long _version;
     private SignalCapabilitySnapshot _snapshot = SignalCapabilitySnapshot.Empty;
+    private bool[]? _external;
+    private bool _externalEyeLeft;
+    private bool _externalEyeRight;
 
     public static SignalCapabilityTracker Shared { get; } = new();
 
@@ -60,6 +63,21 @@ public sealed class SignalCapabilityTracker
         }
     }
 
+    public void SetExternal(bool[] shapes, bool eyeLeft, bool eyeRight)
+    {
+        SignalCapabilitySnapshot published;
+        lock (_gate)
+        {
+            _external = shapes;
+            _externalEyeLeft = eyeLeft;
+            _externalEyeRight = eyeRight;
+            published = _windowStart == 0 ? EmptySnapshot() : Build();
+            Volatile.Write(ref _snapshot, published);
+        }
+
+        Published?.Invoke(this, new SignalCapabilityEventArgs(published));
+    }
+
     public void Reset()
     {
         SignalCapabilitySnapshot empty;
@@ -70,12 +88,15 @@ public sealed class SignalCapabilityTracker
             _current = 0;
             _windowStart = 0;
             _lastPublish = 0;
-            empty = new SignalCapabilitySnapshot(new bool[ShapeCount], eyeLeftLive: false, eyeRightLive: false, DefaultOpenness, DefaultOpenness, sampleCount: 0, ++_version);
+            empty = EmptySnapshot();
             Volatile.Write(ref _snapshot, empty);
         }
 
         Published?.Invoke(this, new SignalCapabilityEventArgs(empty));
     }
+
+    private SignalCapabilitySnapshot EmptySnapshot() =>
+        new(new bool[ShapeCount], eyeLeftLive: false, eyeRightLive: false, DefaultOpenness, DefaultOpenness, sampleCount: 0, ++_version, _external, _externalEyeLeft, _externalEyeRight);
 
     private SignalCapabilitySnapshot Build()
     {
@@ -96,7 +117,10 @@ public sealed class SignalCapabilityTracker
             Resting(current, previous, left),
             Resting(current, previous, right),
             current.Samples + previous.Samples,
-            ++_version);
+            ++_version,
+            _external,
+            _externalEyeLeft,
+            _externalEyeRight);
     }
 
     private static bool Moved(ShapeStats stats, int channel) => stats.Count(channel) > 0 && !stats.IsZero(channel);

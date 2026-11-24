@@ -9,8 +9,10 @@ using VRCFaceTracking.Core;
 using VRCFaceTracking.Core.Contracts;
 using VRCFaceTracking.Core.Contracts.Services;
 using VRCFaceTracking.Core.Logging;
+using VRCFaceTracking.Core.Services;
 using VRCFaceTracking.Core.Updates;
 using VRCFaceTracking.Core.Validation;
+using VRCFaceTracking.Helpers;
 using VRCFaceTracking.Models;
 using VRCFaceTracking.Services;
 
@@ -28,6 +30,7 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
     private readonly UpdateSettings _updateSettings;
     private readonly UpdateService _updateService;
     private readonly OpenVRService _openVRService;
+    private readonly ExternalOscInputService _externalOsc;
 
     [ObservableProperty] private List<GithubContributor> _contributors = [];
 
@@ -50,6 +53,33 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
     {
         get;
     }
+
+    public OscFieldViewModel ExternalOscPortField
+    {
+        get;
+    }
+
+    public bool ExternalOscEnabled
+    {
+        get => _externalOsc.Settings.Enabled;
+        set
+        {
+            if (value == _externalOsc.Settings.Enabled)
+            {
+                return;
+            }
+
+            _externalOsc.Settings.Enabled = value;
+            _externalOsc.Apply();
+            _ = _externalOsc.SaveAsync(CancellationToken.None);
+            OnPropertyChanged();
+            RefreshExternalOsc();
+        }
+    }
+
+    public string ExternalOscStatusText { get; private set; } = string.Empty;
+
+    public bool HasExternalOscStatus => ExternalOscStatusText.Length > 0;
 
     public static bool IsStartupVisible => IsOpenVRSupported || IsUpdateCheckAvailable;
     public DeveloperSettings Developer
@@ -200,7 +230,8 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         LogLevelGate logGate,
         ILocalSettingsService localSettingsService,
         UpdateSettings updateSettings,
-        UpdateService updateService)
+        UpdateService updateService,
+        ExternalOscInputService externalOsc)
     {
         _openVRService = openVRService;
         Developer = developerSettings;
@@ -211,11 +242,14 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         _localSettingsService = localSettingsService;
         _updateSettings = updateSettings;
         _updateService = updateService;
+        _externalOsc = externalOsc;
 
         InPortField = new OscFieldViewModel(() => OscTarget.InPort.ToString(CultureInfo.CurrentCulture), text => ApplyPort(text, value => OscTarget.InPort = value));
         OutPortField = new OscFieldViewModel(() => OscTarget.OutPort.ToString(CultureInfo.CurrentCulture), text => ApplyPort(text, value => OscTarget.OutPort = value));
         AddressField = new OscFieldViewModel(() => OscTarget.DestinationAddress ?? string.Empty, ApplyAddress);
+        ExternalOscPortField = new OscFieldViewModel(() => _externalOsc.Settings.Port.ToString(CultureInfo.CurrentCulture), ApplyExternalPort);
         OscTarget.PropertyChanged += OnOscTargetChanged;
+        RefreshExternalOsc();
 
         OpenLogsCommand = new RelayCommand(() =>
         {
@@ -234,6 +268,54 @@ internal sealed partial class SettingsViewModel : ObservableRecipient
         InPortField.Reload();
         OutPortField.Reload();
         AddressField.Reload();
+        ExternalOscPortField.Reload();
+        OnPropertyChanged(nameof(ExternalOscEnabled));
+        RefreshExternalOsc();
+    }
+
+    public void RefreshExternalOsc()
+    {
+        ExternalOscStatus status = _externalOsc.Status;
+        string text = status.State switch
+        {
+            ExternalOscState.Listening => TrackingText.Format(Strings.Resources.ExternalOsc_Listening, _externalOsc.Settings.Port),
+            ExternalOscState.Receiving => TrackingText.Format(Strings.Resources.ExternalOsc_Receiving, status.PacketsPerSecond),
+            ExternalOscState.Error => Strings.Resources.ExternalOsc_Unavailable,
+            ExternalOscState.Disabled => string.Empty,
+            _ => string.Empty,
+        };
+        if (string.Equals(text, ExternalOscStatusText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        bool had = HasExternalOscStatus;
+        ExternalOscStatusText = text;
+        OnPropertyChanged(nameof(ExternalOscStatusText));
+        if (had != HasExternalOscStatus)
+        {
+            OnPropertyChanged(nameof(HasExternalOscStatus));
+        }
+    }
+
+    private string? ApplyExternalPort(string text)
+    {
+        if (!int.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int port))
+        {
+            return Strings.Resources.Settings_Port_Error;
+        }
+
+        ExternalOscPortCheck check = ExternalOscInputSettings.Check(port, OscTarget);
+        if (check != ExternalOscPortCheck.Valid)
+        {
+            return check == ExternalOscPortCheck.OutOfRange ? Strings.Resources.Settings_Port_Error : Strings.Resources.ExternalOsc_PortConflict;
+        }
+
+        _externalOsc.Settings.Port = port;
+        _externalOsc.Apply();
+        _ = _externalOsc.SaveAsync(CancellationToken.None);
+        RefreshExternalOsc();
+        return null;
     }
 
     private static string? ApplyPort(string text, Action<int> commit)

@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VRCFaceTracking.Contracts;
@@ -15,6 +16,7 @@ internal sealed partial class SettingsPage : UserControl, INotifyNavigated
 {
     private SettingsViewModel ViewModel => (SettingsViewModel)DataContext!;
 
+    private readonly DispatcherTimer _statusTimer;
     private bool _applyingTheme;
 
     public SettingsPage()
@@ -22,10 +24,15 @@ internal sealed partial class SettingsPage : UserControl, INotifyNavigated
         InitializeComponent();
         DataContext = Ioc.Default.GetRequiredService<SettingsViewModel>();
         SyncThemeCombo();
+        _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _statusTimer.Tick += (_, _) => ViewModel.RefreshExternalOsc();
     }
+
+    public void OnNavigatedFrom() => _statusTimer.Stop();
 
     public void OnNavigatedTo()
     {
+        _statusTimer.Start();
         SyncThemeCombo();
         ViewModel.ReloadOscFields();
         ViewModel.RefreshOpenVrState();

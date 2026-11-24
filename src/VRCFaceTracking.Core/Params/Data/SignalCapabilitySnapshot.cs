@@ -7,12 +7,16 @@ public sealed class SignalCapabilitySnapshot
     private const int ShapeCount = (int)UnifiedExpressions.Max;
 
     private readonly bool[] _live;
+    private readonly bool[] _module;
 
-    internal SignalCapabilitySnapshot(bool[] live, bool eyeLeftLive, bool eyeRightLive, float eyeRestLeft, float eyeRestRight, int sampleCount, long version)
+    internal SignalCapabilitySnapshot(bool[] live, bool eyeLeftLive, bool eyeRightLive, float eyeRestLeft, float eyeRestRight, int sampleCount, long version, bool[]? externalLive = null, bool externalEyeLeft = false, bool externalEyeRight = false)
     {
-        _live = live;
-        EyeLeftLive = eyeLeftLive;
-        EyeRightLive = eyeRightLive;
+        _module = live;
+        _live = externalLive is null ? live : Combine(live, externalLive);
+        ModuleEyeLeftLive = eyeLeftLive;
+        ModuleEyeRightLive = eyeRightLive;
+        EyeLeftLive = eyeLeftLive || externalEyeLeft;
+        EyeRightLive = eyeRightLive || externalEyeRight;
         EyeRestLeft = eyeRestLeft;
         EyeRestRight = eyeRestRight;
         SampleCount = sampleCount;
@@ -26,6 +30,10 @@ public sealed class SignalCapabilitySnapshot
     public int SampleCount { get; }
 
     public bool HasData => SampleCount > 0;
+
+    public bool ModuleEyeLeftLive { get; }
+
+    public bool ModuleEyeRightLive { get; }
 
     public bool EyeLeftLive { get; }
 
@@ -60,10 +68,27 @@ public sealed class SignalCapabilitySnapshot
         return (uint)index < (uint)_live.Length && _live[index];
     }
 
+    public bool IsModuleLive(UnifiedExpressions shape)
+    {
+        int index = (int)shape;
+        return (uint)index < (uint)_module.Length && _module[index];
+    }
+
     public bool IsLive(UnifiedExpressions left, UnifiedExpressions right) => IsLive(left) || IsLive(right);
 
     public bool SameLiveSet(SignalCapabilitySnapshot other) =>
         EyeLeftLive == other.EyeLeftLive
         && EyeRightLive == other.EyeRightLive
         && _live.AsSpan().SequenceEqual(other._live);
+
+    private static bool[] Combine(bool[] module, bool[] external)
+    {
+        bool[] combined = new bool[module.Length];
+        for (int i = 0; i < combined.Length; i++)
+        {
+            combined[i] = module[i] || (i < external.Length && external[i]);
+        }
+
+        return combined;
+    }
 }

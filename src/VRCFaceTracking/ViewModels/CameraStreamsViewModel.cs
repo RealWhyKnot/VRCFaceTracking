@@ -1,6 +1,9 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using VRCFaceTracking.Core.Library;
+using VRCFaceTracking.Core.Types;
 using VRCFaceTracking.Strings;
 
 namespace VRCFaceTracking.ViewModels;
@@ -8,6 +11,10 @@ namespace VRCFaceTracking.ViewModels;
 internal sealed partial class CameraStreamsViewModel : ObservableObject
 {
     private static readonly PropertyChangedEventArgs HasCamerasArgs = new(nameof(HasCameras));
+
+    private readonly Func<Guid, CameraControlCommand, bool> _send;
+    private readonly TimeProvider _time;
+    private readonly Dictionary<string, long> _expired = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BlurButtonText))]
@@ -17,41 +24,53 @@ internal sealed partial class CameraStreamsViewModel : ObservableObject
 
     [ObservableProperty] private bool _isFrozen;
 
-    partial void OnIsBlurredChanged(bool value)
+    public CameraStreamsViewModel(Func<Guid, CameraControlCommand, bool>? send = null, TimeProvider? time = null)
     {
-        Eye.IsBlurred = value;
-        Lip.IsBlurred = value;
+        _send = send ?? ((_, _) => false);
+        _time = time ?? TimeProvider.System;
     }
 
-    partial void OnShowGuidesChanged(bool value)
-    {
-        Eye.ShowGuides = value;
-        Lip.ShowGuides = value;
-    }
+    public ObservableCollection<CameraStreamViewModel> Streams { get; } = [];
 
-    public CameraStreamsViewModel(TimeProvider? time = null)
-    {
-        TimeProvider provider = time ?? TimeProvider.System;
-        Eye = new CameraStreamViewModel(Resources.CameraStreamsEye, provider);
-        Lip = new CameraStreamViewModel(Resources.CameraStreamsLip, provider);
-    }
-
-    public CameraStreamViewModel Eye { get; }
-
-    public CameraStreamViewModel Lip { get; }
-
-    public bool HasCameras { get; private set; }
+    public bool HasCameras => Streams.Count > 0;
 
     public string BlurButtonText => IsBlurred ? Resources.Camera_Show : Resources.Camera_Blur;
 
-    public void Refresh(Core.Types.Image? eye, Core.Types.Image? lip)
+    public void Refresh(IReadOnlyList<CameraStreamSnapshot> snapshots)
     {
-        bool hasEye = Eye.Update(eye, IsFrozen);
-        bool hasLip = Lip.Update(lip, IsFrozen);
-        bool has = hasEye || hasLip;
-        if (has != HasCameras)
+        bool had = HasCameras;
+        HashSet<string> live = [];
+        foreach (CameraStreamSnapshot snapshot in snapshots.Take(CameraStreamRegistry.MaxStreams))
         {
-            HasCameras = has;
+            string key = CameraStreamViewModel.KeyOf(snapshot.ModuleId, snapshot.StreamId);
+            live.Add(key);
+            if (_expired.TryGetValue(key, out long dead) && snapshot.Sequence <= dead)
+            {
+                continue;
+            }
+
+            CameraStreamViewModel? stream = Streams.FirstOrDefault(s => s.Matches(snapshot));
+            if (stream == null)
+            {
+                if (Streams.Count >= CameraStreamRegistry.MaxStreams)
+                {
+                    continue;
+                }
+
+                stream = new CameraStreamViewModel(snapshot, _send, _time) { IsBlurred = IsBlurred, ShowGuides = ShowGuides };
+                Streams.Add(stream);
+            }
+
+            if (!stream.Update(snapshot, IsFrozen))
+            {
+                _expired[key] = Math.Max(snapshot.Sequence, stream.LastSequence);
+                Streams.Remove(stream);
+            }
+        }
+
+        RemoveMissing(live);
+        if (had != HasCameras)
+        {
             OnPropertyChanged(HasCamerasArgs);
         }
     }
@@ -60,12 +79,47 @@ internal sealed partial class CameraStreamsViewModel : ObservableObject
     {
         IsBlurred = true;
         IsFrozen = false;
-        Eye.Clear();
-        Lip.Clear();
-        if (HasCameras)
+        foreach (CameraStreamViewModel stream in Streams)
         {
-            HasCameras = false;
-            OnPropertyChanged(HasCamerasArgs);
+            stream.Clear();
+        }
+
+        Streams.Clear();
+        _expired.Clear();
+        OnPropertyChanged(HasCamerasArgs);
+    }
+
+    partial void OnIsBlurredChanged(bool value)
+    {
+        foreach (CameraStreamViewModel stream in Streams)
+        {
+            stream.IsBlurred = value;
+        }
+    }
+
+    partial void OnShowGuidesChanged(bool value)
+    {
+        foreach (CameraStreamViewModel stream in Streams)
+        {
+            stream.ShowGuides = value;
+        }
+    }
+
+    private void RemoveMissing(HashSet<string> live)
+    {
+        for (int i = Streams.Count - 1; i >= 0; i--)
+        {
+            CameraStreamViewModel stream = Streams[i];
+            if (!live.Contains(CameraStreamViewModel.KeyOf(stream.ModuleId, stream.StreamId)))
+            {
+                stream.Clear();
+                Streams.RemoveAt(i);
+            }
+        }
+
+        foreach (string key in _expired.Keys.Where(k => !live.Contains(k)).ToList())
+        {
+            _expired.Remove(key);
         }
     }
 

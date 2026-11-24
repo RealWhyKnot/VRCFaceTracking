@@ -65,6 +65,10 @@ internal static class ServiceCollectionExtensions
         services.AddSingleton<HttpHandler>();
         services.AddSingleton<OscSendService>();
         services.AddSingleton<OscRecvService>();
+        services.AddSingleton<ExternalOscInputSettings>();
+        services.AddSingleton<ExternalOscInputService>();
+        services.AddSingleton<IExternalTrackingSource>(sp => sp.GetRequiredService<ExternalOscInputService>());
+        services.AddSingleton<ExternalTrackerDetector>();
         services.AddSingleton<ParameterSenderService>();
         services.AddSingleton<BinaryFaceDataSender>();
         services.AddSingleton<UnifiedTrackingMutator>();
