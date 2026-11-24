@@ -51,14 +51,6 @@ echo "pre-push: style_check.py..." >&2
 "${python_bin}" -B .github/lint/style_check.py || die "style_check.py failed."
 
 echo "pre-push: shell checks..." >&2
-if command -v shellcheck >/dev/null 2>&1 && command -v shfmt >/dev/null 2>&1; then
-  bash .githooks/check-shell || die "shell checks failed."
-elif [[ ${OSTYPE} == msys* || ${OSTYPE} == cygwin* ]]; then
-  windows_root=$(pwd -W)
-  MSYS_NO_PATHCONV=1 timeout 180 wsl --distribution "${LINT_WSL_DISTRO:?}" \
-    --cd "${windows_root}" -- bash .githooks/check-shell || die "shell checks failed."
-else
-  bash .githooks/check-shell || die "shell checks failed."
-fi
+bash .githooks/check-shell || die "shell checks failed."
 
 echo "pre-push: checks passed." >&2
