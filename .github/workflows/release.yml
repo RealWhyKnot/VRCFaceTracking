@@ -436,7 +436,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [validate, prepare, build, smoke, notes]
-    if: always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    if: always() && needs.notes.result != 'success'
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.validate.outputs.tag || inputs.tag || github.ref_name }}
